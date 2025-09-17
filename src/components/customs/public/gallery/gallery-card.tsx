@@ -2,6 +2,7 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Camera } from 'lucide-react';
+import Image from 'next/image';
 
 export interface GalleryCardProps {
   image: {
@@ -28,7 +29,9 @@ export function GalleryCard({ image, onClick, viewMode }: GalleryCardProps) {
         "overflow-hidden",
         viewMode === 'grid' ? "aspect-square" : "aspect-auto"
       )}>
-        <img
+        <Image
+          width={100}
+          height={100}
           src={image.src}
           alt={image.alt}
           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"

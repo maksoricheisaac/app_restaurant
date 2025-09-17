@@ -36,7 +36,7 @@ export const getPublicMenu = actionClient
     try {
       const { search, categoryId, sortBy, sortOrder } = parsedInput;
 
-      const where: any = {};
+      const where: Record<string, unknown> = {};
       
       if (search && search.trim().length > 0) {
         const searchTerm = search.trim();

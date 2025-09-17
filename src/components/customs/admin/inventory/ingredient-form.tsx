@@ -7,28 +7,29 @@ import { z } from "zod";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Loader2 } from "lucide-react";
 
-import type { Ingredient, IngredientFormData } from "@/types/inventory";
+import type { Ingredient } from "@/types/inventory";
 
 const ingredientFormSchema = z.object({
   name: z.string().min(1, "Le nom de l'ingrédient est requis"),
   unit: z.string().min(1, "L'unité est requise"),
-  price: z.number().positive("Le prix doit être positif"),
-  stock: z.number().min(0, "Le stock ne peut pas être négatif"),
-  minStock: z.number().min(0, "Le stock minimum ne peut pas être négatif").optional(),
-  supplier: z.string().optional(),
-  isActive: z.boolean().default(true),
+  price: z.coerce.number().positive("Le prix doit être positif"),
+  stock: z.coerce.number().min(0, "Le stock ne peut pas être négatif"),
+  minStock: z.coerce.number().min(0, "Le stock minimum ne peut pas être négatif").optional().nullable(),
+  supplier: z.string().optional().nullable(),
+  isActive: z.boolean(),
 });
+
+type IngredientFormValues = z.infer<typeof ingredientFormSchema>;
 
 interface IngredientFormProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   selectedIngredient?: Ingredient | null;
-  onSubmit: (data: IngredientFormData) => void;
+  onSubmit: (data: IngredientFormValues) => void;
   isLoading: boolean;
 }
 
@@ -41,7 +42,7 @@ export function IngredientForm({
 }: IngredientFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const form = useForm<IngredientFormData>({
+  const form = useForm<IngredientFormValues>({
     resolver: zodResolver(ingredientFormSchema),
     defaultValues: {
       name: "",
@@ -61,8 +62,8 @@ export function IngredientForm({
         unit: selectedIngredient.unit,
         price: selectedIngredient.price,
         stock: selectedIngredient.stock,
-        minStock: selectedIngredient.minStock || undefined,
-        supplier: selectedIngredient.supplier || "",
+        minStock: selectedIngredient.minStock ?? undefined,
+        supplier: selectedIngredient.supplier ?? "",
         isActive: selectedIngredient.isActive,
       });
     } else {
@@ -78,7 +79,7 @@ export function IngredientForm({
     }
   }, [selectedIngredient, form]);
 
-  const handleSubmit = async (data: IngredientFormData) => {
+  const handleSubmit = async (data: IngredientFormValues) => {
     setIsSubmitting(true);
     try {
       await onSubmit(data);
@@ -97,7 +98,7 @@ export function IngredientForm({
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>
-            {selectedIngredient ? "Modifier l'ingrédient" : "Nouvel ingrédient"}
+            {selectedIngredient ? "Modifier l&apos;ingrédient" : "Nouvel ingrédient"}
           </DialogTitle>
         </DialogHeader>
 
@@ -109,7 +110,7 @@ export function IngredientForm({
                 name="name"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Nom de l'ingrédient *</FormLabel>
+                    <FormLabel>Nom de l&apos;ingrédient *</FormLabel>
                     <FormControl>
                       <Input placeholder="Ex: Tomates" {...field} />
                     </FormControl>
@@ -144,7 +145,6 @@ export function IngredientForm({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -164,7 +164,6 @@ export function IngredientForm({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
                       />
                     </FormControl>
                     <FormMessage />
@@ -184,7 +183,7 @@ export function IngredientForm({
                         step="0.01"
                         placeholder="0.00"
                         {...field}
-                        onChange={(e) => field.onChange(parseFloat(e.target.value) || undefined)}
+                        value={field.value ?? ''}
                       />
                     </FormControl>
                     <FormMessage />
@@ -199,7 +198,11 @@ export function IngredientForm({
                   <FormItem>
                     <FormLabel>Fournisseur</FormLabel>
                     <FormControl>
-                      <Input placeholder="Ex: Fournisseur ABC" {...field} />
+                      <Input 
+                        placeholder="Ex: Fournisseur ABC" 
+                        {...field} 
+                        value={field.value ?? ''} 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -215,7 +218,7 @@ export function IngredientForm({
                   <div className="space-y-0.5">
                     <FormLabel className="text-base">Ingrédient actif</FormLabel>
                     <div className="text-sm text-muted-foreground">
-                      L'ingrédient est disponible pour les recettes
+                      L&apos;ingrédient est disponible pour les recettes
                     </div>
                   </div>
                   <FormControl>

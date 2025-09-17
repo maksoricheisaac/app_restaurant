@@ -80,7 +80,7 @@ export default function Menu() {
     queryKey: ['menu-items', debouncedSearchTerm, selectedCategory, sortBy, sortOrder],
     queryFn: () => {
       const categoryId = selectedCategory !== 'Tous' 
-        ? categories?.data.find((cat: any) => cat.name === selectedCategory)?.id // ✅ Correction : accéder directement aux catégories
+        ? categories?.data.find((cat) => cat.name === selectedCategory)?.id // ✅ Correction : accéder directement aux catégories
         : undefined;
       
       return fetchMenu({
@@ -99,7 +99,7 @@ export default function Menu() {
   const availableCategories = useMemo(() => {
     if (!categories) return ['Tous'];
     
-    return ['Tous', ...categories.data.map((cat: any) => cat.name)]; // ✅ Correction : accéder directement aux catégories
+    return ['Tous', ...categories.data.map((cat) => cat.name)]; // ✅ Correction : accéder directement aux catégories
   }, [categories]);
 
   const formatPrice = useCallback((price: number) => {

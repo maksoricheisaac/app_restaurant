@@ -35,10 +35,13 @@ export const createCustomer = actionClient
       const customer = await prisma.user.create({
         data: {
           ...parsedInput,
-          role: "user",
-          emailVerified: false,
           id: crypto.randomUUID(),
-        } as any,
+          emailVerified: false,
+          role: "user",
+          status: "active",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
         include: {
           _count: {
             select: { orders: true },

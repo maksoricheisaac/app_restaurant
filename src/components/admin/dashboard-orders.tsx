@@ -1,14 +1,20 @@
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Clock, LayoutGrid, Table2, ShoppingCart, ChevronRight } from "lucide-react";
+import { Clock, LayoutGrid, Table2, ShoppingCart } from "lucide-react";
 import { Pagination } from "@/components/ui/pagination";
 import React from "react";
 import { OrdersCardsView } from "./orders-cards-view";
 import { OrdersTableView } from "./orders-tables-views";
 
 interface DashboardOrdersProps {
-  ordersData: any;
+  ordersData: {
+    data?: {
+      orders?: unknown[];
+      pagination?: {
+        totalPages?: number;
+      };
+    };
+  };
   isLoadingOrders: boolean;
   viewMode: 'cards' | 'table';
   setViewMode: (mode: 'cards' | 'table') => void;

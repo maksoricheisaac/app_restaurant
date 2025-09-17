@@ -1,12 +1,29 @@
 import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ChevronRight, User, CalendarDays, ShoppingCart, CreditCard, Hash, Printer, XCircle, RefreshCcw } from "lucide-react";
+import { ChevronRight, User, CalendarDays, CreditCard, Hash, Printer, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import React from "react";
 
 interface OrderCardProps {
-  order: any;
+  order: {
+    id?: string;
+    status?: string;
+    type?: string;
+    total?: number;
+    createdAt?: string;
+    user?: {
+      name?: string;
+    };
+    customer?: {
+      name?: string;
+      email?: string;
+      phone?: string;
+    };
+    orderItems?: unknown[];
+    items?: unknown[];
+    paymentMethod?: string;
+  };
   getStatusBadgeColor: (status: string) => string;
 }
 

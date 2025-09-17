@@ -4,6 +4,7 @@ import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { Prisma } from "@/generated/prisma";
 
 // Schema for message validation
 const messageSchema = z.object({
@@ -188,7 +189,7 @@ export const getMessagesWithFilters = actionClient
       const skip = (page - 1) * limit;
 
       // Construire les filtres
-      const where: any = {};
+      const where: Prisma.MessageWhereInput = {};
       
       if (search) {
         where.OR = [

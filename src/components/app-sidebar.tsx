@@ -3,10 +3,7 @@ import {
   ArrowUpCircleIcon,
   BarChartIcon,
   CameraIcon,
-  ClipboardListIcon,
-  DatabaseIcon,
   FileCodeIcon,
-  FileIcon,
   FileTextIcon,
   FolderIcon,
   HelpCircleIcon,
@@ -16,8 +13,6 @@ import {
   SettingsIcon,
   UsersIcon,
 } from "lucide-react"
-
-import { NavDocuments } from "@/components/nav-documents"
 import { NavMain } from "@/components/nav-main"
 
 import { NavUser } from "@/components/nav-user"

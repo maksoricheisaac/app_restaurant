@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, Package, TrendingUp } from "lucide-react";
+import { Plus, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface InventoryHeaderProps {

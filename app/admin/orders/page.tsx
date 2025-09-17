@@ -54,7 +54,7 @@ const formSchema = z.object({
   phone: z.string().optional(),
   items: z.array(orderItemSchema).min(1, "La commande doit avoir au moins un article"),
   total: z.number().min(0, "Le total doit être positif"),
-  status: z.enum(["pending", "preparing", "ready", "served", "completed", "paid", "cancelled"]),
+  status: z.enum(["pending", "preparing", "ready", "served", "cancelled"]),
   type: z.enum(["dine_in", "takeaway", "delivery"]),
   time: z.string(),
   date: z.date(),
@@ -81,8 +81,6 @@ const statusColors = {
   preparing: "bg-blue-500",
   ready: "bg-indigo-500",
   served: "bg-orange-500",
-  completed: "bg-emerald-600",
-  paid: "bg-green-500",
   cancelled: "bg-red-500",
 } as const;
 
@@ -97,8 +95,6 @@ const statusLabels = {
   preparing: "En préparation",
   ready: "Prête",
   served: "Servie",
-  completed: "Terminée",
-  paid: "Payée",
   cancelled: "Annulée",
 } as const;
 
@@ -141,7 +137,7 @@ const formatCurrency = (amount: number) => {
 
 export default function OrdersPage() {
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"pending" | "preparing" | "ready" | "completed" | "cancelled" | undefined>();
+  const [status, setStatus] = useState<"pending" | "preparing" | "ready" | "served" | "cancelled" | undefined>();
   const [type, setType] = useState<"dine_in" | "takeaway" | "delivery" | undefined>();
   
   // Initialiser avec la date du jour

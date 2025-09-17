@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import { Label } from "../ui/label"
 
 const orderItemSchema = z.object({
   name: z.string().min(1),
@@ -63,7 +63,7 @@ export default function OrderForm({
     },
   })
 
-  const { fields, append, remove, update } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control: form.control,
     name: "items",
   })
@@ -85,33 +85,41 @@ export default function OrderForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm">Client existant</label>
-              <select className="w-full mt-1" {...form.register("customerId") as any}>
-                <option value="">Sélectionner un client</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+              <Label className="text-sm">Client existant</Label>
+              <Select defaultValue={form.register("customerId") as any} onValueChange={v => form.setValue("customerId", v as any)}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Client existant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {customers.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
-              <label className="text-sm">Table</label>
-              <select className="w-full mt-1" {...form.register("tableId") as any}>
-                <option value="">Sélectionner une table</option>
-                {tables.map(t => (
-                  <option key={t.id} value={t.id}>Table {t.number}</option>
-                ))}
-              </select>
+              <Label className="text-sm">Table</Label>
+              <Select defaultValue={form.register("tableId") as any} onValueChange={v => form.setValue("tableId", v as any)}>
+                <SelectTrigger className="w-full mt-1">
+                  <SelectValue placeholder="Table" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tables.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.number}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm">Nom du client</label>
+              <Label className="text-sm">Nom du client</Label>
               <Input {...form.register("name") as any} placeholder="Nom complet" />
             </div>
             <div>
-              <label className="text-sm">Type</label>
+              <Label className="text-sm">Type</Label>
               <Select defaultValue={form.getValues("type") as any} onValueChange={v => form.setValue("type", v as any)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Type" />
@@ -127,28 +135,28 @@ export default function OrderForm({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm">Email</label>
+              <Label className="text-sm">Email</Label>
               <Input {...form.register("email") as any} placeholder="email@exemple.com" />
             </div>
             <div>
-              <label className="text-sm">Date</label>
+              <Label className="text-sm">Date</Label>
               <Input type="date" {...form.register("date") as any} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm">Téléphone</label>
+              <Label className="text-sm">Téléphone</Label>
               <Input {...form.register("phone") as any} placeholder="06.12.34.56.78" />
             </div>
             <div>
-              <label className="text-sm">Heure</label>
+              <Label className="text-sm">Heure</Label>
               <Input type="time" {...form.register("time") as any} />
             </div>
           </div>
 
           <div>
-            <label className="text-sm">Notes</label>
+            <Label className="text-sm">Notes</Label>
             <Textarea {...form.register("notes") as any} placeholder="Instructions spéciales, allergies, etc." />
           </div>
         </div>

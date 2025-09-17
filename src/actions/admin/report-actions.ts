@@ -14,7 +14,6 @@ import {
   endOfYear,
   format,
   eachDayOfInterval,
-  eachWeekOfInterval,
   eachMonthOfInterval,
   eachHourOfInterval
 } from "date-fns";
@@ -60,19 +59,7 @@ export const calculateMetrics = actionClient
 
      
 
-      // D'abord, vérifier toutes les commandes de la période
-      const allOrders = await prisma.order.findMany({
-        where: {
-          createdAt: {
-            gte: startDate,
-            lte: endDate,
-          },
-        },
-        include: {
-          user: true,
-          orderItems: true,
-        },
-      });
+    
 
 
       // Récupérer les commandes de la période (inclure tous les statuts pour l'instant)

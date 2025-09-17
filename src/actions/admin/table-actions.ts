@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 
+
 // Schema for table validation
 const tableSchema = z.object({
   number: z.number().int().positive("Le numéro de table doit être positif"),
@@ -37,7 +38,7 @@ export const getTables = actionClient
       } = parsedInput;
 
       // Build Prisma filters
-      const where: Record<string, any> = {};
+      const where: Record<string, unknown> = {};
       if (search) {
         where.OR = [
           { number: { equals: Number(search) } },

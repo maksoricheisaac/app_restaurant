@@ -23,6 +23,17 @@ interface TransactionsTableProps {
   formatCurrency: (amount: number) => string;
 }
 
+interface Transaction {
+  id: string;
+  createdAt: string; // ou Date si tu parsages
+  type: TransactionType;
+  amount: number;
+  method: PaymentMethod;
+  description?: string;
+  cashier: { name: string };
+  order?: { id: string };
+}
+
 export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +49,10 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
   });
   const [exporting, setExporting] = useState(false);
 
-  const fetchTransactions = async () => {
+  
+
+  useEffect(() => {
+    const fetchTransactions = async () => {
     try {
       setLoading(true);
       const result = await getTransactions({        
@@ -60,8 +74,6 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
     fetchTransactions();
   }, [currentPage, filters]);
 

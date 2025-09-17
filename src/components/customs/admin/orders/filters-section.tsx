@@ -1,6 +1,4 @@
 import { Search, CalendarIcon, AlertCircle, RotateCcw } from "lucide-react";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -58,18 +56,6 @@ export function FiltersSection({
 }: FiltersProps) {
   const [dateError, setDateError] = useState<string | undefined>();
 
-  const handleDateRangeChange = (range: { from: Date | undefined; to: Date | undefined } | undefined) => {
-    if (range) {
-      const validation = validateDateRange(range.from, range.to);
-      if (validation.isValid) {
-        if (range.from) setStartDate(range.from);
-        if (range.to) setEndDate(range.to);
-        setDateError(undefined);
-      } else {
-        setDateError(validation.error);
-      }
-    }
-  };
 
   const resetToToday = () => {
     const today = new Date();
@@ -100,7 +86,7 @@ export function FiltersSection({
           </div>
           <Select
             value={status ?? "all"}
-            onValueChange={v => setStatus(v === "all" ? undefined : v as any)}
+            onValueChange={v => setStatus(v === "all" ? undefined : v as "pending" | "preparing" | "ready" | "served" | "cancelled")}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Tous les statuts" />
@@ -116,7 +102,7 @@ export function FiltersSection({
           </Select>
           <Select
             value={type ?? "all"}
-            onValueChange={v => setType(v === "all" ? undefined : v as any)}
+            onValueChange={v => setType(v === "all" ? undefined : v as "dine_in" | "takeaway" | "delivery")}
           >
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Tous les types" />
@@ -165,7 +151,7 @@ export function FiltersSection({
             className="flex items-center gap-2"
           >
             <RotateCcw className="h-4 w-4" />
-            Aujourd'hui
+            Aujourd&apos;hui
           </Button>
           <Select
             value={sort}

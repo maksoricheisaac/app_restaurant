@@ -1,9 +1,9 @@
 import React from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { OrderTableRow } from "./oder-table-row";
 
 interface OrdersTableViewProps {
-  orders: any[];
+  orders: unknown[];
   getStatusBadgeColor: (status: string) => string;
 }
 
@@ -22,7 +22,7 @@ export const OrdersTableView: React.FC<OrdersTableViewProps> = ({ orders, getSta
       </TableHeader>
       <TableBody>
         {orders.map((order) => (
-          <OrderTableRow key={order.id} order={order} getStatusBadgeColor={getStatusBadgeColor} />
+          <OrderTableRow key={(order as any).id} order={order as any} getStatusBadgeColor={getStatusBadgeColor} />
         ))}
       </TableBody>
     </Table>

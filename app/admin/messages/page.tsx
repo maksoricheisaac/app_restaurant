@@ -25,7 +25,7 @@ type FilterStatus = MessageStatus | 'all';
 type SortOrder = 'newest' | 'oldest';
 type PeriodFilter = 'today' | 'week' | 'month' | 'all';
 
-const fetchMessagesByPeriod = async({ period, date }: { period: PeriodFilter, date?: string }) => {
+const fetchMessagesByPeriod = async({ }: { period: PeriodFilter, date?: string }) => {
   // TODO: Implémenter getMessagesByPeriod ou utiliser une autre action
   throw new Error("getMessagesByPeriod n'est pas encore implémenté");
 };

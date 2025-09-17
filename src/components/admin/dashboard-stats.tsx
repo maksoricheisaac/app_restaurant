@@ -1,9 +1,15 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { ShoppingCart, DollarSign, Users, Calendar } from "lucide-react";
+import { ShoppingCart, DollarSign, Users } from "lucide-react";
 import React from "react";
 
 interface DashboardStatsProps {
-  statsData: any;
+  statsData: {
+    data?: {
+      totalOrders?: number;
+      totalRevenue?: number;
+      totalCustomers?: number;
+    };
+  };
   isLoadingStats: boolean;
 }
 
@@ -13,7 +19,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ statsData, isLoa
       <CardContent className="pt-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-500">Commandes aujourd'hui</p>
+            <p className="text-sm font-medium text-gray-500">Commandes aujourd&apos;hui</p>
             <p className="text-2xl font-bold text-gray-900">
               {isLoadingStats ? "..." : statsData?.data?.totalOrders || 0}
             </p>
@@ -45,7 +51,7 @@ export const DashboardStats: React.FC<DashboardStatsProps> = ({ statsData, isLoa
           <div>
             <p className="text-sm font-medium text-gray-500">Clients actifs</p>
             <p className="text-2xl font-bold text-gray-900">
-              {isLoadingStats ? "..." : statsData?.data?.activeCustomers || 0}
+              {isLoadingStats ? "..." : statsData?.data?.totalCustomers || 0}
             </p>
           </div>
           <div className="bg-blue-100 p-3 rounded-full">

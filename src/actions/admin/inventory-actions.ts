@@ -4,6 +4,8 @@ import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { $Enums, Prisma } from "@/generated/prisma";
+
 
 // ===== SCHEMAS DE VALIDATION =====
 
@@ -295,7 +297,7 @@ export const getStockMovements = actionClient
   .inputSchema(getStockMovementsSchema)
   .action(async ({ parsedInput: { search, page, perPage, type, ingredientId, dateFrom, dateTo } }) => {
     try {
-      const where: any = {};
+      const where: Prisma.StockMovementWhereInput = {};
 
       if (search) {
         where.OR = [
@@ -434,8 +436,7 @@ export const getInventoryDashboard = actionClient
       const [
         totalIngredients,
         lowStockIngredients,
-        recentMovements,
-        totalStockValue
+        recentMovements
       ] = await Promise.all([
         prisma.ingredient.count(),
         prisma.ingredient.findMany({
@@ -455,12 +456,6 @@ export const getInventoryDashboard = actionClient
             user: true
           },
           orderBy: { createdAt: 'desc' }
-        }),
-        prisma.ingredient.aggregate({
-          where: { isActive: true },
-          _sum: {
-            stock: true
-          }
         })
       ]);
 
@@ -530,7 +525,16 @@ export const decrementStockForOrder = actionClient
         throw new Error("Commande non trouvée");
       }
 
-      const movements: any[] = [];
+      const movements: {
+        id: string;
+        type: $Enums.StockMovementType;
+        createdAt: Date;
+        userId: string | null;
+        orderId: string | null;
+        description: string | null;
+        ingredientId: string;
+        quantity: number;
+      }[] = [];
 
       // Utiliser une transaction pour garantir la cohérence
       await prisma.$transaction(async (tx) => {

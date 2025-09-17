@@ -42,7 +42,7 @@ export function LowStockAlerts() {
     );
   }
 
-  const lowStockIngredients = dashboardData?.lowStockIngredients || [];
+  const lowStockIngredients = dashboardData?.data?.lowStockIngredients || [];
 
   if (lowStockIngredients.length === 0) {
     return (
@@ -111,7 +111,7 @@ export function LowStockAlerts() {
           <div className="pt-2">
             <Button asChild variant="outline" size="sm" className="w-full">
               <Link href="/admin/inventory">
-                Voir l'inventaire complet
+                Voir l&apos;inventaire complet
               </Link>
             </Button>
           </div>

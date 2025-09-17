@@ -1,33 +1,20 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { UseFormReturn } from "react-hook-form";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, ShoppingCart, FileText } from "lucide-react";
 import { toast } from "sonner";
+import Image from "next/image";
 
 type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
 type OrderType = "dine_in" | "takeaway" | "delivery";
 
-type OrderFormValues = {
-  customerId?: string;
-  email?: string;
-  phone?: string;
-  items: { name: string; quantity: number; price: number; image?: string }[];
-  total: number;
-  status: OrderStatus;
-  type: OrderType;
-  time: string;
-  date: Date;
-  tableId?: string | null;
-};
 
 type MenuItem = { id: string; name: string; description?: string | null; price: number; image?: string | null; categoryId: string };
 type Category = { id: string; name: string };
@@ -266,7 +253,7 @@ export function OrderForm({
               {filteredMenu.map((m) => (
                 <div key={m.id} className="flex items-center gap-4 p-4 border border-[#FF6B35]/15 rounded-xl bg-white hover:shadow-lg transition-all">
                   {m.image && (
-                    <img src={m.image} alt={m.name} className="h-16 w-16 object-cover rounded-lg flex-shrink-0" />
+                    <Image width={100} height={100} src={m.image} alt={m.name} className="h-16 w-16 object-cover rounded-lg flex-shrink-0" />
                   )}
                   <div className="flex-1">
                     <p className="font-semibold text-[#FF6B35]">{m.name}</p>

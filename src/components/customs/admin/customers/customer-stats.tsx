@@ -1,16 +1,14 @@
-import { Users, ShoppingBag, Star } from "lucide-react";
+import { Users, ShoppingBag } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface CustomerStatsProps {
   totalCustomers: number;
   activeCustomers: number;
-  vipCustomers: number;
 }
 
 export function CustomerStats({
   totalCustomers,
   activeCustomers,
-  vipCustomers,
 }: CustomerStatsProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

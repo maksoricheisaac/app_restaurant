@@ -15,10 +15,6 @@ const processPaymentSchema = z.object({
   reference: z.string().optional(),
 });
 
-// Action pour obtenir le bilan quotidien de caisse
-const getDailyCashSummarySchema = z.object({
-  date: z.date().optional(), // par défaut: aujourd'hui
-});
 
 const createTransactionSchema = z.object({
   type: z.enum(["sale", "refund", "adjustment"]),
@@ -55,7 +51,7 @@ export const processPayment = actionClient
       throw new Error("Non autorisé");
     }
 
-    const { orderId, amount, method, reference } = parsedInput;
+    const { orderId, amount, reference } = parsedInput;
 
     // Vérifier que la commande existe et n'est pas déjà payée
     const order = await prisma.order.findUnique({
@@ -405,15 +401,17 @@ export const exportTransactionsCSV = actionClient
     const escapeCsv = (value: string) =>
       `"${value.replace(/"/g, '""')}"`;
 
-    const rows = transactions.map((t) => [
+        type TransactionWithIncludes = (typeof transactions)[0];
+
+    const rows = transactions.map((t: TransactionWithIncludes) => [
       t.createdAt.toISOString(),
       t.type,
       t.method,
       String(t.amount),
-      (t.cashier as any)?.name ?? "",
+      t.cashier?.name ?? "",
       t.orderId ?? "",
-      (t.order as any)?.user?.name ?? "",
-      (t.order as any)?.table?.number != null ? String((t.order as any)?.table?.number) : "",
+      t.order?.user?.name ?? "",
+      t.order?.table?.number != null ? String(t.order.table.number) : "",
       (t.description ?? "").replace(/\r?\n/g, " "),
     ]);
 

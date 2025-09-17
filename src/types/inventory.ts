@@ -68,8 +68,8 @@ export interface IngredientFormData {
   unit: string;
   price: number;
   stock: number;
-  minStock?: number;
-  supplier?: string;
+  minStock?: number | null;
+  supplier?: string | null;
   isActive: boolean;
 }
 

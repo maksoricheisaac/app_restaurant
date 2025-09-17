@@ -35,7 +35,7 @@ export function useOrderTracking(orderId: string | null) {
       channel.unbind('order-status-updated', handler);
       pusherClient.unsubscribe('restaurant-channel');
     };
-  }, [orderId]);
+  }, [orderId, query]);
 
   return query;
 } 

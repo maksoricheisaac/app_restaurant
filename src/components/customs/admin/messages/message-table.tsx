@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/table';
 import { Message } from '@/generated/prisma';
 
-type MessageStatus = 'new' | 'read' | 'replied' | 'closed';
 
 interface MessageTableProps {
   messages: Message[];

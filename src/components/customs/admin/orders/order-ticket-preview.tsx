@@ -35,7 +35,6 @@ export function OrderTicketPreview({
   order,
   isOpen,
   onClose,
-  formatCurrency,
   statusLabels,
   typeLabels,
 }: OrderTicketPreviewProps) {

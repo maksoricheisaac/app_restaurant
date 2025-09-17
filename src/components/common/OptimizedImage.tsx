@@ -1,6 +1,6 @@
 "use client"
-import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { useState, useRef, useEffect } from 'react';
 
 interface OptimizedImageProps {
   src: string;
@@ -110,7 +110,7 @@ export function OptimizedImage({
       
       {/* Image optimisée */}
       {isInView && (
-        <img
+        <Image
           width={width}
           height={height} // Default
           src={optimizedSrc}

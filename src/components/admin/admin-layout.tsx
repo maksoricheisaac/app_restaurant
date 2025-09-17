@@ -14,7 +14,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useSession, authClient } from '@/lib/auth-client';
 import { NavUser } from '@/components/nav-user';
-import { useRole } from '@/hooks/useRole';
 import { useIsClient, useMediaQuery } from '@/hooks/useIsClient';
 
 
@@ -40,7 +39,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
   const router = useRouter();
   const { signOut } = authClient;
   const { data: session } = useSession();
-  const { hasRole } = useRole();
+ 
 
   // Utilisation des hooks personnalisés pour éviter les problèmes d'hydratation
   const isClient = useIsClient();
@@ -57,7 +56,6 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     });
   };
 
-  const currentPage = navigation.find(item => item.href === pathname);
 
   // Affichage par défaut pendant l'hydratation (mobile layout)
   if (!isClient || !isLargeScreen) {

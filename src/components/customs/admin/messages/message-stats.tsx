@@ -1,7 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Message } from '@/generated/prisma';
 
-type MessageStatus = 'new' | 'read' | 'replied' | 'closed';
 
 interface MessageStatsProps {
   totalMessages: number;
@@ -20,7 +19,6 @@ export function MessageStats({
 }: MessageStatsProps) {
   const repliedMessages = messages.filter((m) => m.status === 'replied').length;
   const archivedMessages = messages.filter((m) => m.status === 'archived').length;
-  const readMessages = messages.filter((m) => m.status === 'read').length;
 
   const getPeriodLabel = () => {
     if (selectedDate) {

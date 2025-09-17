@@ -1,7 +1,7 @@
-/* eslint-disable react/no-unescaped-entities */
+ 
 "use client"
 import { useState, useEffect } from 'react';
-import { ArrowLeft, MapPin, Clock, User, CheckCircle, ClipboardCheck, Clipboard, ShoppingBag, Truck } from 'lucide-react';
+import { ArrowLeft, User, CheckCircle, ClipboardCheck, Clipboard, ShoppingBag, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,7 +25,6 @@ import { getDeliveryZones, getRestaurantSettings } from '@/actions/admin/setting
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'next/navigation';
 import { OrderType } from '@/types/order';
-import { cn } from '@/lib/utils';
 
 const checkoutSchema = z.object({
   orderType: z.enum(['dine_in', 'takeaway', 'delivery']),
@@ -152,7 +151,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
     if (current === 'delivery' && restaurantSettings.deliveryEnabled === false) {
       form.setValue('orderType', undefined as any);
     }
-  }, [restaurantSettings]);
+  }, [restaurantSettings, form]);
 
   const onSubmit = async (data: CheckoutFormData) => {
     try {
@@ -365,7 +364,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                   <Controller
                     name="contactPhone"
                     control={form.control}
-                    render={({ field: { onChange, value, ref } }) => (
+                    render={({ field: { onChange, value } }) => (
                       <PhoneInput
                         id="contactPhone"
                         placeholder="Ex: +242 06 000 00 00"

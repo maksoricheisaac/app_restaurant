@@ -9,7 +9,21 @@ import { ChevronRight } from "lucide-react";
 import { format } from "date-fns";
 
 interface OrderTableRowProps {
-  order: any;
+  order: {
+    id?: string;
+    status?: string;
+    type?: string;
+    total?: number;
+    createdAt?: string;
+    user?: {
+      name?: string;
+    };
+    customer?: {
+      name?: string;
+      email?: string;
+    };
+    items?: unknown[];
+  };
   getStatusBadgeColor: (status: string) => string;
 }
 
@@ -25,21 +39,21 @@ export const OrderTableRow: React.FC<OrderTableRowProps> = ({ order, getStatusBa
       <TableCell>
         <div>
           <p className="font-medium">{order.customer?.name}</p>
-          <p className="text-sm text-gray-500">{order.customer?.phone}</p>
+         
         </div>
       </TableCell>
       <TableCell>
         <div className="text-sm">
-          {order.items.map((item: any, index: number) => (
+          {order?.items?.map((item: any, index: number) => (
             <span key={item.id}>
               {item.quantity}x {item.name}
-              {index < order.items.length - 1 ? ", " : ""}
+              {order.items && index < order.items.length - 1 ? ", " : ""}
             </span>
           ))}
         </div>
       </TableCell>
       <TableCell>
-        <Badge className={getStatusBadgeColor(order.status)}>
+        <Badge className={getStatusBadgeColor(order?.status)}>
           {order.status === "pending" && "En attente"}
           {order.status === "preparing" && "En préparation"}
           {order.status === "ready" && "Prête"}
@@ -49,14 +63,14 @@ export const OrderTableRow: React.FC<OrderTableRowProps> = ({ order, getStatusBa
       </TableCell>
       <TableCell>
         <div className="font-medium">
-          {order.total.toLocaleString()} FCFA
+          {order?.total.toLocaleString()} FCFA
         </div>
       </TableCell>
       <TableCell>
         <div className="text-sm">
-          {format(new Date(order.createdAt), "HH:mm")}
+          {format(new Date(order?.createdAt), "HH:mm")}
           <br />
-          {format(new Date(order.createdAt), "dd/MM/yyyy")}
+          {format(new Date(order?.createdAt), "dd/MM/yyyy")}
         </div>
       </TableCell>
       <TableCell className="text-right">

@@ -106,7 +106,7 @@ export function MessageFilters({
                   <SelectValue placeholder="Période" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="today">Aujourd'hui</SelectItem>
+                  <SelectItem value="today">Aujourd&apos;hui</SelectItem>
                   <SelectItem value="week">Cette semaine</SelectItem>
                   <SelectItem value="month">Ce mois</SelectItem>
                   <SelectItem value="all">Toutes les périodes</SelectItem>
@@ -132,7 +132,7 @@ export function MessageFilters({
             <div className="w-full md:w-[200px]">
               <Select
                 value={filterStatus ?? "all"}
-                onValueChange={v => onFilterStatusChange(v === "all" ? undefined : v as any)}
+                onValueChange={v => onFilterStatusChange(v === "all" ? undefined : v as "read" | "unread")}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Statut" />

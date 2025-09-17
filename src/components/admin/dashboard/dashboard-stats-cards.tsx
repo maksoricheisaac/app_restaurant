@@ -27,7 +27,7 @@ export function DashboardStatsCards({ statsData, isLoading }: DashboardStatsCard
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">Commandes aujourd'hui</p>
+                <p className="text-sm font-medium text-gray-500">Commandes aujourd&apos;hui</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {isLoading ? "..." : statsData?.totalOrders || 0}
                 </p>

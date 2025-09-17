@@ -26,7 +26,7 @@ export const imageOptimization = {
   },
 
   // Génération d'URLs optimisées pour Pexels
-  getOptimizedImageUrl: (originalUrl: string, width: number, height?: number, quality: number = 80) => {
+  getOptimizedImageUrl: (originalUrl: string, width: number, height?: number) => {
     if (!originalUrl || !originalUrl.includes('pexels.com')) return originalUrl;
     
     try {

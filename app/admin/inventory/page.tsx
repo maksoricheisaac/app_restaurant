@@ -1,13 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Package, AlertTriangle, TrendingUp, DollarSign } from "lucide-react";
-
 import { InventoryHeader } from "@/components/customs/admin/inventory/inventory-header";
 import { InventoryStats } from "@/components/customs/admin/inventory/inventory-stats";
-import { InventoryTabs } from "@/components/customs/admin/inventory/inventory-tabs";
 import { IngredientTable } from "@/components/customs/admin/inventory/ingredient-table";
 import { RecipeTable } from "@/components/customs/admin/inventory/recipe-table";
 import { StockMovementTable } from "@/components/customs/admin/inventory/stock-movement-table";
@@ -23,7 +20,6 @@ import {
   updateIngredient,
   deleteIngredient,
   toggleIngredientStatus,
-  getRecipesByMenuItem,
   createRecipe,
   updateRecipe,
   deleteRecipe,
@@ -35,7 +31,6 @@ import {
 import type { 
   Ingredient, 
   Recipe, 
-  StockMovement, 
   IngredientFormData, 
   RecipeFormData, 
   StockMovementFormData,

@@ -45,16 +45,12 @@ const statusLabels = {
 interface CustomerTableProps {
   customers: Customer[];
   isLoading: boolean;
-  onEdit: (customer: Customer) => void;
-  onDelete: (id: string) => void;
   onAdd: () => void;
 }
 
 export function CustomerTable({
   customers,
   isLoading,
-  onEdit,
-  onDelete,
   onAdd,
 }: CustomerTableProps) {
   return (

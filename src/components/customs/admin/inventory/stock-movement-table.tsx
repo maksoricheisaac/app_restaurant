@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Filter, ArrowUpDown, TrendingUp, TrendingDown, RotateCcw } from "lucide-react";
+import { Search, Filter, TrendingUp, TrendingDown, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Pagination } from "@/components/ui/pagination";
 
-import { getStockMovements, getAllIngredients } from "@/actions/admin/inventory-actions";
+import { getAllIngredients } from "@/actions/admin/inventory-actions";
 import type { StockMovement, StockMovementFilters } from "@/types/inventory";
 
 interface StockMovementTableProps {
@@ -54,7 +54,7 @@ export function StockMovementTable({
   };
 
   const handleTypeChange = (type: string) => {
-    onFiltersChange({ ...filters, type: type as any, page: 1 });
+    onFiltersChange({ ...filters, type: type as "IN" | "OUT" | "ADJUST" | undefined, page: 1 });
   };
 
   const handleIngredientChange = (ingredientId: string) => {

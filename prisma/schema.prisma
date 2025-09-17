@@ -1,0 +1,414 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+enum TableStatus {
+  available
+  occupied
+  reserved
+}
+
+enum ReservationStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum OrderStatus {
+  pending
+  preparing
+  ready
+  served
+  cancelled
+}
+
+enum OrderType {
+  dine_in
+  takeaway
+  delivery
+}
+
+enum PaymentMethod {
+  cash
+}
+
+enum PaymentStatus {
+  completed
+  refunded
+  cancelled
+}
+
+enum TransactionType {
+  sale
+  refund
+  adjustment
+}
+
+// --- Nouveaux enums ---
+
+enum DayOfWeek {
+  monday
+  tuesday
+  wednesday
+  thursday
+  friday
+  saturday
+  sunday
+}
+
+model User {
+  id             String          @id
+  name           String
+  email          String
+  emailVerified  Boolean
+  image          String?
+  role           String          @default("user")
+  phone          String? // Ajouté pour les commandes
+  address        String? // Ajouté pour les livraisons
+  status         String          @default("active") // active, inactive, vip
+  notes          String? // Notes sur le client
+  isDeleted      Boolean         @default(false)
+  // Limitation des commandes par heure
+  orderCount     Int             @default(0) // Compteur de commandes
+  lastOrderReset DateTime? // Dernière réinitialisation du compteur
+  createdAt      DateTime
+  updatedAt      DateTime
+  sessions       Session[]
+  accounts       Account[]
+  payments       Payment[]
+  transactions   Transaction[]
+  orders         Order[] // Relation avec les commandes (seuls les utilisateurs connectés)
+  reservations   Reservation[] // Relation avec les réservations (peut être anonyme ou connecté)
+  stockMovements StockMovement[] // Relation avec les mouvements de stock
+
+  banned      Boolean?
+  banReason   String?
+  banExpires  DateTime?
+  isAnonymous Boolean?
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
+
+  @@unique([token])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@map("verification")
+}
+
+// --- Configuration du restaurant ---
+
+model RestaurantSettings {
+  id                   String   @id @default(uuid())
+  name                 String   @default("Mon Restaurant")
+  // Services disponibles
+  deliveryEnabled      Boolean  @default(true)
+  takeawayEnabled      Boolean  @default(true)
+  dineInEnabled        Boolean  @default(true)
+  // Réseaux sociaux
+  facebookUrl          String?
+  instagramUrl         String?
+  twitterUrl           String?
+  linkedinUrl          String?
+  youtubeUrl           String?
+  tiktokUrl            String?
+  // Limitation des commandes
+  maxOrdersPerHour     Int      @default(10) // Limite globale par heure
+  maxOrdersPerUserHour Int      @default(3) // Limite par utilisateur par heure
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+// --- Horaires d'ouverture ---
+
+model OpeningHours {
+  id        String    @id @default(uuid())
+  dayOfWeek DayOfWeek
+  openTime  String // Format HH:MM
+  closeTime String // Format HH:MM
+  isClosed  Boolean   @default(false) // Fermé ce jour-là
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([dayOfWeek])
+}
+
+// --- Fermetures exceptionnelles ---
+
+model ExceptionalClosure {
+  id        String   @id @default(uuid())
+  date      DateTime // Date de fermeture
+  reason    String? // Raison de la fermeture
+  allDay    Boolean  @default(true)
+  startTime String? // Heure de début si pas toute la journée
+  endTime   String? // Heure de fin si pas toute la journée
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// --- Zones de livraison ---
+
+model DeliveryZone {
+  id           String   @id @default(uuid())
+  name         String // Nom de la zone (ex: Centre-ville, Banlieue Nord)
+  description  String? // Description de la zone
+  price        Float // Prix de livraison pour cette zone
+  minOrder     Float? // Commande minimale pour cette zone
+  deliveryTime Int? // Temps de livraison estimé en minutes
+  isActive     Boolean  @default(true)
+  // Coordonnées géographiques (optionnel pour définir la zone)
+  polygon      String? // JSON string des coordonnées du polygone de la zone
+  orders       Order[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// --- Restaurant Management Models ---
+
+model Table {
+  id           String        @id @default(uuid())
+  number       Int           @unique
+  seats        Int
+  location     String? // e.g. indoor, outdoor, balcony
+  status       TableStatus   @default(available)
+  orders       Order[]
+  reservations Reservation[]
+}
+
+model Reservation {
+  id              String            @id @default(uuid())
+  date            DateTime
+  time            String?
+  guests          Int?
+  status          ReservationStatus @default(pending) // pending, confirmed, cancelled
+  notes           String? // Notes spéciales
+  specialRequests String? // Demandes spéciales
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt // Relations optionnelles - peut être anonyme ou connecté
+  userId          String? // Optionnel pour les réservations anonymes
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  tableId         String? // Optionnel - sera assigné plus tard
+  table           Table?            @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  // Champs pour les réservations anonymes
+  customerName    String? // Nom du client (pour réservations anonymes)
+  email           String? // Email du client (pour réservations anonymes)
+  phone           String? // Téléphone du client (pour réservations anonymes)
+}
+
+model Order {
+  id              String          @id @default(uuid())
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  status          OrderStatus     @default(pending)
+  type            OrderType       @default(dine_in)
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tableId         String?
+  table           Table?          @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  // Informations de livraison
+  deliveryZoneId  String?
+  deliveryZone    DeliveryZone?   @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
+  deliveryAddress String? // Adresse de livraison spécifique
+  deliveryFee     Float? // Frais de livraison appliqués
+  orderItems      OrderItem[]
+  total           Float?
+  payment         Payment?
+  transactions    Transaction[]
+  stockMovements  StockMovement[] // Relation avec les mouvements de stock
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity   Int      @default(1)
+  price      Float
+  name       String // Nom du plat au moment de la commande
+  image      String? // Image du plat au moment de la commande
+}
+
+model MenuCategory {
+  id    String     @id @default(uuid())
+  name  String
+  items MenuItem[]
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  image       String?
+  available   Boolean      @default(true)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+
+  Recipe Recipe[]
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  customerName String // Nom du client (pour messages anonymes)
+  email        String // Email du client
+  phone        String? // Téléphone du client
+  subject      String? // Sujet du message
+  message      String // Contenu du message
+  type         String? // Type de message (reservation, feedback, etc.)
+  priority     String? // Priorité du message
+  status       String   @default("new") // new, read, replied, closed
+  source       String   @default("contact-form") // contact-form, admin, etc.
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  type      String // e.g. sales, activity, feedback
+  createdAt DateTime @default(now())
+}
+
+// --- Cash Register Management Models ---
+
+model Payment {
+  id        String        @id @default(uuid())
+  orderId   String        @unique
+  order     Order         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Float
+  method    PaymentMethod
+  reference String? // Numéro de référence pour mobile money ou carte
+  cashierId String
+  cashier   User          @relation(fields: [cashierId], references: [id], onDelete: Cascade)
+  status    PaymentStatus @default(completed)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  type        TransactionType // sale, refund, adjustment
+  amount      Float
+  method      PaymentMethod // cash, mobile_money, card, bank_transfer
+  description String?
+  cashierId   String
+  cashier     User            @relation(fields: [cashierId], references: [id], onDelete: Cascade)
+  orderId     String?
+  order       Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model Ingredient {
+  id       String  @id @default(uuid())
+  name     String
+  unit     String // ex: kg, L, pièce
+  price    Float // prix d'achat unitaire
+  stock    Float   @default(0) // quantité actuelle
+  minStock Float? // seuil d'alerte
+  supplier String? // fournisseur optionnel
+  isActive Boolean @default(true)
+
+  recipes   Recipe[] // relation avec les recettes
+  movements StockMovement[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Recipe {
+  id         String   @id @default(uuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  quantity  Float // quantité d'ingrédient par plat
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Éviter les doublons de recettes
+  @@unique([menuItemId, ingredientId])
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+model StockMovement {
+  id           String     @id @default(uuid())
+  ingredientId String
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  type        StockMovementType
+  quantity    Float
+  description String?
+  userId      String? // qui a fait le mouvement
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // Référence optionnelle à une commande pour les sorties automatiques
+  orderId     String?
+  order       Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+}

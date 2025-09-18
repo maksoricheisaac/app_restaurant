@@ -90,7 +90,7 @@ export default function CustomersPage() {
   // Statistiques des clients
   const totalCustomers = customers.length;
   const activeCustomers = customers.filter(c => c.status === 'active').length;
-  const vipCustomers = customers.filter(c => c.status === 'vip').length;
+ 
 
   const createCustomerMutation = useMutation({
     mutationFn: createCustomer,
@@ -168,7 +168,6 @@ export default function CustomersPage() {
       <CustomerStats
         totalCustomers={totalCustomers}
         activeCustomers={activeCustomers}
-        vipCustomers={vipCustomers}
       />
       
       <CustomerFilters

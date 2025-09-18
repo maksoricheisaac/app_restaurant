@@ -36,8 +36,9 @@ export function UserNav({
   const displayName = user?.name || "Utilisateur";
   const displayEmail = user?.email || "-";
   const displayAvatar = user?.avatar || "/avatar.png";
-  const role = ( user?.role && user?.role == "user" ) ? "client" : user.role
-  const canGoToDashboard = ['admin', 'waiter',' owner']
+  const role = ( user?.role && user?.role == "user" ) ? "client" : user.role.trim()
+  const canGoToDashboard = ['admin', 'waiter','owner']
+
 
   return (
     <DropdownMenu>

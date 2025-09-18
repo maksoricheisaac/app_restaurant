@@ -2,7 +2,7 @@
 "use client";
 
 import { useSearchParams } from 'next/navigation';
-import { useState, useEffect } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { OrderSearchForm } from '@/components/customs/public/order-tracking/order-search-form';
 import { OrderStatusCard } from '@/components/customs/public/order-tracking/order-status-card';
 import { OrderItemsCard } from '@/components/customs/public/order-tracking/order-items-card';
@@ -14,7 +14,7 @@ import { useSession } from '@/lib/auth-client';
 import { pusherClient } from '@/lib/pusherClient';
 import { toast } from 'sonner';
 
-export default function OrderTrackingPage() {
+function OrderTrackingInner() {
   const searchParams = useSearchParams();
   const initialOrderId = searchParams.get('id');
   const [orderId, setOrderId] = useState<string>(initialOrderId || '');
@@ -167,5 +167,13 @@ export default function OrderTrackingPage() {
         </Tabs>
       </div>
     </div>
+  );
+}
+
+export default function OrderTrackingPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Chargement...</div>}>
+      <OrderTrackingInner />
+    </Suspense>
   );
 }

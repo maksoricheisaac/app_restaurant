@@ -23,14 +23,31 @@ import { PaymentMethod } from "@/types/order";
 import { processPayment } from "@/actions/admin/cash-register-actions";
 import { toast } from "sonner";
 
+interface UnpaidOrderItem {
+  id: string;
+  quantity: number;
+  price: number;
+  menuItem: { name: string };
+}
+
+interface UnpaidOrder {
+  id: string;
+  status: "ready" | "served" | string;
+  createdAt: string | Date;
+  total: number;
+  customer?: { name?: string | null } | null;
+  table?: { number: number } | null;
+  orderItems: UnpaidOrderItem[];
+}
+
 interface UnpaidOrdersListProps {
-  orders: any[];
+  orders: UnpaidOrder[];
   onPaymentProcessed: () => void;
   formatCurrency: (amount: number) => string;
 }
 
 export function UnpaidOrdersList({ orders, onPaymentProcessed, formatCurrency }: UnpaidOrdersListProps) {
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [selectedOrder, setSelectedOrder] = useState<UnpaidOrder | null>(null);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentData, setPaymentData] = useState<{
@@ -60,14 +77,14 @@ export function UnpaidOrdersList({ orders, onPaymentProcessed, formatCurrency }:
       setSelectedOrder(null);
       setPaymentData({ amount: 0, method: "cash" });
       onPaymentProcessed();
-    } catch (error) {
+    } catch {
       toast.error("Une erreur est survenue lors du traitement du paiement.");
     } finally {
       setProcessingPayment(false);
     }
   };
 
-  const openPaymentDialog = (order: any) => {
+  const openPaymentDialog = (order: UnpaidOrder) => {
     setSelectedOrder(order);
     setPaymentData({ amount: order.total, method: "cash" });
 
@@ -157,7 +174,7 @@ export function UnpaidOrdersList({ orders, onPaymentProcessed, formatCurrency }:
                     <span className="text-sm font-medium text-gray-700">Articles :</span>
                   </div>
                   <div className="ml-6 space-y-1">
-                    {order.orderItems.map((item: any) => (
+                    {order.orderItems.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm text-gray-600">
                         <span>{item.quantity}× {item.menuItem.name}</span>
                         <span>{formatCurrency(item.price * item.quantity)}</span>

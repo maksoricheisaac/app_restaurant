@@ -11,15 +11,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, User, ShoppingCart, FileText } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
+import type { UseFormReturn } from "react-hook-form";
 
 type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
 type OrderType = "dine_in" | "takeaway" | "delivery";
-
 
 type MenuItem = { id: string; name: string; description?: string | null; price: number; image?: string | null; categoryId: string };
 type Category = { id: string; name: string };
 type Customer = { id: string; name?: string | null; email?: string | null };
 type Table = { id: string; number: number; seats: number };
+
+type OrderItemForm = { name: string; quantity: number; price: number; image?: string };
+type OrderFormValues = {
+  customerId?: string;
+  tableId: string | null;
+  type: OrderType;
+  status: OrderStatus;
+  email?: string;
+  phone?: string;
+  date: Date;
+  time: string;
+  notes?: string;
+  items: OrderItemForm[];
+  total: number;
+};
 
 export function OrderForm({
   form,
@@ -30,9 +45,9 @@ export function OrderForm({
   menuItems,
   categories,
 }: {
-  form: any;
-  onSubmit: (values: any) => Promise<void> | void;
-  selectedOrder: any | null;
+  form: UseFormReturn<OrderFormValues>;
+  onSubmit: (values: OrderFormValues) => Promise<void> | void;
+  selectedOrder: unknown | null;
   customers: Customer[];
   tables: Table[];
   menuItems: MenuItem[];
@@ -41,7 +56,7 @@ export function OrderForm({
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
 
-  const items = form.watch("items");
+  const items = (form.watch("items") as OrderItemForm[]) || [];
 
   const filteredMenu = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -56,7 +71,7 @@ export function OrderForm({
   }, [menuItems, search, activeCategory]);
 
   const addItem = (m: MenuItem) => {
-    const existingIndex = items.findIndex((it: any) => it.name === m.name && it.price === m.price);
+    const existingIndex = items.findIndex((it) => it.name === m.name && it.price === m.price);
     if (existingIndex >= 0) {
       const updated = [...items];
       updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
@@ -102,7 +117,8 @@ export function OrderForm({
   };
 
   const computeTotal = () => {
-    const total = (form.getValues("items") || []).reduce((acc: number, it: any) => acc + (it.quantity || 0) * (it.price || 0), 0);
+    const list = (form.getValues("items") as OrderItemForm[]) || [];
+    const total = list.reduce((acc: number, it: OrderItemForm) => acc + (it.quantity || 0) * (it.price || 0), 0);
     form.setValue("total", total, { shouldDirty: true });
   };
 
@@ -285,10 +301,10 @@ export function OrderForm({
                 <div className="text-center py-8">
                   <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-sm text-gray-500">Aucun article pour le moment</p>
-                  <p className="text-xs text-gray-400 mt-1">Retournez à l'onglet Menu pour ajouter des articles</p>
+                  <p className="text-xs text-gray-400 mt-1">Retournez à l&#39;onglet Menu pour ajouter des articles</p>
                 </div>
               ) : (
-                items.map((it: any, idx: number) => (
+                items.map((it, idx: number) => (
                   <div key={idx} className="grid grid-cols-12 items-center gap-3 border rounded-lg p-4 hover:shadow-sm transition bg-white">
                     <div className="col-span-12 lg:col-span-5 font-medium text-[#FF6B35] text-lg">{it.name}</div>
                     <div className="col-span-6 lg:col-span-3 flex items-center gap-2 justify-center lg:justify-start">

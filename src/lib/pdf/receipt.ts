@@ -152,7 +152,9 @@ export async function generateReceiptPdf(payment: PaymentLike, opts?: { fileName
   const bytes = await pdfDoc.save();
   const fileName = opts?.fileName ?? `recu_${payment.order.id.slice(-6).toUpperCase()}_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`;
   if (opts?.openInsteadOfDownload) {
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuffer).set(bytes);
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
   } else {

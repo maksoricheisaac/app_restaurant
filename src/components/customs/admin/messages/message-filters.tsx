@@ -131,8 +131,8 @@ export function MessageFilters({
           <div className="flex flex-col md:flex-row gap-4">
             <div className="w-full md:w-[200px]">
               <Select
-                value={filterStatus ?? "all"}
-                onValueChange={v => onFilterStatusChange(v === "all" ? undefined : v as "read" | "unread")}
+                value={filterStatus}
+                onValueChange={(v) => onFilterStatusChange(v as FilterStatus)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Statut" />

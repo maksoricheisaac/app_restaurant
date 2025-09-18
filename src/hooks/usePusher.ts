@@ -1,14 +1,15 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { Channel } from 'pusher-js';
 import { pusherClient } from '@/lib/pusherClient';
 
 interface UsePusherOptions {
   channel: string;
   events: string[];
-  onEvent: (event: string, data: any) => void;
+  onEvent: (event: string, data: unknown) => void;
 }
 
 export const usePusher = ({ channel, events, onEvent }: UsePusherOptions) => {
-  const channelRef = useRef<any>(null);
+  const channelRef = useRef<Channel | null>(null);
   const isSubscribedRef = useRef(false);
 
   // Memoize the callback to prevent unnecessary re-subscriptions
@@ -26,7 +27,7 @@ export const usePusher = ({ channel, events, onEvent }: UsePusherOptions) => {
 
     // Écouter les événements spécifiés
     events.forEach(event => {
-      pusherChannel.bind(event, (data: any) => {
+      pusherChannel.bind(event, (data: unknown) => {
         memoizedOnEvent(event, data);
       });
     });
@@ -35,9 +36,10 @@ export const usePusher = ({ channel, events, onEvent }: UsePusherOptions) => {
 
     // Nettoyage lors du démontage
     return () => {
-      if (channelRef.current) {
+      const currentChannel = channelRef.current;
+      if (currentChannel) {
         events.forEach(event => {
-          channelRef.current.unbind(event);
+          currentChannel.unbind(event);
         });
         pusherClient.unsubscribe(channel);
         isSubscribedRef.current = false;

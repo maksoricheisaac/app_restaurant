@@ -42,7 +42,7 @@ export function NavUser({
       } else {
         router.push("/login");
       }
-    } catch (e) {
+    } catch {
       // Optionally show a toast error
     } finally {
       setLoading(false);

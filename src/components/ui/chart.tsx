@@ -1,5 +1,7 @@
 import * as React from "react"
 import * as RechartsPrimitive from "recharts"
+import type { Payload, ValueType, NameType } from "recharts/types/component/DefaultTooltipContent"
+import type { LegendPayload } from "recharts/types/component/DefaultLegendContent"
 
 import { cn } from "@/lib/utils"
 
@@ -123,8 +125,8 @@ function ChartTooltipContent({
     indicator?: "line" | "dot" | "dashed"
     nameKey?: string
     labelKey?: string
-    payload?: any[]
-    label?: any
+    payload?: ReadonlyArray<Payload<ValueType, NameType>>
+    label?: string | number
   }) {
   const { config } = useChart()
 
@@ -133,9 +135,9 @@ function ChartTooltipContent({
       return null
     }
 
-    const [item] = payload
+    const [item] = payload as ReadonlyArray<Payload<ValueType, NameType>>
     const key = `${labelKey || item?.dataKey || item?.name || "value"}`
-    const itemConfig = getPayloadConfigFromPayload(config, item, key)
+    const itemConfig = getPayloadConfigFromPayload(config, item as unknown, key)
     const value =
       !labelKey && typeof label === "string"
         ? config[label as keyof typeof config]?.label || label
@@ -179,14 +181,14 @@ function ChartTooltipContent({
     >
       {!nestLabel ? tooltipLabel : null}
       <div className="grid gap-1.5">
-        {payload.map((item: any, index: number) => {
-          const key = `${nameKey || item.name || item.dataKey || "value"}`
-          const itemConfig = getPayloadConfigFromPayload(config, item, key)
-          const indicatorColor = color || item.payload.fill || item.color
+        {(payload as ReadonlyArray<Payload<ValueType, NameType>>).map((item, index: number) => {
+          const key = `${nameKey || (item.name as string) || (item.dataKey as string) || "value"}`
+          const itemConfig = getPayloadConfigFromPayload(config, item as unknown, key)
+          const indicatorColor = (color as string | undefined) || (item.payload as { fill?: string } | undefined)?.fill || (item.color as string | undefined)
 
           return (
             <div
-              key={item.dataKey}
+              key={String(item.dataKey)}
               className={cn(
                 "[&>svg]:text-muted-foreground flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5",
                 indicator === "dot" && "items-center"
@@ -232,9 +234,9 @@ function ChartTooltipContent({
                         {itemConfig?.label || item.name}
                       </span>
                     </div>
-                    {item.value && (
+                    {item.value != null && (
                       <span className="text-foreground font-mono font-medium tabular-nums">
-                        {item.value.toLocaleString()}
+                        {Number(item.value).toLocaleString()}
                       </span>
                     )}
                   </div>
@@ -259,7 +261,7 @@ function ChartLegendContent({
 }: React.ComponentProps<"div"> & {
     hideIcon?: boolean
     nameKey?: string
-    payload?: any[]
+    payload?: ReadonlyArray<LegendPayload>
     verticalAlign?: "top" | "bottom"
   }) {
   const { config } = useChart()
@@ -276,13 +278,13 @@ function ChartLegendContent({
         className
       )}
     >
-      {payload.map((item: any) => {
-        const key = `${nameKey || item.dataKey || "value"}`
-        const itemConfig = getPayloadConfigFromPayload(config, item, key)
+      {(payload as ReadonlyArray<LegendPayload>).map((item) => {
+        const key = `${nameKey || (item.dataKey as string) || "value"}`
+        const itemConfig = getPayloadConfigFromPayload(config, item as unknown, key)
 
         return (
           <div
-            key={item.value}
+            key={String(item.value)}
             className={cn(
               "[&>svg]:text-muted-foreground flex items-center gap-1.5 [&>svg]:h-3 [&>svg]:w-3"
             )}
@@ -293,14 +295,13 @@ function ChartLegendContent({
               <div
                 className="h-2 w-2 shrink-0 rounded-[2px]"
                 style={{
-                  backgroundColor: item.color,
+                  backgroundColor: item.color as string,
                 }}
               />
             )}
             {itemConfig?.label}
           </div>
-        )
-      })}
+        )})}
     </div>
   )
 }

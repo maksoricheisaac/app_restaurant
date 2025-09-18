@@ -38,9 +38,8 @@ export function OrderTicketPreview({
   statusLabels,
   typeLabels,
 }: OrderTicketPreviewProps) {
-  if (!order) return null;
-
   const [paperWidth, setPaperWidth] = useState<"57" | "80">("80");
+  if (!order) return null;
 
   const formatAmountForPdf = (amount: number) => {
     // 3 500 style with normal spaces, no currency symbol

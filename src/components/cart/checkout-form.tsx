@@ -143,13 +143,13 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
     if (!restaurantSettings) return;
     const current = form.getValues('orderType');
     if (current === 'dine_in' && restaurantSettings.dineInEnabled === false) {
-      form.setValue('orderType', undefined as any);
+      form.resetField('orderType');
     }
     if (current === 'takeaway' && restaurantSettings.takeawayEnabled === false) {
-      form.setValue('orderType', undefined as any);
+      form.resetField('orderType');
     }
     if (current === 'delivery' && restaurantSettings.deliveryEnabled === false) {
-      form.setValue('orderType', undefined as any);
+      form.resetField('orderType');
     }
   }, [restaurantSettings, form]);
 
@@ -369,7 +369,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                         id="contactPhone"
                         placeholder="Ex: +242 06 000 00 00"
                         defaultCountry="CG"
-                        value={(value as any) || ""}
+                        value={value ?? ""}
                         onChange={(val) => onChange((val as string) || "")}
                       />
                     )}

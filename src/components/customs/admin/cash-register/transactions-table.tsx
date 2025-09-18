@@ -23,19 +23,19 @@ interface TransactionsTableProps {
   formatCurrency: (amount: number) => string;
 }
 
-interface Transaction {
+type TransactionRow = {
   id: string;
-  createdAt: string; // ou Date si tu parsages
+  createdAt: string | Date;
   type: TransactionType;
   amount: number;
   method: PaymentMethod;
-  description?: string;
+  description?: string | null;
   cashier: { name: string };
-  order?: { id: string };
-}
+  order?: { id: string } | null;
+};
 
 export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -103,11 +103,9 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
     }
   };
 
-  const getPaymentMethodLabel = (method: string) => {
-    return "Espèces";
-  };
+  const getPaymentMethodLabel = () => "Espèces";
 
-  const getPaymentMethodIcon = (_method: string) => {
+  const getPaymentMethodIcon = () => {
     return <DollarSign className="w-4 h-4" />;
   };
 
@@ -299,9 +297,9 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {getPaymentMethodIcon(transaction.method)}
+                          {getPaymentMethodIcon()}
                           <span className="text-sm">
-                            {getPaymentMethodLabel(transaction.method)}
+                            {getPaymentMethodLabel()}
                           </span>
                         </div>
                       </TableCell>

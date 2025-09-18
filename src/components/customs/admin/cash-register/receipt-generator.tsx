@@ -8,9 +8,10 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Download, Printer } from "lucide-react";
 import { generateReceiptPdf } from "@/lib/pdf/receipt";
+import type { PaymentLike } from "@/lib/pdf/receipt";
 
 interface ReceiptGeneratorProps {
-  payment: any;
+  payment: PaymentLike;
   formatCurrency: (amount: number) => string;
 }
 
@@ -99,9 +100,9 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
           {/* Articles */}
           <div className="mb-4">
             <div className="font-semibold mb-2">Articles commandés:</div>
-            {payment.order.orderItems.map((item: any) => (
+            {payment.order.orderItems.map((item) => (
               <div key={item.id} className="flex justify-between text-sm mb-1">
-                <span>{item.quantity}× {item.menuItem.name}</span>
+                <span>{item.quantity}× {item.menuItem?.name || ""}</span>
                 <span>{formatCurrency(item.price * item.quantity)}</span>
               </div>
             ))}

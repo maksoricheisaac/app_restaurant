@@ -184,7 +184,9 @@ export async function generateOrderTicketPdf(options: {
   const name = options.fileName ?? `commande_${order.id}.pdf`;
 
   if (options.openInsteadOfDownload) {
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+    const arrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
+    new Uint8Array(arrayBuffer).set(pdfBytes);
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
     // Don't revoke immediately when opened in new tab

@@ -6,11 +6,11 @@ export function AdvancedSettingsForm() {
       <CardHeader>
         <CardTitle>Paramètres Avancés</CardTitle>
         <CardDescription>
-          Cette section est réservée aux configurations techniques et aux paramètres avancés de l'application.
+          Cette section est réservée aux configurations techniques et aux paramètres avancés de l&#39;application.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <p>Aucune configuration avancée n'est disponible pour le moment.</p>
+        <p>Aucune configuration avancée n&#39;est disponible pour le moment.</p>
       </CardContent>
     </Card>
   );

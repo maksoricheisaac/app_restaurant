@@ -47,9 +47,9 @@ export function IngredientTable({
     onFiltersChange({ ...filters, search: value, page: 1 });
   };
 
-  const handleSortChange = (sortBy: string) => {
+  const handleSortChange = (sortBy: InventoryFilters["sortBy"]) => {
     const newSortOrder = filters.sortBy === sortBy && filters.sortOrder === "asc" ? "desc" : "asc";
-    onFiltersChange({ ...filters, sortBy: sortBy as any, sortOrder: newSortOrder, page: 1 });
+    onFiltersChange({ ...filters, sortBy: sortBy ?? "name", sortOrder: newSortOrder, page: 1 });
   };
 
   const handlePerPageChange = (perPage: number) => {
@@ -142,7 +142,7 @@ export function IngredientTable({
                 <label className="text-sm font-medium">Trier par:</label>
                 <Select
                   value={filters.sortBy}
-                  onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value as any, page: 1 })}
+                  onValueChange={(value) => onFiltersChange({ ...filters, sortBy: value as InventoryFilters["sortBy"], page: 1 })}
                 >
                   <SelectTrigger className="w-40">
                     <SelectValue />

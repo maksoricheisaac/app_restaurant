@@ -14,7 +14,7 @@ export default function ContactInfo() {
         </h2>
         <p className="text-base sm:text-lg text-gray-600">
           Plusieurs moyens de nous contacter sont à votre disposition. 
-          N'hésitez pas à utiliser celui qui vous convient le mieux.
+          N&#39;hésitez pas à utiliser celui qui vous convient le mieux.
         </p>
       </div>
 

@@ -67,11 +67,7 @@ export function OptimizedImage({
   };
 
   const optimizedSrc = getOptimizedUrl(width);
-  const optimizedSrcSet = [
-    `${getOptimizedUrl(Math.round(width * 0.5))} ${Math.round(width * 0.5)}w`,
-    `${getOptimizedUrl(width)} ${width}w`,
-    `${getOptimizedUrl(Math.round(width * 1.5))} ${Math.round(width * 1.5)}w`
-  ].join(', ');
+  // srcSet is not used with next/image here; sizes handles responsive behavior
 
   const handleLoad = () => {
     setIsLoaded(true);

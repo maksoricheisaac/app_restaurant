@@ -1,5 +1,6 @@
 "use client";
 
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,7 +57,10 @@ export default function CategoriesPage() {
     mutationFn: createCategory,
     onSuccess: () => {
       toast.success("Catégorie créée avec succès");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ 
+        queryKey: ["categories"],
+        exact: false
+       });
       setIsOpen(false);
     },
     onError: (error) => {
@@ -68,7 +72,10 @@ export default function CategoriesPage() {
     mutationFn: updateCategory,
     onSuccess: () => {
       toast.success("Catégorie mise à jour avec succès");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ 
+        queryKey: ["categories"],
+        exact: false
+       });
       setIsOpen(false);
     },
     onError: (error) => {
@@ -80,7 +87,10 @@ export default function CategoriesPage() {
     mutationFn: deleteCategory,
     onSuccess: () => {
       toast.success("Catégorie supprimée avec succès");
-      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ 
+        queryKey: ["categories"],
+        exact: false
+       });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Une erreur est survenue");

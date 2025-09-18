@@ -1,9 +1,9 @@
 // Gestionnaire de cache pour optimiser les performances
 class CacheManager {
-  private cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  private cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
   private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
 
-  set(key: string, data: any, ttl: number = this.DEFAULT_TTL) {
+  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL) {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -11,7 +11,7 @@ class CacheManager {
     });
   }
 
-  get(key: string) {
+  get<T>(key: string): T | null {
     const item = this.cache.get(key);
     
     if (!item) return null;
@@ -21,7 +21,7 @@ class CacheManager {
       return null;
     }
     
-    return item.data;
+    return item.data as T;
   }
 
   clear() {
@@ -31,7 +31,7 @@ class CacheManager {
   // Cache pour les images
   cacheImage(url: string): Promise<string> {
     return new Promise((resolve, reject) => {
-      const cached = this.get(`image_${url}`);
+      const cached = this.get<string>(`image_${url}`);
       if (cached) {
         resolve(cached);
         return;
@@ -49,7 +49,7 @@ class CacheManager {
 
   // Cache pour les données API
   async cacheApiCall<T>(key: string, apiCall: () => Promise<T>, ttl?: number): Promise<T> {
-    const cached = this.get(key);
+    const cached = this.get<T>(key);
     if (cached) return cached;
 
     const data = await apiCall();

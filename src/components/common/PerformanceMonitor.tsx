@@ -9,7 +9,7 @@ interface PerformanceMetrics {
 interface PerformanceMonitorProps {
   queryKey: string;
   isLoading: boolean;
-  data: any;
+  data: unknown;
   onMetrics?: (metrics: PerformanceMetrics) => void;
 }
 
@@ -25,7 +25,7 @@ export function PerformanceMonitor({
   useEffect(() => {
     if (isLoading && !startTime) {
       setStartTime(performance.now());
-    } else if (!isLoading && startTime && data) {
+    } else if (!isLoading && startTime && data !== null && data !== undefined) {
       const endTime = performance.now();
       const queryTime = endTime - startTime;
       const dataSize = JSON.stringify(data).length;
@@ -69,7 +69,7 @@ export function PerformanceMonitor({
 }
 
 // Hook pour mesurer les performances
-export function usePerformanceMonitor(queryKey: string, isLoading: boolean, data: any) {
+export function usePerformanceMonitor(queryKey: string, isLoading: boolean, data: unknown) {
   const [performanceHistory, setPerformanceHistory] = useState<PerformanceMetrics[]>([]);
 
   const handleMetrics = (metrics: PerformanceMetrics) => {

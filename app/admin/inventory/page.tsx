@@ -205,13 +205,20 @@ export default function InventoryPage() {
 
   // Gestionnaires d'événements
   const handleIngredientSubmit = async (values: IngredientFormData) => {
+    // Normaliser les champs nullable en undefined pour correspondre aux schémas des actions
+    const normalizedValues = {
+      ...values,
+      minStock: values.minStock ?? undefined,
+      supplier: values.supplier ?? undefined,
+    };
+
     if (selectedIngredient) {
       updateIngredientMutation.mutate({
-        ...values,
+        ...normalizedValues,
         id: selectedIngredient.id,
       });
     } else {
-      createIngredientMutation.mutate(values);
+      createIngredientMutation.mutate(normalizedValues);
     }
   };
 

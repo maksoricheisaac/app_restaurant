@@ -28,8 +28,9 @@ export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummar
     try {
       setLoading(true);
       const res = await getDailyCashSummary({ date });
-      const data = (res as any)?.data ?? res;
-      setSummary(data);
+      const data = (res as { data?: CashDailySummaryType } | CashDailySummaryType);
+      const summary = (data as { data?: CashDailySummaryType }).data ?? (data as CashDailySummaryType);
+      setSummary(summary);
     } catch (e) {
       console.error("Erreur chargement bilan quotidien:", e);
     } finally {

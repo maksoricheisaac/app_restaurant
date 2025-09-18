@@ -27,7 +27,20 @@ export class PerformanceReporter {
   }
 
   private getConnectionInfo() {
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    type NetInfo = {
+      effectiveType?: string;
+      downlink?: number;
+      rtt?: number;
+      saveData?: boolean;
+    };
+    type NavigatorWithConn = Navigator & {
+      connection?: NetInfo;
+      mozConnection?: NetInfo;
+      webkitConnection?: NetInfo;
+    };
+
+    const nav = navigator as NavigatorWithConn;
+    const connection: NetInfo | undefined = nav.connection || nav.mozConnection || nav.webkitConnection;
     
     if (connection) {
       return {

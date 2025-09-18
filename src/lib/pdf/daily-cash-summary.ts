@@ -230,7 +230,9 @@ export async function generateDailyCashSummaryPdf(
   const filename = opts?.fileName ?? `bilan-caisse_${summary.date}.pdf`;
 
   if (opts?.openInsteadOfDownload) {
-    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const arrayBuffer = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(arrayBuffer).set(bytes);
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
   } else {

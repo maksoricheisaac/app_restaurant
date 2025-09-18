@@ -1,4 +1,5 @@
 import { type ClassValue, clsx } from "clsx"
+import { ExternalToast } from 'sonner';
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
@@ -13,7 +14,7 @@ const TOAST_DEBOUNCE_TIME = 2000; // 2 secondes
 export function showToastOnce(
   type: 'success' | 'error' | 'info' | 'warning',
   message: string,
-  options?: any
+  options?: ExternalToast
 ) {
   const now = Date.now();
   

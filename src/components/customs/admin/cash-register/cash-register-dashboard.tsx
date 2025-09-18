@@ -7,7 +7,42 @@ import { Receipt } from "lucide-react";
 import { UnpaidOrdersList } from "./unpaid-orders-list";
 import { DailyCashSummary } from "./daily-cash-summary";
 import { getUnpaidOrders } from "@/actions/admin/cash-register-actions";
-import { startOfDay } from "date-fns";
+
+// Minimal shape for unpaid orders used in this dashboard and UnpaidOrdersList
+interface UnpaidOrderItem {
+  id: string;
+  quantity: number;
+  price: number;
+  menuItem: { name: string };
+}
+
+interface UnpaidOrder {
+  id: string;
+  status: "ready" | "served" | string;
+  createdAt: string | Date;
+  total: number;
+  customer?: { name?: string | null } | null;
+  table?: { number: number } | null;
+  orderItems: UnpaidOrderItem[];
+}
+
+// Minimal raw types returned by getUnpaidOrders action (only what we use)
+interface RawUnpaidOrderItem {
+  id: string;
+  quantity: number;
+  price: number;
+  menuItem?: { name?: string | null } | null;
+  name?: string | null;
+}
+interface RawUnpaidOrder {
+  id: string;
+  status: string;
+  createdAt: string | Date;
+  total?: number | null;
+  user?: { name?: string | null } | null;
+  table?: { number: number } | null;
+  orderItems?: RawUnpaidOrderItem[];
+}
 
 function today() {
   return new Date();
@@ -15,14 +50,29 @@ function today() {
 
 export function CashRegisterDashboard() {
   const [date, setDate] = useState<Date>(today());
-  const [unpaidOrders, setUnpaidOrders] = useState<any[]>([]);
+  const [unpaidOrders, setUnpaidOrders] = useState<UnpaidOrder[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async (selectedDate: Date) => {
     try {
       setLoading(true);
       const ordersData = await getUnpaidOrders({ date: selectedDate });
-      setUnpaidOrders(ordersData.data?.orders || []);
+      const raw = (ordersData?.data?.orders ?? []) as RawUnpaidOrder[];
+      const mapped: UnpaidOrder[] = raw.map((o) => ({
+        id: o.id,
+        status: o.status,
+        createdAt: o.createdAt,
+        total: o.total ?? 0,
+        customer: o.user ? { name: o.user.name ?? null } : null,
+        table: o.table ? { number: o.table.number } : null,
+        orderItems: (o.orderItems || []).map((it: RawUnpaidOrderItem) => ({
+          id: it.id,
+          quantity: it.quantity,
+          price: it.price,
+          menuItem: { name: it.menuItem?.name ?? it.name ?? "" },
+        })),
+      }));
+      setUnpaidOrders(mapped);
     } catch (error) {
       console.error("Erreur lors du chargement des données:", error);
     } finally {

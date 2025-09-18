@@ -158,13 +158,19 @@ export const updateOrder = actionClient
   }))
   .action(async ({ parsedInput: { id, ...data } }) => {
     try {
-      const updateData: Record<string, any> = {
-        tableId: data.tableId,
-        status: data.status,
-        type: data.type,
-        total: data.total,
-      };
-      if (data.userId) updateData.userId = data.userId;
+      const updateData: Prisma.OrderUpdateInput = {};
+
+      if (data.status) updateData.status = data.status;
+      if (data.type) updateData.type = data.type;
+      if (data.total) updateData.total = data.total;
+
+      if (data.tableId) {
+        updateData.table = { connect: { id: data.tableId } };
+      }
+
+      if (data.userId) {
+        updateData.user = { connect: { id: data.userId } };
+      }
 
       const order = await prisma.order.update({
         where: { id },

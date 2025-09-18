@@ -24,8 +24,10 @@ export class PerformanceMonitor {
     // First Input Delay (FID)
     new PerformanceObserver((entryList) => {
       const entries = entryList.getEntries();
-      entries.forEach((entry: any) => {
-        this.metrics.set('FID', entry.processingStart - entry.startTime);
+      entries.forEach((entry) => {
+        // PerformanceEventTiming for 'first-input'
+        const e = entry as PerformanceEventTiming;
+        this.metrics.set('FID', (e.processingStart ?? 0) - e.startTime);
       });
     }).observe({ entryTypes: ['first-input'] });
 
@@ -33,9 +35,10 @@ export class PerformanceMonitor {
     let clsValue = 0;
     new PerformanceObserver((entryList) => {
       for (const entry of entryList.getEntries()) {
-        const layoutEntry = entry as any;
+        // LayoutShift is not in lib.dom types in some TS targets
+        const layoutEntry = entry as unknown as { hadRecentInput?: boolean; value?: number };
         if (!layoutEntry.hadRecentInput) {
-          clsValue += layoutEntry.value;
+          clsValue += layoutEntry.value ?? 0;
         }
       }
       this.metrics.set('CLS', clsValue);

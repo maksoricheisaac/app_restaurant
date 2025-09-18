@@ -46,6 +46,8 @@ interface CustomerTableProps {
   customers: Customer[];
   isLoading: boolean;
   onAdd: () => void;
+  onEdit?: (customer: Customer) => void;
+  onDelete?: (id: string) => void;
 }
 
 export function CustomerTable({

@@ -1,8 +1,9 @@
 "use server";
 
-import { z } from "zod";
+import { z } from "zod";  
 import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
+import { revalidatePath } from "next/cache";
 
 const categorySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -31,12 +32,14 @@ export const createCategory = actionClient
       const category = await prisma.menuCategory.create({
         data: { name },
       });
+      revalidatePath('/admin/categories')
       return { success: true, data: category };
+      
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes("P2002")) {
-        throw new Error("A category with this name already exists");
+        throw new Error("Cette catégorie existe déjà");
       }
-      throw new Error("Failed to create category");
+      throw new Error("Erreur lors de la création de la catégorie");
     }
   });
 
@@ -48,17 +51,18 @@ export const updateCategory = actionClient
         where: { id },
         data: { name },
       });
+      revalidatePath('/admin/categories')
       return { success: true, data: category };
     } catch (error: unknown) {
       if (error instanceof Error) {
         if (error.message.includes("P2002")) {
-          throw new Error("A category with this name already exists");
+          throw new Error("Une catégorie avec ce nom existe déjà");
         }
         if (error.message.includes("P2025")) {
-          throw new Error("Category not found");
+          throw new Error("Catégorie non trouvée");
         }
       }
-      throw new Error("Failed to update category");
+      throw new Error("Erreur lors de la mise à jour de la catégorie");
     }
   });
 
@@ -69,12 +73,13 @@ export const deleteCategory = actionClient
       await prisma.menuCategory.delete({
         where: { id },
       });
+      revalidatePath('/admin/categories')
       return { success: true };
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes("P2025")) {
-        throw new Error("Category not found");
+        throw new Error("Catégorie non trouvée");
       }
-      throw new Error("Failed to delete category");
+      throw new Error("Erreur lors de la suppression de la catégorie");
     }
   });
 
@@ -110,6 +115,7 @@ export const getCategories = actionClient
         }),
         prisma.menuCategory.count({ where })
       ]);
+      revalidatePath('/admin/categories')
 
       return { 
         success: true, 
@@ -124,6 +130,6 @@ export const getCategories = actionClient
         }
       };
     } catch {
-      throw new Error("Failed to fetch categories");
+      throw new Error("Erreur lors de la récupération des catégories");
     }
   }); 

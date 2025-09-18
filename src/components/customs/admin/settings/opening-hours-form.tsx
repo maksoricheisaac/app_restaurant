@@ -124,8 +124,8 @@ export function OpeningHoursForm() {
       <div className="lg:col-span-2">
         <Card>
           <CardHeader>
-            <CardTitle>Horaires d'ouverture</CardTitle>
-            <CardDescription>Définissez les heures d'ouverture pour chaque jour.</CardDescription>
+            <CardTitle>Horaires d&#39;ouverture</CardTitle>
+            <CardDescription>Définissez les heures d&#39;ouverture pour chaque jour.</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>

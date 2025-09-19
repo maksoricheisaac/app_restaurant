@@ -1,2 +1,4 @@
-{"buildCommand": "pnpm approve-builds prisma @prisma/engines sharp @tailwindcss/oxide --yes && pnpm build"
+{
+  "buildCommand": "pnpm approve-builds prisma @prisma/engines sharp @tailwindcss/oxide && pnpm build",
+  "installCommand": "pnpm install"
 }

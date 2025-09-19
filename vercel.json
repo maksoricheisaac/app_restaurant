@@ -1,4 +1,9 @@
 {
   "buildCommand": "pnpm approve-builds prisma @prisma/engines sharp @tailwindcss/oxide --global && pnpm build",
-  "installCommand": "pnpm install"
+  "installCommand": "pnpm install",
+  "functions": {
+    "app/**": {
+      "includeFiles": "src/generated/prisma/**"
+    }
+  }
 }

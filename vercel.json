@@ -1,3 +1,3 @@
 {
-  "buildCommand": "pnpm approve-builds && pnpm build"
+  "buildCommand": "pnpm approve-builds prisma @prisma/engines sharp @tailwindcss/oxide && pnpm build"
 }

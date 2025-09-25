@@ -1,8 +1,10 @@
 {
-    "functions": {
-      "app/api/**": {
-        "includeFiles": "src/generated/prisma/**"
-      }
+  "functions": {
+    "app/**": {
+      "includeFiles": [
+        "src/generated/prisma/**",
+        "node_modules/@prisma/engines/**"
+      ]
     }
   }
-  
+}

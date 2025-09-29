@@ -38,7 +38,8 @@ interface CartContextType {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   tableId: string | null;
-  setTableId: (id: string | null) => void;
+  tableNumber: number | null;
+  setTableInfo: (id: string | null, number: number | null) => void;
   createOrder: (
     orderType: OrderType,
     deliveryZoneId?: string,
@@ -53,6 +54,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [tableId, setTableId] = useState<string | null>(null);
+  const [tableNumber, setTableNumber] = useState<number | null>(null);
   const { data: session } = useSession();
   const router = useRouter();
 
@@ -71,6 +73,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (savedTableId) {
       setTableId(savedTableId);
     }
+
+    const savedTableNumber = localStorage.getItem("restaurant_table_number");
+    if (savedTableNumber) {
+      setTableNumber(parseInt(savedTableNumber, 10));
+    }
   }, []);
 
   // Save cart and tableId to localStorage whenever they change
@@ -84,7 +91,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem("restaurant_table_id");
     }
-  }, [tableId]);
+
+    if (tableNumber) {
+      localStorage.setItem("restaurant_table_number", tableNumber.toString());
+    } else {
+      localStorage.removeItem("restaurant_table_number");
+    }
+  }, [tableId, tableNumber]);
 
   const addItem = (newItem: Omit<CartItem, "quantity">) => {
     setItems((prevItems) => {
@@ -127,10 +140,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   };
 
+  const setTableInfo = (id: string | null, number: number | null) => {
+    setTableId(id);
+    setTableNumber(number);
+  };
+
   const clearCart = () => {
     setItems([]);
     setTableId(null);
+    setTableNumber(null);
     localStorage.removeItem("restaurant_table_id");
+    localStorage.removeItem("restaurant_table_number");
     showToastOnce("success", "Panier vidé");
   };
 
@@ -235,7 +255,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
         isOpen,
         setIsOpen,
         tableId,
-        setTableId,
+        tableNumber,
+        setTableInfo,
         createOrder: (
           orderType: OrderType,
           deliveryZoneId?: string,

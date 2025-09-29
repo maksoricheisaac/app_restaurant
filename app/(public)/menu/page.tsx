@@ -6,6 +6,7 @@ import { useCart } from '@/contexts/CartContext';
 import { usePerformance } from '@/hooks/usePerformance';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicMenu, getPublicCategories, type MenuItem } from "@/actions/public/menu-actions";
+import { getTableById } from '@/actions/public/order-actions';
 import { MenuHero } from '@/components/customs/public/menu/hero';
 import { MenuFilters } from '@/components/customs/public/menu/menu-filters';
 import { MenuHeader } from '@/components/customs/public/menu/menu-header';
@@ -24,22 +25,19 @@ const fetchCategories = async () => {
 const fetchMenu = async({search, categoryId, sortBy, sortOrder}: {search?: string, categoryId?: string, sortBy: "name" | "price", sortOrder: "asc" | "desc"}) => {
   const result = await getPublicMenu({search, categoryId, sortBy, sortOrder});
   if(!result.data) throw new Error("Plats non trouvés")
-  return result.data; // ✅ Retourner les items
+  return result.data;
 }
 
 export default function Menu() {
   usePerformance('MenuPage');
   
-  // État local pour les filtres
   const [selectedCategory, setSelectedCategory] = useState('Tous');
   const [sortBy, setSortBy] = useState<'name' | 'price'>('name');
-  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc'); // ✅ Correction : ajouter le setter
-  
-  // État local pour la recherche avec debounce
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [localSearchTerm, setLocalSearchTerm] = useState('');
 
-  const { addItem, setTableId } = useCart();
+  const { addItem, setTableInfo } = useCart();
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,12 +45,24 @@ export default function Menu() {
   useEffect(() => {
     const tableIdFromUrl = searchParams.get('tableId');
     if (tableIdFromUrl) {
-      setTableId(tableIdFromUrl);
-      toast.info(`Vous êtes à la table ${tableIdFromUrl}.`);
-    }
-  }, [searchParams, setTableId]);
+      const fetchTableInfo = async () => {
+        try {
+          const result = await getTableById({ tableId: tableIdFromUrl });
+          if (result.data?.table) {
+            setTableInfo(result.data.table.id, result.data.table.number);
+            toast.info(`Vous êtes à la table n°${result.data.table.number}.`);
+          } else {
+            toast.error("La table scannée n'a pas été trouvée.");
+          }
+        } catch {
+          toast.error("Erreur lors de la récupération des informations de la table.");
+        }
+      };
 
-  // Debounce pour la recherche
+      fetchTableInfo();
+    }
+  }, [searchParams, setTableInfo]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchTerm(localSearchTerm);
@@ -61,7 +71,6 @@ export default function Menu() {
     return () => clearTimeout(timer);
   }, [localSearchTerm]);
 
-  // Gestionnaires d'événements pour les filtres
   const handleSearchChange = (value: string) => {
     setLocalSearchTerm(value);
   };
@@ -75,21 +84,19 @@ export default function Menu() {
   };
 
   const handleSortOrderChange = (value: 'asc' | 'desc') => {
-    setSortOrder(value); // ✅ Correction : permettre le changement d'ordre
+    setSortOrder(value);
   };
 
-  // Récupération des catégories
   const { data : categories } = useQuery({
     queryKey: ['menu-categories'],
     queryFn: fetchCategories
   });
 
-  // Récupération des plats avec filtres
   const { data: menuItems, error } = useQuery({
     queryKey: ['menu-items', debouncedSearchTerm, selectedCategory, sortBy, sortOrder],
     queryFn: () => {
       const categoryId = selectedCategory !== 'Tous' 
-        ? categories?.data.find((cat) => cat.name === selectedCategory)?.id // ✅ Correction : accéder directement aux catégories
+        ? categories?.data.find((cat) => cat.name === selectedCategory)?.id
         : undefined;
       
       return fetchMenu({
@@ -104,11 +111,10 @@ export default function Menu() {
     retryDelay: 1000,
   });
 
-  // Calculer les catégories disponibles à partir des catégories existantes
   const availableCategories = useMemo(() => {
     if (!categories) return ['Tous'];
     
-    return ['Tous', ...categories.data.map((cat) => cat.name)]; // ✅ Correction : accéder directement aux catégories
+    return ['Tous', ...categories.data.map((cat) => cat.name)];
   }, [categories]);
 
   const formatPrice = useCallback((price: number) => {
@@ -148,7 +154,7 @@ export default function Menu() {
     );
   }
 
-  const menuByCategory = menuItems?.data?.items.reduce((acc, dish) => { // ✅ Correction : accéder directement à menuItems
+  const menuByCategory = menuItems?.data?.items.reduce((acc, dish) => {
     const category = dish.category?.name || 'Autres';
     if (!acc[category]) {
       acc[category] = [];
@@ -162,7 +168,6 @@ export default function Menu() {
       <StructuredData type="menu" />
       <MenuHero />
 
-      {/* Menu Section */}
       <section id="menu-content" className="py-8 sm:py-12 lg:py-16 xl:py-20 bg-[#f9f5f0]">
         <div className="max-w-4xl lg:max-w-5xl mx-auto px-3 sm:px-4 lg:px-6 xl:px-8">
           <MenuHeader />
@@ -179,12 +184,10 @@ export default function Menu() {
             onSortOrderChange={handleSortOrderChange}
           />
 
-          {/* Menu Style Papier */}
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 xl:p-12 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-32 sm:w-48 lg:w-64 h-32 sm:h-48 lg:h-64 bg-orange-50 rounded-full -translate-y-16 sm:-translate-y-24 lg:-translate-y-32 translate-x-16 sm:translate-x-24 lg:translate-x-32 opacity-50"></div>
             <div className="absolute bottom-0 left-0 w-32 sm:w-48 lg:w-64 h-32 sm:h-48 lg:h-64 bg-orange-50 rounded-full translate-y-16 sm:translate-y-24 lg:translate-y-32 -translate-x-16 sm:-translate-x-24 lg:-translate-x-32 opacity-50"></div>
 
-            {/* Message quand aucun résultat n'est trouvé */}
             {menuByCategory && Object.keys(menuByCategory).length === 0 && (
               <div className="text-center py-8 sm:py-12">
                 <div className="mb-3 sm:mb-4">
@@ -223,7 +226,6 @@ export default function Menu() {
               </div>
             )}
 
-            {/* Affichage des plats par catégorie */}
             {menuByCategory && Object.keys(menuByCategory).length > 0 && (
               <div className="space-y-8 sm:space-y-12">
                 {Object.entries(menuByCategory).map(([categoryName, dishes]) => (

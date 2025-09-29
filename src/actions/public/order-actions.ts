@@ -259,6 +259,28 @@ export const getOrderStatus = actionClient
     }
   }); 
 
+const tableIdSchema = z.object({
+  tableId: z.string(),
+});
+
+export const getTableById = actionClient
+  .inputSchema(tableIdSchema)
+  .action(async ({ parsedInput }) => {
+    try {
+      const table = await prisma.table.findUnique({
+        where: { id: parsedInput.tableId },
+        select: {
+          id: true,
+          number: true,
+        },
+      });
+      return { table };
+    } catch (error) {
+      console.error("Erreur lors de la récupération de la table:", error);
+      throw new Error("Impossible de récupérer les informations de la table.");
+    }
+  });
+
 export const getAvailableTables = actionClient
   .inputSchema(z.void())
   .action(async () => {

@@ -20,28 +20,19 @@ import { toast } from 'sonner';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { getAvailableTables } from '@/actions/public/order-actions';
 import { getDeliveryZones, getRestaurantSettings } from '@/actions/admin/settings-actions';
 import { useQuery } from '@tanstack/react-query';
-import { useSearchParams } from 'next/navigation';
 import { OrderType } from '@/types/order';
 
 const checkoutSchema = z.object({
   orderType: z.enum(['dine_in', 'takeaway', 'delivery']),
-  tableNumber: z.string().optional(),
+  tableId: z.string().optional(),
   deliveryZoneId: z.string().optional(),
   deliveryAddress: z.string().optional(),
   contactPhone: z.string().optional(),
   notes: z.string().optional(),
-}).refine(data => {
-  if (data.orderType === 'dine_in' && !data.tableNumber) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Le numéro de table est requis pour les commandes sur place",
-  path: ['tableNumber'],
-}).refine(data => {
+})
+.refine(data => {
   if (data.orderType === 'delivery' && !data.deliveryZoneId) {
     return false;
   }
@@ -75,11 +66,6 @@ interface CheckoutFormProps {
   onBack: () => void;
 }
 
-const fetchAvailableTables = async () => {
-  const result = await getAvailableTables();
-  if (!result.data) throw new Error("Tables non trouvées")
-  return result.data;
-}
 
 const fetchDeliveryZones = async () => {
   const zones = await getDeliveryZones();
@@ -87,10 +73,8 @@ const fetchDeliveryZones = async () => {
 }
 
 export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
-  const searchParams = useSearchParams();
-  const tableFromUrl = searchParams.get('table');
 
-  const { items, getTotalPrice, createOrder, clearCart } = useCart();
+  const { items, getTotalPrice, createOrder, clearCart, tableId, tableNumber } = useCart();
 
   const [orderCreated, setOrderCreated] = useState(false);
   const [orderId, setOrderId] = useState('');
@@ -101,8 +85,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
   const form = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
     defaultValues: {
-      orderType: tableFromUrl ? 'dine_in' : undefined,
-      tableNumber: tableFromUrl || '',
+      orderType: tableId ? 'dine_in' : undefined,
       notes: '',
       deliveryAddress: '',
       deliveryZoneId: '',
@@ -112,11 +95,6 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
 
   const orderType = form.watch('orderType');
 
-  const { data: tablesData } = useQuery({
-    queryKey: ['available-tables'],
-    queryFn: fetchAvailableTables,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
 
   const { data: deliveryZones } = useQuery({
     queryKey: ['delivery-zones'],
@@ -158,7 +136,6 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
       const isDelivery = data.orderType === 'delivery';
       const orderId = await createOrder(
         data.orderType as OrderType,
-        data.tableNumber || undefined,
         isDelivery ? (data.deliveryZoneId || undefined) : undefined,
         isDelivery ? (data.deliveryAddress || undefined) : undefined,
         isDelivery ? (data.contactPhone || undefined) : undefined
@@ -317,22 +294,10 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
               {form.formState.errors.orderType && <p className="text-sm text-red-500">{form.formState.errors.orderType.message}</p>}
             </div>
 
-            {orderType === 'dine_in' && (
-              <div className="space-y-2">
-                <Label htmlFor="tableNumber">Numéro de table *</Label>
-                <Select onValueChange={(value) => form.setValue('tableNumber', value)} defaultValue={form.getValues('tableNumber')}>
-                  <SelectTrigger className='w-full'>
-                    <SelectValue placeholder="Sélectionnez une table" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tablesData?.tables.map((table) => (
-                      <SelectItem key={table.id} value={table.number.toString()}>
-                        Table {table.number} ({table.seats} places)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {form.formState.errors.tableNumber && <p className="text-sm text-red-500">{form.formState.errors.tableNumber.message}</p>}
+            {orderType === 'dine_in' && tableId && (
+              <div className="bg-gray-100 p-3 rounded-md border border-gray-200">
+                <p className="text-sm font-medium text-gray-800">Commande pour la table : <span className="font-bold">n°{tableNumber}</span></p>
+                <p className="text-xs text-gray-500">Cet identifiant a été automatiquement ajouté via le QR code.</p>
               </div>
             )}
 

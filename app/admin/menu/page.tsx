@@ -126,8 +126,8 @@ export default function MenuPage() {
             queryClient.invalidateQueries({ queryKey: ["menu-items"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error("Erreur lors de la création du plat");
     },
   })
   const updateMutation = useMutation({
@@ -136,8 +136,8 @@ export default function MenuPage() {
             queryClient.invalidateQueries({ queryKey: ["menu-items"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error("Erreur lors de la mise à jour du plat");
     },
   });
   const deleteMutation = useMutation({
@@ -146,8 +146,8 @@ export default function MenuPage() {
             queryClient.invalidateQueries({ queryKey: ["menu-items"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error: Error) => {
-      toast.error(error.message);
+    onError: () => {
+      toast.error("Erreur lors de la suppression du plat");
     },
   });
 

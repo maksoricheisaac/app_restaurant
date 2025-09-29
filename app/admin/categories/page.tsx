@@ -53,7 +53,7 @@ export default function CategoriesPage() {
     onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error: Error) => {
+    onError: () => {
       toast.error("Erreur lors de la création de la catégorie");
     },
   });
@@ -62,7 +62,7 @@ export default function CategoriesPage() {
     onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error: Error) => {
+    onError: () => {
       toast.error("Erreur lors de la mise à jour de la catégorie");
     },
   });

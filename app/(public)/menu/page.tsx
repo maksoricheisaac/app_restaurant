@@ -12,7 +12,7 @@ import { MenuHeader } from '@/components/customs/public/menu/menu-header';
 import { MenuCategory } from '@/components/customs/public/menu/menu-category';
 import { StructuredData } from '@/components/seo/structured-data';
 import { useSession } from '@/lib/auth-client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 
 const fetchCategories = async () => {
@@ -39,9 +39,18 @@ export default function Menu() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [localSearchTerm, setLocalSearchTerm] = useState('');
 
-  const { addItem } = useCart();
+  const { addItem, setTableId } = useCart();
   const { data: session } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const tableIdFromUrl = searchParams.get('tableId');
+    if (tableIdFromUrl) {
+      setTableId(tableIdFromUrl);
+      toast.info(`Vous êtes à la table ${tableIdFromUrl}.`);
+    }
+  }, [searchParams, setTableId]);
 
   // Debounce pour la recherche
   useEffect(() => {

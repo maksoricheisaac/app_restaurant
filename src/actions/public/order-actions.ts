@@ -9,7 +9,7 @@ import { pusherServer } from "@/lib/pusher";
 
 const orderSchema = z.object({
   orderType: z.enum(['dine_in', 'takeaway', 'delivery']),
-  tableNumber: z.string().regex(/^\d+$/, "Numéro de table invalide").optional(),
+  tableId: z.string().optional(),
   userId: z.string(),
   items: z.array(z.object({
     id: z.string(),
@@ -66,7 +66,7 @@ export const createOrder = actionClient
       // Vérifier les limites de taux (log uniquement pour l'instant)
       await checkRateLimit(ipAddress);
 
-      const { orderType, tableNumber, userId, items, deliveryZoneId, deliveryAddress, contactPhone } = parsedInput;
+      const { orderType, tableId, userId, items, deliveryZoneId, deliveryAddress, contactPhone } = parsedInput;
 
       // Vérifier que l'utilisateur existe
       const user = await prisma.user.findUnique({
@@ -78,21 +78,18 @@ export const createOrder = actionClient
       }
 
       // Récupérer l'ID de la table si un numéro est fourni
-      let tableId: string | null = null;
-      if (tableNumber && orderType === 'dine_in') {
+      if (parsedInput.tableId && orderType === 'dine_in') {
         const table = await prisma.table.findUnique({
-          where: { number: parseInt(tableNumber) }
+          where: { id: parsedInput.tableId }
         });
 
         if (!table) {
-          throw new Error(`Table ${tableNumber} non trouvée`);
+          throw new Error(`Table ${parsedInput.tableId} non trouvée`);
         }
 
         if (table.status !== 'available') {
-          throw new Error(`Table ${tableNumber} n'est pas disponible`);
+          throw new Error(`Table ${parsedInput.tableId} n'est pas disponible`);
         }
-
-        tableId = table.id;
       }
 
       // Validation spécifique selon le type de commande
@@ -179,7 +176,7 @@ export const createOrder = actionClient
 
       // Notifier via Pusher
       try {
-        await pusherServer.trigger("restaurant", "new-order", {
+        await pusherServer.trigger("restaurant-channel", "new-order", {
           order: {
             id: order.id,
             orderType: order.type,

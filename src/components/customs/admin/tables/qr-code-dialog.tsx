@@ -13,25 +13,18 @@ interface QRCodeDialogProps {
   onClose: () => void;
   table: TableData | null;
 }
-
 export function QRCodeDialog({ isOpen, onClose, table }: QRCodeDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
   if (!table) return null;
 
-  const qrData = JSON.stringify({
-    tableId: table.id,
-    tableNumber: table.number,
-    location: table.location,
-    seats: table.seats
-  });
+  const baseUrl = typeof window !== 'undefined' ? `${window.location.origin}` : '';
+  const qrData = `${baseUrl}/menu?tableId=${table.id}`;
 
   // Fonction pour télécharger l'image QR code
   const downloadAsImage = async () => {
     setIsGenerating(true);
     try {
-      
-      
       // Générer le QR code directement avec la bibliothèque qrcode
       const dataUrl = await QRCodeLib.toDataURL(qrData, {
         width: 400,
@@ -227,8 +220,7 @@ export function QRCodeDialog({ isOpen, onClose, table }: QRCodeDialogProps) {
             />
             
             <div className="text-center text-xs text-gray-500">
-              <p>Scannez pour accéder à la table</p>
-              <p>ID: {table.id}</p>
+              <p>Scannez pour accéder au menu</p>
             </div>
           </div>
 

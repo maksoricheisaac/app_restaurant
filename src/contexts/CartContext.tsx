@@ -37,9 +37,10 @@ interface CartContextType {
   getTotalPrice: () => number;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+  tableId: string | null;
+  setTableId: (id: string | null) => void;
   createOrder: (
     orderType: OrderType,
-    tableNumber?: string,
     deliveryZoneId?: string,
     deliveryAddress?: string,
     contactPhone?: string
@@ -51,10 +52,11 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [tableId, setTableId] = useState<string | null>(null);
   const { data: session } = useSession();
   const router = useRouter();
 
-  // Load cart from localStorage on mount
+  // Load cart and tableId from localStorage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem("restaurant_cart");
     if (savedCart) {
@@ -64,12 +66,25 @@ export function CartProvider({ children }: { children: ReactNode }) {
         console.error("Error loading cart from localStorage:", error);
       }
     }
+
+    const savedTableId = localStorage.getItem("restaurant_table_id");
+    if (savedTableId) {
+      setTableId(savedTableId);
+    }
   }, []);
 
-  // Save cart to localStorage whenever items change
+  // Save cart and tableId to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem("restaurant_cart", JSON.stringify(items));
   }, [items]);
+
+  useEffect(() => {
+    if (tableId) {
+      localStorage.setItem("restaurant_table_id", tableId);
+    } else {
+      localStorage.removeItem("restaurant_table_id");
+    }
+  }, [tableId]);
 
   const addItem = (newItem: Omit<CartItem, "quantity">) => {
     setItems((prevItems) => {
@@ -114,7 +129,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const clearCart = () => {
     setItems([]);
-    // Toast unique après la mise à jour
+    setTableId(null);
+    localStorage.removeItem("restaurant_table_id");
     showToastOnce("success", "Panier vidé");
   };
 
@@ -133,13 +149,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const { mutateAsync: createOrderMutation } = useMutation({
     mutationFn: async ({
       orderType,
-      tableNumber,
       deliveryZoneId,
       deliveryAddress,
       contactPhone
     }: {
       orderType: OrderType;
-      tableNumber?: string;
       deliveryZoneId?: string;
       deliveryAddress?: string;
       contactPhone?: string;
@@ -158,7 +172,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           price: item.price
         })),
         orderType: orderType,
-        tableNumber: tableNumber,
+        tableId: tableId,
         userId: session.user.id,
         // Champs livraison
         deliveryZoneId,
@@ -220,16 +234,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         getTotalPrice,
         isOpen,
         setIsOpen,
+        tableId,
+        setTableId,
         createOrder: (
           orderType: OrderType,
-          tableNumber?: string,
           deliveryZoneId?: string,
           deliveryAddress?: string,
           contactPhone?: string
         ) =>
           createOrderMutation({
             orderType,
-            tableNumber,
             deliveryZoneId,
             deliveryAddress,
             contactPhone

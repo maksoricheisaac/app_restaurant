@@ -43,9 +43,10 @@ export default function Menu() {
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const tableIdFromUrl = searchParams.get('tableId');
 
   useEffect(() => {
-    const tableIdFromUrl = searchParams.get('tableId');
+   
     if (tableIdFromUrl) {
       const fetchTableInfo = async () => {
         try {

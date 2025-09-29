@@ -1,22 +1,20 @@
 
 'use client';
 
-export const dynamic = 'force-dynamic';
-
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, Suspense } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { usePerformance } from '@/hooks/usePerformance';
 import { useQuery } from '@tanstack/react-query';
 import { getPublicMenu, getPublicCategories, type MenuItem } from "@/actions/public/menu-actions";
-import { getTableById } from '@/actions/public/order-actions';
 import { MenuHero } from '@/components/customs/public/menu/hero';
 import { MenuFilters } from '@/components/customs/public/menu/menu-filters';
 import { MenuHeader } from '@/components/customs/public/menu/menu-header';
 import { MenuCategory } from '@/components/customs/public/menu/menu-category';
 import { StructuredData } from '@/components/seo/structured-data';
 import { useSession } from '@/lib/auth-client';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { TableInfoHandler } from '@/components/customs/public/menu/table-info-handler';
 
 const fetchCategories = async () => {
   const result = await getPublicCategories();
@@ -39,32 +37,9 @@ export default function Menu() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [localSearchTerm, setLocalSearchTerm] = useState('');
 
-  const { addItem, setTableInfo } = useCart();
+  const { addItem } = useCart();
   const { data: session } = useSession();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const tableIdFromUrl = searchParams.get('tableId');
-
-  useEffect(() => {
-   
-    if (tableIdFromUrl) {
-      const fetchTableInfo = async () => {
-        try {
-          const result = await getTableById({ tableId: tableIdFromUrl });
-          if (result.data?.table) {
-            setTableInfo(result.data.table.id, result.data.table.number);
-            toast.info(`Vous êtes à la table n°${result.data.table.number}.`);
-          } else {
-            toast.error("La table scannée n'a pas été trouvée.");
-          }
-        } catch {
-          toast.error("Erreur lors de la récupération des informations de la table.");
-        }
-      };
-
-      fetchTableInfo();
-    }
-  }, [searchParams, setTableInfo]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -168,6 +143,9 @@ export default function Menu() {
 
   return (
     <div className="min-h-screen bg-[#f9f5f0]">
+      <Suspense fallback={null}>
+        <TableInfoHandler />
+      </Suspense>
       <StructuredData type="menu" />
       <MenuHero />
 

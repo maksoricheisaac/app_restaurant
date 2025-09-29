@@ -88,7 +88,7 @@ export const getTables = actionClient
 
 // Get table by ID
 export const getTableById = actionClient
-  .schema(z.object({
+  .inputSchema(z.object({
     id: z.string().uuid("Invalid table ID"),
   }))
   .action(async ({ parsedInput: { id } }) => {
@@ -118,7 +118,7 @@ export const getTableById = actionClient
 
 // Create table
 export const createTable = actionClient
-  .schema(tableSchema)
+  .inputSchema(tableSchema)
   .action(async ({ parsedInput }) => {
     try {
       const table = await prisma.table.create({
@@ -208,11 +208,12 @@ export const updateTable = actionClient
 
 // Delete table
 export const deleteTable = actionClient
-  .schema(z.object({
+  .inputSchema(z.object({
     id: z.string().uuid("Invalid table ID"),
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      
       await prisma.table.delete({
         where: { id },
       });
@@ -235,7 +236,7 @@ export const deleteTable = actionClient
 
 // Get available tables
 export const getAvailableTables = actionClient
-  .schema(z.void())
+  .inputSchema(z.void())
   .action(async () => {
     try {
       const tables = await prisma.table.findMany({
@@ -261,7 +262,7 @@ export const getAvailableTables = actionClient
 
 // Get table locations (ajouté pour corriger l'import dans page.tsx)
 export const getTableLocations = actionClient
-  .schema(z.void())
+  .inputSchema(z.void())
   .action(async () => {
     try {
       const locations = await prisma.table.findMany({

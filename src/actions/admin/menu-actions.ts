@@ -135,48 +135,4 @@ export const getCategories = actionClient.action(async () => {
   return { categories: categoriesWithCount };
 });
 
-export const createCategory = actionClient.inputSchema(z.object({ name: z.string().min(1) })).action(async ({ parsedInput }) => {
-  const existing = await prisma.menuCategory.findFirst({ where: { name: parsedInput.name } });
-  if (existing) throw new Error("Cette catégorie existe déjà.");
-  const category = await prisma.menuCategory.create({ data: { name: parsedInput.name } });
-  return { category };
-});
 
-export const updateCategory = actionClient.inputSchema(z.object({ id: z.string().min(1), name: z.string().min(1) })).action(async ({ parsedInput }) => {
-  const { id, name } = parsedInput;
-  const category = await prisma.menuCategory.update({ where: { id }, data: { name } });
-  return { category };
-});
-
-export const deleteCategory = actionClient.inputSchema(z.object({ id: z.string().min(1) })).action(async ({ parsedInput }) => {
-  await prisma.menuCategory.delete({ where: { id: parsedInput.id } });
-  return { success: true };
-}); 
-
-export const createMenuCategory = actionClient
-  .inputSchema(z.object({
-    name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-  }))
-  .action(async ({ parsedInput }) => {
-    try {
-      // Vérifier si la catégorie existe déjà
-      const existing = await prisma.menuCategory.findFirst({ 
-        where: { name: parsedInput.name } 
-      });
-
-      if (existing) {
-        throw new Error("Une catégorie avec ce nom existe déjà");
-      }
-
-      const category = await prisma.menuCategory.create({
-        data: {
-          name: parsedInput.name,
-        },
-      });
-
-      return { success: true, data: category };
-    } catch (error) {
-      console.error('Erreur lors de la création de la catégorie:', error);
-      throw new Error('Impossible de créer la catégorie pour le moment.');
-    }
-  }); 

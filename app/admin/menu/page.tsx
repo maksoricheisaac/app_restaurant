@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { MenuTable } from "@/components/customs/admin/menu/menu-table";
@@ -9,11 +9,11 @@ import { Pagination } from "@/components/ui/pagination";
 import type { MenuItem } from "@/types/menu";
 
 import {
-  createMenuItem,
-  deleteMenuItem,
   getAllMenuItems as getMenuItems,
-  updateMenuItem,
   getCategories,
+  createMenuItem,
+  updateMenuItem,
+  deleteMenuItem,
 } from "@/actions/admin/menu-actions";
 import { MenuHeader } from "@/components/customs/admin/menu/menu-header";
 import { MenuStats } from "@/components/customs/admin/menu/menu-stats";
@@ -123,34 +123,28 @@ export default function MenuPage() {
   const createMutation = useMutation({
     mutationFn: createMenuItem,
     onSuccess: () => {
-      toast.success("Plat créé avec succès");
-      setIsOpen(false);
-      setSelectedItem(null);
-      queryClient.invalidateQueries({ queryKey: ["menu-items", "categories"] });
+            queryClient.invalidateQueries({ queryKey: ["menu-items"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
     },
-  });
-
+  })
   const updateMutation = useMutation({
     mutationFn: updateMenuItem,
     onSuccess: () => {
-      toast.success("Plat mis à jour avec succès");
-      setIsOpen(false);
-      setSelectedItem(null);
-      queryClient.invalidateQueries({ queryKey: ["menu-items", "categories"] });
+            queryClient.invalidateQueries({ queryKey: ["menu-items"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
     },
   });
-
   const deleteMutation = useMutation({
     mutationFn: deleteMenuItem,
     onSuccess: () => {
-      toast.success("Plat supprimé avec succès");
-      queryClient.invalidateQueries({ queryKey: ["menu-items", "categories"] });
+            queryClient.invalidateQueries({ queryKey: ["menu-items"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
     onError: (error: Error) => {
       toast.error(error.message);
@@ -165,12 +159,33 @@ export default function MenuPage() {
     };
 
     if (selectedItem) {
-      updateMutation.mutate({
-        ...submitData,
-        id: selectedItem.id,
-      });
+      updateMutation.mutate(
+        {
+          ...submitData,
+          id: selectedItem.id,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Plat mis à jour avec succès");
+            setIsOpen(false);
+            setSelectedItem(null);
+          },
+          onError: (error: Error) => {
+            toast.error(error.message);
+          },
+        }
+      );
     } else {
-      createMutation.mutate(submitData);
+      createMutation.mutate(submitData, {
+        onSuccess: () => {
+          toast.success("Plat créé avec succès");
+          setIsOpen(false);
+          setSelectedItem(null);
+        },
+        onError: (error: Error) => {
+          toast.error(error.message);
+        },
+      });
     }
   };
 
@@ -181,7 +196,17 @@ export default function MenuPage() {
 
   const handleDeleteConfirm = () => {
     if (deleteItemId) {
-      deleteMutation.mutate({ id: deleteItemId });
+      deleteMutation.mutate(
+        { id: deleteItemId },
+        {
+          onSuccess: () => {
+            toast.success("Plat supprimé avec succès");
+          },
+          onError: (error: Error) => {
+            toast.error(error.message);
+          },
+        }
+      );
       setIsDeleteDialogOpen(false);
       setDeleteItemId(null);
     }

@@ -2,7 +2,7 @@
 
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { CategoryHeader } from "@/components/customs/admin/categories/category-header";
@@ -11,12 +11,7 @@ import { CategoryTable } from "@/components/customs/admin/categories/category-ta
 import { CategoryForm } from "@/components/customs/admin/categories/category-form";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
-import {
-  createCategory,
-  deleteCategory,
-  getCategories,
-  updateCategory,
-} from "@/actions/admin/category-actions";
+import { createCategory, deleteCategory, getCategories, updateCategory } from "@/actions/admin/category-actions";
 
 const fetchCategories = async (
   search: string,
@@ -56,55 +51,55 @@ export default function CategoriesPage() {
   const createMutation = useMutation({
     mutationFn: createCategory,
     onSuccess: () => {
-      toast.success("Catégorie créée avec succès");
-      queryClient.invalidateQueries({ 
-        queryKey: ["categories"],
-        exact: false
-       });
-      setIsOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+    onError: (error: Error) => {
+      toast.error("Erreur lors de la création de la catégorie");
     },
   });
-
   const updateMutation = useMutation({
     mutationFn: updateCategory,
     onSuccess: () => {
-      toast.success("Catégorie mise à jour avec succès");
-      queryClient.invalidateQueries({ 
-        queryKey: ["categories"],
-        exact: false
-       });
-      setIsOpen(false);
+            queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+    onError: (error: Error) => {
+      toast.error("Erreur lors de la mise à jour de la catégorie");
     },
   });
-
   const deleteMutation = useMutation({
     mutationFn: deleteCategory,
     onSuccess: () => {
-      toast.success("Catégorie supprimée avec succès");
-      queryClient.invalidateQueries({ 
-        queryKey: ["categories"],
-        exact: false
-       });
-    },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
-    },
+            queryClient.invalidateQueries({ queryKey: ["categories"] });
+    }
   });
 
   const handleSubmit = async (values: { name: string }) => {
     if (selectedCategory) {
-      updateMutation.mutate({
-        id: selectedCategory.id,
-        name: values.name,
-      });
+      updateMutation.mutate(
+        {
+          id: selectedCategory.id,
+          name: values.name,
+        },
+        {
+          onSuccess: () => {
+            toast.success("Catégorie mise à jour avec succès");
+            setIsOpen(false);
+          },
+          onError: (error) => {
+            toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+          },
+        }
+      );
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(values, {
+        onSuccess: () => {
+          toast.success("Catégorie créée avec succès");
+          setIsOpen(false);
+        },
+        onError: (error) => {
+          toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+        },
+      });
     }
   };
 
@@ -115,7 +110,17 @@ export default function CategoriesPage() {
 
   const handleDeleteConfirm = () => {
     if (deleteCategoryId) {
-      deleteMutation.mutate({ id: deleteCategoryId });
+      deleteMutation.mutate(
+        { id: deleteCategoryId },
+        {
+          onSuccess: () => {
+            toast.success("Catégorie supprimée avec succès");
+          },
+          onError: (error) => {
+            toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+          },
+        }
+      );
       setIsDeleteDialogOpen(false);
       setDeleteCategoryId(null);
     }

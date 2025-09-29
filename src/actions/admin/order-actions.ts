@@ -140,6 +140,18 @@ export const createOrder = actionClient
             orderItems: order.orderItems,
           }
         });
+        // Broadcast aussi sur le canal utilisé par le dashboard et OrdersPage
+        await pusherServer.trigger('restaurant-channel', 'new-order', {
+          order: {
+            id: order.id,
+            status: order.status,
+            type: order.type,
+            total: order.total,
+            createdAt: order.createdAt,
+            user: order.user,
+            orderItems: order.orderItems,
+          }
+        });
       } catch (pusherError) {
         console.error('Erreur Pusher:', pusherError);
       }
@@ -195,6 +207,18 @@ export const updateOrder = actionClient
             orderItems: order.orderItems,
           }
         });
+        // Broadcast aussi sur le canal utilisé par le dashboard et OrdersPage
+        await pusherServer.trigger('restaurant-channel', 'order-updated', {
+          order: {
+            id: order.id,
+            status: order.status,
+            type: order.type,
+            total: order.total,
+            updatedAt: order.updatedAt,
+            user: order.user,
+            orderItems: order.orderItems,
+          }
+        });
       } catch (pusherError) {
         console.error('Erreur Pusher:', pusherError);
       }
@@ -220,6 +244,10 @@ export const deleteOrder = actionClient
       // Notification en temps réel via Pusher
       try {
         await pusherServer.trigger('admin-orders', 'order-deleted', {
+          orderId: id
+        });
+        // Broadcast aussi sur le canal utilisé par le dashboard et OrdersPage
+        await pusherServer.trigger('restaurant-channel', 'order-deleted', {
           orderId: id
         });
       } catch (pusherError) {

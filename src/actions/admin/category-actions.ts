@@ -3,18 +3,17 @@
 import { z } from "zod";  
 import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
-import { revalidatePath } from "next/cache";
 
 const categorySchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
 });
 
 const categoryIdSchema = z.object({
-  id: z.string().cuid("Invalid category ID"),
+  id: z.string().uuid("Invalid category ID"),
 });
 
 const updateCategorySchema = categorySchema.extend({
-  id: z.string().cuid("Invalid category ID"),
+  id: z.string().uuid("Invalid category ID"),
 });
 
 const getCategoriesSchema = z.object({
@@ -32,7 +31,6 @@ export const createCategory = actionClient
       const category = await prisma.menuCategory.create({
         data: { name },
       });
-      revalidatePath('/admin/categories')
       return { success: true, data: category };
       
     } catch (error: unknown) {
@@ -47,11 +45,11 @@ export const updateCategory = actionClient
   .inputSchema(updateCategorySchema)
   .action(async ({ parsedInput: { id, name } }) => {
     try {
+      console.log(id)
       const category = await prisma.menuCategory.update({
         where: { id },
         data: { name },
       });
-      revalidatePath('/admin/categories')
       return { success: true, data: category };
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -70,10 +68,10 @@ export const deleteCategory = actionClient
   .inputSchema(categoryIdSchema)
   .action(async ({ parsedInput: { id } }) => {
     try {
+      console.log(id)
       await prisma.menuCategory.delete({
         where: { id },
       });
-      revalidatePath('/admin/categories')
       return { success: true };
     } catch (error: unknown) {
       if (error instanceof Error && error.message.includes("P2025")) {
@@ -115,7 +113,6 @@ export const getCategories = actionClient
         }),
         prisma.menuCategory.count({ where })
       ]);
-      revalidatePath('/admin/categories')
 
       return { 
         success: true, 

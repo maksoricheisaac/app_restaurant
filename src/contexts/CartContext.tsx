@@ -192,7 +192,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           price: item.price
         })),
         orderType: orderType,
-        tableId: tableId,
+        tableId: tableId ?? undefined,
         userId: session.user.id,
         // Champs livraison
         deliveryZoneId,

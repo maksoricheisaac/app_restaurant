@@ -179,29 +179,15 @@ export default function OrdersPage() {
     },
   });
 
-  // Configuration Pusher pour les commandes
+  // Configuration Pusher pour rafraîchir les données de la page en temps réel
   usePusher({
     channel: 'restaurant-channel',
     events: ['new-order', 'order-updated', 'order-status-updated', 'order-deleted'],
     onEvent: (event) => {
-      switch (event) {
-        case 'new-order':
-          toast.success('Nouvelle commande reçue !');
-          queryClient.invalidateQueries({ queryKey: ["orders"] });
-          break;
-        case 'order-updated':
-          toast.info('Commande mise à jour');
-          queryClient.invalidateQueries({ queryKey: ["orders"] });
-          break;
-        case 'order-status-updated':
-          toast.info('Statut de commande mis à jour');
-          queryClient.invalidateQueries({ queryKey: ["orders"] });
-          break;
-        case 'order-deleted':
-          toast.info('Commande supprimée');
-          queryClient.invalidateQueries({ queryKey: ["orders"] });
-          break;
-      }
+      // Les notifications (toasts et son) sont gérées globalement par AdminNotificationProvider.
+      // Ici, nous nous contentons de rafraîchir les données de la page.
+      console.log(`Invalidating orders query due to Pusher event: ${event}`);
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
     },
   });
 

@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { getAdminSidebarCounts } from '@/actions/admin/dashboard-actions'
 import { redirect } from "next/navigation";
 import { ReactNode } from "react";
+import { AdminNotificationProvider } from "@/contexts/AdminNotificationContext";
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -32,7 +33,8 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   
   return (
     <SidebarProvider>
-      <AppSidebar counts={counts} user={user} />
+      <AdminNotificationProvider>
+        <AppSidebar counts={counts} user={user} />
       <div
         id='content'
         className={cn(
@@ -50,6 +52,7 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           {children}
         </Main>
       </div>
+      </AdminNotificationProvider>
     </SidebarProvider>
   );
 }

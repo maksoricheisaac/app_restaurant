@@ -4,7 +4,8 @@ import {
   useContext,
   useState,
   useEffect,
-  ReactNode
+  ReactNode,
+  useCallback
 } from "react";
 import { toast } from "sonner";
 import { useMutation } from "@tanstack/react-query";
@@ -109,7 +110,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [tableId, tableNumber, isClient]);
 
-  const addItem = (newItem: Omit<CartItem, "quantity">) => {
+  const addItem = useCallback((newItem: Omit<CartItem, "quantity">) => {
     setItems((prevItems) => {
       const existingItem = prevItems.find((item) => item.id === newItem.id);
 
@@ -124,22 +125,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
       }
     });
     
-    // Toast unique après la mise à jour
     showToastOnce("success", "Article ajouté au panier");
-  };
+  }, []);
 
-  const removeItem = (id: string) => {
-    setItems((prevItems) => {
-      const updatedItems = prevItems.filter((item) => item.id !== id);
-      return updatedItems;
-    });
-    // Toast unique après la mise à jour
+  const removeItem = useCallback((id: string) => {
+    setItems((prevItems) => prevItems.filter((item) => item.id !== id));
     showToastOnce("error", "Article retiré du panier");
-  };
+  }, []);
 
-  const updateQuantity = (id: string, quantity: number) => {
+  const updateQuantity = useCallback((id: string, quantity: number) => {
     if (quantity <= 0) {
-      removeItem(id);
+      setItems((prevItems) => prevItems.filter((item) => item.id !== id));
+      showToastOnce("error", "Article retiré du panier");
       return;
     }
 
@@ -148,32 +145,32 @@ export function CartProvider({ children }: { children: ReactNode }) {
         item.id === id ? { ...item, quantity } : item
       )
     );
-  };
+  }, []);
 
-  const setTableInfo = (id: string | null, number: number | null) => {
+  const setTableInfo = useCallback((id: string | null, number: number | null) => {
     setTableId(id);
     setTableNumber(number);
-  };
+  }, []);
 
-  const clearCart = () => {
+  const clearCart = useCallback(() => {
     setItems([]);
     setTableId(null);
     setTableNumber(null);
     localStorage.removeItem("restaurant_table_id");
     localStorage.removeItem("restaurant_table_number");
     showToastOnce("success", "Panier vidé");
-  };
+  }, []);
 
-  const getTotalItems = () => {
+  const getTotalItems = useCallback(() => {
     return items.reduce((total, item) => total + item.quantity, 0);
-  };
+  }, [items]);
 
-  const getTotalPrice = () => {
+  const getTotalPrice = useCallback(() => {
     return items.reduce(
       (total, item) => total + item.price * item.quantity,
       0
     );
-  };
+  }, [items]);
 
   // Mutation createOrder avec TanStack Query
   const { mutateAsync: createOrderMutation } = useMutation({

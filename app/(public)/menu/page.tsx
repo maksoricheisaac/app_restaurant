@@ -1,6 +1,8 @@
 
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useCart } from '@/contexts/CartContext';
 import { usePerformance } from '@/hooks/usePerformance';

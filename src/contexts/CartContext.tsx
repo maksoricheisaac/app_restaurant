@@ -57,9 +57,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [tableNumber, setTableNumber] = useState<number | null>(null);
   const { data: session } = useSession();
   const router = useRouter();
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Load cart and tableId from localStorage on mount
   useEffect(() => {
+    if (!isClient) return;
+
     const savedCart = localStorage.getItem("restaurant_cart");
     if (savedCart) {
       try {
@@ -78,14 +85,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
     if (savedTableNumber) {
       setTableNumber(parseInt(savedTableNumber, 10));
     }
-  }, []);
+  }, [isClient]);
 
   // Save cart and tableId to localStorage whenever they change
   useEffect(() => {
+    if (!isClient) return;
     localStorage.setItem("restaurant_cart", JSON.stringify(items));
-  }, [items]);
+  }, [items, isClient]);
 
   useEffect(() => {
+    if (!isClient) return;
+
     if (tableId) {
       localStorage.setItem("restaurant_table_id", tableId);
     } else {
@@ -97,7 +107,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } else {
       localStorage.removeItem("restaurant_table_number");
     }
-  }, [tableId, tableNumber]);
+  }, [tableId, tableNumber, isClient]);
 
   const addItem = (newItem: Omit<CartItem, "quantity">) => {
     setItems((prevItems) => {

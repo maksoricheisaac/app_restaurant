@@ -79,11 +79,11 @@ export default function SupportPage() {
                 <div className="flex-1">
                   <p className="text-sm font-medium">Téléphone</p>
                   <div className="flex items-center gap-2">
-                    <p className="text-sm text-muted-foreground">+237 XXX XXX XXX</p>
+                    <p className="text-sm text-muted-foreground">+242 05 607 34 56</p>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => copyToClipboard('+237XXXXXXXXX', 'Numéro')}
+                      onClick={() => copyToClipboard('+242056073456', 'Numéro')}
                       className="h-6 px-2"
                     >
                       Copier
@@ -96,7 +96,7 @@ export default function SupportPage() {
                 <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-medium">Localisation</p>
-                  <p className="text-sm text-muted-foreground">Cameroun</p>
+                  <p className="text-sm text-muted-foreground">Congo</p>
                 </div>
               </div>
             </div>
@@ -209,7 +209,7 @@ export default function SupportPage() {
               <Button
                 className="w-full justify-start"
                 variant="outline"
-                onClick={() => window.open('https://wa.me/237XXXXXXXXX', '_blank')}
+                onClick={() => window.open('https://wa.me/242056073456', '_blank')}
               >
                 <MessageSquare className="h-4 w-4 mr-2" />
                 WhatsApp
@@ -217,7 +217,7 @@ export default function SupportPage() {
               <Button
                 className="w-full justify-start"
                 variant="outline"
-                onClick={() => window.open('tel:+237XXXXXXXXX')}
+                onClick={() => window.open('tel: +242 05 607 34 56')}
               >
                 <Phone className="h-4 w-4 mr-2" />
                 Appeler

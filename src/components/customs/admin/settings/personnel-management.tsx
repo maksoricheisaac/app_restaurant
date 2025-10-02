@@ -139,6 +139,8 @@ export function PersonnelManagement() {
       setIsDialogOpen(false);
       
       // Recharger les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
      
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erreur lors de l'ajout du personnel");
@@ -170,6 +172,8 @@ export function PersonnelManagement() {
       setIsDialogOpen(false);
       
       // Recharger les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
      
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Erreur lors de la modification du personnel");
@@ -315,7 +319,14 @@ export function PersonnelManagement() {
                     {editingPersonnel ? "Modifiez les informations du personnel" : "Créez un nouveau compte personnel"}
                   </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={editingPersonnel ? handleEditPersonnel : handleAddPersonnel}>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (editingPersonnel) {
+                    handleEditPersonnel();
+                  } else {
+                    handleAddPersonnel();
+                  }
+                }}>
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">

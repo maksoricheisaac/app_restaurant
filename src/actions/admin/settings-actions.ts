@@ -4,7 +4,6 @@ import { z } from "zod";
 import prisma  from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { signUp } from "@/lib/auth-client";
 import { headers } from "next/headers";
 import { $Enums } from "@/generated/prisma";
 
@@ -117,16 +116,17 @@ export async function addPersonnel(data: z.infer<typeof PersonnelSchema>) {
       throw new Error("Un utilisateur avec cet email existe déjà");
     }
 
-    // Créer le compte utilisateur via better-auth
-    const result = await signUp.email({
-      email: validatedData.email,
-      password: validatedData.password,
-      name: `${validatedData.firstName} ${validatedData.lastName}`,
-      callbackURL: "/admin/dashboard",
+    // Créer le compte utilisateur via better-auth API serveur
+    const user = await auth.api.signUpEmail({
+      body: {
+        email: validatedData.email,
+        password: validatedData.password,
+        name: `${validatedData.firstName} ${validatedData.lastName}`,
+      }
     });
 
-    if (result.error) {
-      throw new Error(result.error.message);
+    if (!user) {
+      throw new Error("Erreur lors de la création de l'utilisateur");
     }
 
     // Mettre à jour le rôle dans la base de données

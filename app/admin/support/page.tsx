@@ -28,7 +28,7 @@ export default function SupportPage() {
       <div className="space-y-2">
         <h1 className="text-3xl font-bold">Support & Assistance</h1>
         <p className="text-muted-foreground">
-          Besoin d'aide ? Contactez le développeur de l'application
+          Besoin d&apos;aide ? Contactez le développeur de l&apos;application
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export default function SupportPage() {
               <CardTitle>Informations du Développeur</CardTitle>
             </div>
             <CardDescription>
-              Développeur Full Stack & Créateur de l'application
+              Développeur Full Stack & Créateur de l&apos;application
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -230,7 +230,7 @@ export default function SupportPage() {
       {/* Application Info */}
       <Card>
         <CardHeader>
-          <CardTitle>À propos de l'application</CardTitle>
+          <CardTitle>À propos de l&apos;application</CardTitle>
           <CardDescription>
             Informations sur le système de gestion de restaurant
           </CardDescription>
@@ -253,7 +253,7 @@ export default function SupportPage() {
           <div className="mt-6 p-4 bg-muted rounded-lg">
             <p className="text-sm text-muted-foreground">
               Cette application a été développée avec passion par <span className="font-semibold text-foreground">Riche Isaac MAKSO</span>.
-              Pour toute question, suggestion ou demande d'amélioration, n'hésitez pas à me contacter via les moyens ci-dessus.
+              Pour toute question, suggestion ou demande d&apos;amélioration, n&apos;hésitez pas à me contacter via les moyens ci-dessus.
             </p>
           </div>
         </CardContent>

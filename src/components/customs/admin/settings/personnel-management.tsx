@@ -36,7 +36,7 @@ import { generateSecurePassword } from "@/utils/passwordUtils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "@radix-ui/react-alert-dialog";
 import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { UserRole, ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
+import { ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
 
 type StaffRole = "admin" | "owner" | "manager" | "head_chef" | "chef" | "waiter" | "cashier";
 
@@ -138,7 +138,7 @@ export function PersonnelManagement() {
         firstName: "",
         lastName: "",
         email: "",  
-        role: UserRole.WAITER, 
+        role: "waiter", 
         password: "MotDePasse123!"
       });
       setIsDialogOpen(false);

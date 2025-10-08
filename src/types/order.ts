@@ -6,7 +6,7 @@ export type OrderType = "dine_in" | "takeaway" | "delivery";
 export interface OrderItem {
   id: string;
   orderId: string;
-  menuItemId: string;
+  menuItemId: string | null;
   name: string;
   quantity: number;
   price: number;

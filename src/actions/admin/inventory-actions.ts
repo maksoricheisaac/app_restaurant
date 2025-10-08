@@ -509,6 +509,7 @@ export const decrementStockForOrder = actionClient
             include: {
               menuItem: {
                 include: {
+                  category: true, // Inclure la catégorie pour filtrer les boissons
                   Recipe: {
                     include: {
                       ingredient: true
@@ -539,6 +540,28 @@ export const decrementStockForOrder = actionClient
       // Utiliser une transaction pour garantir la cohérence
       await prisma.$transaction(async (tx) => {
         for (const orderItem of order.orderItems) {
+          // Vérifier que menuItem existe
+          if (!orderItem.menuItem) {
+            console.warn(`MenuItem non trouvé pour orderItem ${orderItem.id}`);
+            continue;
+          }
+
+          // GESTION DE STOCK UNIQUEMENT POUR LES BOISSONS
+          const isBeverage = orderItem.menuItem.category.name.toLowerCase().includes('boisson') ||
+                            orderItem.menuItem.category.name.toLowerCase().includes('drink') ||
+                            orderItem.menuItem.category.name.toLowerCase().includes('beverage');
+
+          if (!isBeverage) {
+            console.log(`Article ${orderItem.name} ignoré (pas une boisson)`);
+            continue;
+          }
+
+          // Traiter les recettes uniquement pour les boissons
+          if (!orderItem.menuItem.Recipe || orderItem.menuItem.Recipe.length === 0) {
+            console.warn(`Aucune recette trouvée pour la boisson ${orderItem.name}`);
+            continue;
+          }
+
           for (const recipe of orderItem.menuItem.Recipe) {
             const totalQuantity = recipe.quantity * orderItem.quantity;
             
@@ -561,7 +584,7 @@ export const decrementStockForOrder = actionClient
                 ingredientId: recipe.ingredientId,
                 type: "OUT",
                 quantity: totalQuantity,
-                description: `Sortie automatique pour commande #${order.id} - ${orderItem.name}`,
+                description: `Sortie automatique pour commande #${order.id} - ${orderItem.name} (Boisson)`,
                 orderId: order.id,
                 userId: order.userId
               }
@@ -582,7 +605,11 @@ export const decrementStockForOrder = actionClient
         }
       });
 
-      return { success: true, data: movements };
+      return { 
+        success: true, 
+        data: movements,
+        message: `${movements.length} mouvement(s) de stock créé(s) pour les boissons`
+      };
     } catch (error) {
       console.error('Erreur lors de la décrementation du stock:', error);
       throw new Error(error instanceof Error ? error.message : "Erreur lors de la décrementation du stock");

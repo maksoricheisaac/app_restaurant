@@ -66,7 +66,7 @@ export function Header() {
             </div>
             <div className="flex flex-col">
               <span className="font-bold text-xl bg-gradient-to-r from-orange-600 to-orange-700 bg-clip-text text-transparent">
-                Resto_Congo
+                App_Restaurant
               </span>
               <span className="text-xs text-gray-500 font-medium tracking-wide">
                 Restaurant Africain • Brazzaville
@@ -124,7 +124,8 @@ export function Header() {
                 name: session.data.user.name,
                 email: session.data.user.email,
                 avatar: session.data.user.image || "",
-                role: session.data.user.role || ""
+                role: session.data.user.role || "",
+                isAnonymous: session.data.user.isAnonymous
               }} />
             )}
           </div>
@@ -219,7 +220,8 @@ export function Header() {
                     name: session.data.user.name,
                     email: session.data.user.email,
                     avatar: session.data.user.image || "",
-                    role: session.data.user.role || ""
+                    role: session.data.user.role || "",
+                    isAnonymous: session.data.user.isAnonymous
                   }} />
                 )}
               </div>

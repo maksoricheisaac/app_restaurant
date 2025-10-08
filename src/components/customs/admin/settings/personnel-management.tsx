@@ -36,13 +36,18 @@ import { generateSecurePassword } from "@/utils/passwordUtils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "@radix-ui/react-alert-dialog";
 import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { UserRole, ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
+
+type StaffRole = "admin" | "owner" | "manager" | "head_chef" | "chef" | "waiter" | "cashier";
 
 const roles = [
-  { value: "admin", label: "Administrateur", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
-  { value: "manager", label: "Manager", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  { value: "waiter", label: "Serveur", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  { value: "kitchen", label: "Cuisine", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  { value: "cashier", label: "Caissier", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" }
+  { value: ADMIN, label: ROLE_LABELS[ADMIN], color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  { value: OWNER, label: ROLE_LABELS[OWNER], color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
+  { value: MANAGER, label: ROLE_LABELS[MANAGER], color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  { value: HEAD_CHEF, label: ROLE_LABELS[HEAD_CHEF], color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  { value: CHEF, label: ROLE_LABELS[CHEF], color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  { value: WAITER, label: ROLE_LABELS[WAITER], color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  { value: CASHIER, label: ROLE_LABELS[CASHIER], color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" }
 ];
 
 const fetchPersonnel = async() => {
@@ -71,7 +76,7 @@ export function PersonnelManagement() {
     firstName: "",
     lastName: "",
     email: "",
-    role: "waiter" as "admin" | "manager" | "waiter" | "kitchen" | "cashier",
+    role: "waiter" as StaffRole,
     password: "MotDePasse123!"
   });
 
@@ -133,7 +138,7 @@ export function PersonnelManagement() {
         firstName: "",
         lastName: "",
         email: "",  
-        role: "waiter", 
+        role: UserRole.WAITER, 
         password: "MotDePasse123!"
       });
       setIsDialogOpen(false);
@@ -164,7 +169,7 @@ export function PersonnelManagement() {
         firstName: editingPersonnel.firstName,
         lastName: editingPersonnel.lastName,
         email: editingPersonnel.email,
-        role: editingPersonnel.role as "admin" | "manager" | "waiter" | "kitchen" | "cashier"
+        role: editingPersonnel.role as StaffRole
       });
       
       toast.success("Personnel modifié avec succès");
@@ -374,7 +379,7 @@ export function PersonnelManagement() {
                       <Label htmlFor="role">Rôle</Label>
                       <Select 
                         value={editingPersonnel ? editingPersonnel.role : newPersonnel.role}
-                        onValueChange={(value: "admin" | "manager" | "waiter" | "kitchen" | "cashier") => editingPersonnel 
+                        onValueChange={(value: StaffRole) => editingPersonnel 
                           ? setEditingPersonnel({...editingPersonnel, role: value})
                           : setNewPersonnel({...newPersonnel, role: value})
                         }
@@ -442,7 +447,7 @@ export function PersonnelManagement() {
                           firstName: "",
                           lastName: "",
                           email: "",
-                          role: "waiter" as "admin" | "manager" | "waiter" | "kitchen" | "cashier",
+                          role: "waiter" as StaffRole,
                           password: "MotDePasse123!"
                         });
                       }}

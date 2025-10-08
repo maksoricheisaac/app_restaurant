@@ -59,6 +59,64 @@ enum TransactionType {
 }
 
 // --- Nouveaux enums ---
+// Note: UserRole a été migré vers String pour compatibilité Better Auth
+
+enum Permission {
+  // Dashboard
+  VIEW_DASHBOARD
+  VIEW_ANALYTICS
+  
+  // Commandes
+  VIEW_ORDERS
+  CREATE_ORDERS
+  UPDATE_ORDERS
+  DELETE_ORDERS
+  MANAGE_ORDER_STATUS
+  
+  // Menu
+  VIEW_MENU
+  CREATE_MENU_ITEMS
+  UPDATE_MENU_ITEMS
+  DELETE_MENU_ITEMS
+  
+  // Tables
+  VIEW_TABLES
+  MANAGE_TABLES
+  
+  // Réservations
+  VIEW_RESERVATIONS
+  CREATE_RESERVATIONS
+  UPDATE_RESERVATIONS
+  DELETE_RESERVATIONS
+  
+  // Clients
+  VIEW_CUSTOMERS
+  MANAGE_CUSTOMERS
+  
+  // Caisse
+  VIEW_CASH_REGISTER
+  MANAGE_PAYMENTS
+  MANAGE_TRANSACTIONS
+  VIEW_REPORTS
+  
+  // Inventaire
+  VIEW_INVENTORY
+  MANAGE_INVENTORY
+  MANAGE_STOCK
+  
+  // Personnel
+  VIEW_STAFF
+  MANAGE_STAFF
+  MANAGE_PERMISSIONS
+  
+  // Paramètres
+  VIEW_SETTINGS
+  MANAGE_SETTINGS
+  
+  // Messages
+  VIEW_MESSAGES
+  MANAGE_MESSAGES
+}
 
 enum DayOfWeek {
   monday
@@ -99,6 +157,9 @@ model User {
   banReason   String?
   banExpires  DateTime?
   isAnonymous Boolean?
+
+  // Relations pour les permissions
+  userPermissions UserPermission[]
 
   @@unique([email])
   @@map("user")
@@ -275,12 +336,12 @@ model Order {
 }
 
 model OrderItem {
-  id         String   @id @default(uuid())
+  id         String    @id @default(uuid())
   orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-  quantity   Int      @default(1)
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId String?
+  menuItem   MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  quantity   Int       @default(1)
   price      Float
   name       String // Nom du plat au moment de la commande
   image      String? // Image du plat au moment de la commande
@@ -413,4 +474,28 @@ model StockMovement {
   order       Order?            @relation(fields: [orderId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+}
+
+// --- Gestion des permissions ---
+
+model RolePermission {
+  id         String     @id @default(uuid())
+  role       String
+  permission Permission
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([role, permission])
+}
+
+model UserPermission {
+  id         String     @id @default(uuid())
+  userId     String
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission
+  granted    Boolean    @default(true) // true = accordé, false = refusé
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([userId, permission])
 }

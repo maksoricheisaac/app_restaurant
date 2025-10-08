@@ -16,6 +16,8 @@ import {
   DashboardStatsCards,
   DashboardOrdersSection
 } from "@/components/admin/dashboard";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 
 const fetchStats = async({date}: {date: string}) => {
   const result = await getDashboardStats({ date });
@@ -195,8 +197,9 @@ export default function AdminDashboard() {
   };
 
   return (
-    <div className="space-y-8">
-      <DashboardHeader />
+    <ProtectedRoute requiredPermission={Permission.VIEW_DASHBOARD}>
+      <div className="space-y-8">
+        <DashboardHeader />
       
       <DashboardDateSelector
         selectedDate={selectedDate}
@@ -241,6 +244,7 @@ export default function AdminDashboard() {
         statusLabels={statusLabels}
         typeLabels={typeLabels}
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

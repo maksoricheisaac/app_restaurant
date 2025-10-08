@@ -273,25 +273,51 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
               <Label className="text-sm font-medium">Type de commande *</Label>
               <div className="grid grid-cols-3 gap-2">
                 {(!restaurantSettings || restaurantSettings.dineInEnabled) && (
-                  <Button type="button" variant={orderType === 'dine_in' ? 'default' : 'outline'} onClick={() => form.setValue('orderType', 'dine_in')} className="flex flex-col h-20 cursor-pointer">
-                    <User className="w-6 h-6 mb-1" />
-                    <span>Sur place</span>
-                  </Button>
+                  <div className="relative">
+                    <Button 
+                      type="button" 
+                      variant={orderType === 'dine_in' ? 'default' : 'outline'} 
+                      onClick={() => {
+                        if (!tableId) {
+                          toast.error("Veuillez scanner le QR code de votre table pour commander sur place");
+                          return;
+                        }
+                        form.setValue('orderType', 'dine_in');
+                      }} 
+                      className="flex flex-col h-20 cursor-pointer w-full"
+                      disabled={!tableId}
+                    >
+                      <User className="w-6 h-6 mb-1" />
+                      <span className="text-xs">Sur place</span>
+                    </Button>
+                    {!tableId && (
+                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                        QR requis
+                      </div>
+                    )}
+                  </div>
                 )}
                 {(!restaurantSettings || restaurantSettings.takeawayEnabled) && (
                   <Button type="button" variant={orderType === 'takeaway' ? 'default' : 'outline'} onClick={() => form.setValue('orderType', 'takeaway')} className="flex flex-col h-20 cursor-pointer">
                     <ShoppingBag className="w-6 h-6 mb-1" />
-                    <span>À emporter</span>
+                    <span className="text-xs">À emporter</span>
                   </Button>
                 )}
                 {(!restaurantSettings || restaurantSettings.deliveryEnabled) && (
                   <Button type="button" variant={orderType === 'delivery' ? 'default' : 'outline'} onClick={() => form.setValue('orderType', 'delivery')} className="flex flex-col h-20 cursor-pointer">
                     <Truck className="w-6 h-6 mb-1" />
-                    <span>Livraison</span>
+                    <span className="text-xs">Livraison</span>
                   </Button>
                 )}
               </div>
               {form.formState.errors.orderType && <p className="text-sm text-red-500">{form.formState.errors.orderType.message}</p>}
+              {!tableId && (!restaurantSettings || restaurantSettings.dineInEnabled) && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
+                  <p className="text-xs text-amber-800">
+                    <span className="font-semibold">📱 Commande sur place :</span> Scannez le QR code présent sur votre table pour activer cette option.
+                  </p>
+                </div>
+              )}
             </div>
 
             {orderType === 'dine_in' && tableId && (

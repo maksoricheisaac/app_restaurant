@@ -170,7 +170,7 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             </div>
             {!sidebarCollapsed && (
               <div>
-                <span className="font-bold text-xl">Resto_Congo</span>
+                <span className="font-bold text-xl">App_Restaurant</span>
                 <p className="text-sm text-orange-100">Administration</p>
               </div>
             )}

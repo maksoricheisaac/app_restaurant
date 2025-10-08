@@ -40,18 +40,20 @@ export const Header = ({
   return (
     <header
       className={cn(
-        'bg-background flex h-16 items-center gap-3 p-4 sm:gap-4',
+        'bg-background flex h-14 sm:h-16 items-center gap-2 px-3 py-2 sm:gap-4 sm:p-4',
         fixed && 'header-fixed peer/header fixed z-50 w-[inherit] rounded-md',
         offset > 10 && fixed ? 'shadow-sm' : 'shadow-none',
         className
       )}
       {...props}
     >
-      <SidebarTrigger variant='outline' className='scale-125 sm:scale-100' />
-      <Separator orientation='vertical' className='h-6' />
-      <h1 className='text-2xl font-bold'>Administration</h1>
-      <div className='ml-auto flex items-center gap-4'>
-        <NavUser user={user} />
+      <SidebarTrigger variant='outline' className='h-9 w-9 sm:h-10 sm:w-10' />
+      <Separator orientation='vertical' className='h-6 hidden sm:block' />
+      <h1 className='text-base sm:text-2xl font-bold truncate'>Administration</h1>
+      <div className='ml-auto flex items-center gap-2 sm:gap-4'>
+        <div className='hidden sm:block'>
+          <NavUser user={user} />
+        </div>
         <ToggleMode />
       </div>
     </header>

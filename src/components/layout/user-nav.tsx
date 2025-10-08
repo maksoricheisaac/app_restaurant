@@ -22,6 +22,7 @@ export function UserNav({
     email: string;
     avatar?: string;
     role: string;
+    isAnonymous?: boolean | null;
   };
 }) {
   const [loading, setLoading] = useState(false);
@@ -38,6 +39,7 @@ export function UserNav({
   const displayAvatar = user?.avatar || "/avatar.png";
   const role = ( user?.role && user?.role == "user" ) ? "client" : user.role.trim()
   const canGoToDashboard = ['admin', 'waiter','owner']
+  const isAnonymous = user?.isAnonymous === true;
 
 
   return (
@@ -91,14 +93,16 @@ export function UserNav({
           )
 
           }
-          <DropdownMenuItem asChild>
-            <Link
-              href={`order-tracking`}
-            >
-              <ListOrdered />
-              Suivi de commande
-            </Link>
-          </DropdownMenuItem>
+          {!isAnonymous && (
+            <DropdownMenuItem asChild>
+              <Link
+                href={`order-tracking`}
+              >
+                <ListOrdered />
+                Suivi de commande
+              </Link>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleLogout} disabled={loading} className="text-red-600 focus:text-red-700">

@@ -11,7 +11,7 @@ export function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12">
             {/* Restaurant Info */}
             <div>
-              <h3 className="text-2xl font-bold mb-6 text-orange-400">Resto_Congo</h3>
+              <h3 className="text-2xl font-bold mb-6 text-orange-400">App_Restaurant</h3>
               <p className="text-gray-300 mb-6 leading-relaxed">
                 Découvrez l'authenticité de la cuisine africaine au cœur de Brazzaville. 
                 Spécialités congolaises et plats traditionnels dans une atmosphère conviviale.
@@ -99,7 +99,7 @@ export function Footer() {
 
           <div className="border-t border-gray-800 mt-12 pt-8 text-center">
             <p className="text-gray-400 text-sm">
-              © 2025 Resto_Congo. Tous droits réservés. Restaurant africain Brazzaville - Cuisine locale Congo.
+              © 2025 App_Restaurant. Tous droits réservés. Restaurant africain Brazzaville - Cuisine locale Congo.
             </p>
           </div>
         </div>

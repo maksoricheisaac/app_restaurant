@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 import {
   createTable,
   deleteTable,
@@ -188,7 +190,8 @@ export default function TablesPage() {
   const totalCapacity = tables.reduce((acc, table) => acc + table.seats, 0);
 
   return (
-    <div className="space-y-8">
+    <ProtectedRoute requiredPermission={Permission.VIEW_TABLES}>
+      <div className="space-y-8">
       <PageHeader onAddClick={handleAdd} />
 
       <StatisticsCards
@@ -248,6 +251,7 @@ export default function TablesPage() {
         isLoading={deleteMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

@@ -18,15 +18,15 @@ const orderItemSchema = z.object({
 // Schema for order validation
 const orderSchema = z.object({
   // userId optional: staff can create orders without linking a registered user
-  userId: z.string().cuid("Invalid user ID").optional(),
-  tableId: z.string().uuid("Invalid table ID").optional(),
+  userId: z.string().optional().or(z.literal("")),
+  tableId: z.string().uuid("Invalid table ID").optional().or(z.literal("")).or(z.null()),
   status: z.enum(["pending", "preparing", "ready", "served", "cancelled"]),
   type: z.enum(["dine_in", "takeaway", "delivery"]),
   total: z.number().positive("Le total doit être positif"),
   items: z.array(orderItemSchema).min(1, "La commande doit contenir au moins un article"),
   // Champs optionnels pour les commandes créées par le personnel
-  email: z.string().email("Email invalide").optional(),
-  phone: z.string().optional(),
+  email: z.string().email("Email invalide").optional().or(z.literal("")),
+  phone: z.string().optional().or(z.literal("")),
 });
 
 // Get all orders
@@ -85,8 +85,8 @@ export const createOrder = actionClient
   .action(async ({ parsedInput }) => {
     try {
       let userIdToUse = parsedInput.userId;
-      // If no userId provided, create an anonymous guest user record
-      if (!userIdToUse) {
+      // Si userId est vide, "cl_comptoir_user" ou invalide, créer un utilisateur invité
+      if (!userIdToUse || userIdToUse === "" || userIdToUse === "cl_comptoir_user") {
         try {
           const { randomUUID } = await import('crypto');
           const guestId = randomUUID();
@@ -112,13 +112,24 @@ export const createOrder = actionClient
           throw new Error('Impossible de créer un utilisateur invité pour la commande.');
         }
       }
+
+      // Créer la commande avec ses articles dans une transaction
       const order = await prisma.order.create({
         data: {
           userId: userIdToUse,
-          tableId: parsedInput.tableId,
+          tableId: parsedInput.tableId && parsedInput.tableId !== "" ? parsedInput.tableId : null,
           status: parsedInput.status,
           type: parsedInput.type,
           total: parsedInput.total,
+          orderItems: {
+            create: parsedInput.items.map(item => ({
+              name: item.name,
+              quantity: item.quantity,
+              price: item.price,
+              image: item.image || null,
+              ...(item.menuItemId ? { menuItem: { connect: { id: item.menuItemId } } } : {})
+            }))
+          }
         },
         include: {
           user: true,
@@ -182,6 +193,25 @@ export const updateOrder = actionClient
 
       if (data.userId) {
         updateData.user = { connect: { id: data.userId } };
+      }
+
+      // Gérer les items : supprimer les anciens et créer les nouveaux
+      if (data.items && data.items.length > 0) {
+        // Supprimer les anciens items
+        await prisma.orderItem.deleteMany({
+          where: { orderId: id }
+        });
+        
+        // Créer les nouveaux items
+        updateData.orderItems = {
+          create: data.items.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            price: item.price,
+            image: item.image || null,
+            ...(item.menuItemId ? { menuItem: { connect: { id: item.menuItemId } } } : {})
+          }))
+        };
       }
 
       const order = await prisma.order.update({

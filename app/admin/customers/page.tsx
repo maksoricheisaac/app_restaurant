@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 
 import { CustomerHeader } from "@/components/customs/admin/customers/customer-header";
 import { CustomerStats } from "@/components/customs/admin/customers/customer-stats";
@@ -162,8 +164,9 @@ export default function CustomersPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <CustomerHeader onAdd={handleAdd} />
+    <ProtectedRoute requiredPermission={Permission.VIEW_CUSTOMERS}>
+      <div className="space-y-8">
+        <CustomerHeader onAdd={handleAdd} />
       
       <CustomerStats
         totalCustomers={totalCustomers}
@@ -211,6 +214,7 @@ export default function CustomersPage() {
         isLoading={deleteCustomerMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

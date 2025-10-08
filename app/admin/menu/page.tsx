@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 
 import { MenuTable } from "@/components/customs/admin/menu/menu-table";
 import { Pagination } from "@/components/ui/pagination";
@@ -231,8 +233,9 @@ export default function MenuPage() {
   };
 
   return (
-    <div className="space-y-8">
-      <MenuHeader onAdd={handleAdd} />
+    <ProtectedRoute requiredPermission={Permission.VIEW_MENU}>
+      <div className="space-y-8">
+        <MenuHeader onAdd={handleAdd} />
       
       <MenuStats
         totalItems={totalItems}
@@ -328,6 +331,7 @@ export default function MenuPage() {
         isLoading={deleteMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

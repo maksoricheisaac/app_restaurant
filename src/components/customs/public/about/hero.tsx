@@ -31,7 +31,7 @@ export const Hero = () => {
                 À Propos de Nous
               </h1>
               <p className="text-lg sm:text-xl md:text-2xl text-orange-100 leading-relaxed max-w-4xl mx-auto px-4">
-                Découvrez l'histoire de Resto_Congo, restaurant de référence pour la cuisine africaine 
+                Découvrez l'histoire de App_Restaurant, restaurant de référence pour la cuisine africaine 
                 authentique au cœur de Brazzaville depuis 2020. Une aventure familiale guidée par la passion 
                 de partager les vraies saveurs du Congo.
               </p>

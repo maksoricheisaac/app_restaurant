@@ -8,17 +8,19 @@ import { LimitsForm } from "./limits-form";
 import { OpeningHoursForm } from "./opening-hours-form";
 import { SocialLinksForm } from "./social-links-form";
 import { PersonnelManagement } from "./personnel-management";
+import { PermissionsManagement } from "./permissions-management";
 
 export function SettingsTabs() {
   return (
     <Tabs defaultValue="general" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 md:grid-cols-3 lg:grid-cols-7">
+      <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
         <TabsTrigger value="general">Général</TabsTrigger>
         <TabsTrigger value="opening-hours">Horaires</TabsTrigger>
         <TabsTrigger value="delivery-zones">Livraisons</TabsTrigger>
         <TabsTrigger value="limits">Limitations</TabsTrigger>
         <TabsTrigger value="social-links">Réseaux sociaux</TabsTrigger>
         <TabsTrigger value="personnel">Personnel</TabsTrigger>
+        <TabsTrigger value="permissions">Permissions</TabsTrigger>
         <TabsTrigger value="advanced">Avancé</TabsTrigger>
       </TabsList>
 
@@ -39,6 +41,9 @@ export function SettingsTabs() {
       </TabsContent>
       <TabsContent value="personnel">
         <PersonnelManagement />
+      </TabsContent>
+      <TabsContent value="permissions">
+        <PermissionsManagement />
       </TabsContent>
       <TabsContent value="advanced">
         <AdvancedSettingsForm />

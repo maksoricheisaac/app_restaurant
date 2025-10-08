@@ -20,7 +20,9 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     headers: await headers()
   });
 
-  if(!session?.user || !session?.user?.role || session?.user?.role !== "admin"){
+  // Vérifier que l'utilisateur est connecté et a un rôle staff
+  const staffRoles = ["admin", "owner", "manager", "head_chef", "chef", "waiter", "cashier"];
+  if(!session?.user || !session?.user?.role || !staffRoles.includes(session?.user?.role)){
     return redirect("/login")
   }
 
@@ -32,17 +34,18 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   };
   
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={false}>
       <AdminNotificationProvider>
         <AppSidebar counts={counts} user={user} />
       <div
         id='content'
         className={cn(
-          'ml-auto w-full max-w-full',
-          'peer-data-[state=collapsed]:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
-          'peer-data-[state=expanded]:w-[calc(100%-var(--sidebar-width))]',
-          'sm:transition-[width] sm:duration-200 sm:ease-linear',
-          'flex h-svh flex-col',
+          'w-full max-w-full',
+          'lg:ml-auto',
+          'peer-data-[state=collapsed]:lg:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
+          'peer-data-[state=expanded]:lg:w-[calc(100%-var(--sidebar-width))]',
+          'transition-[width] duration-200 ease-linear',
+          'flex min-h-screen flex-col',
           'group-data-[scroll-locked=1]/body:h-full',
           'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh'
         )}

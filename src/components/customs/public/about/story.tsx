@@ -20,7 +20,7 @@ export const Story = () => {
                   
                   <div className="space-y-6 text-base sm:text-lg text-gray-600">
                     <p className="font-medium text-gray-800">
-                      Resto_Congo est né d'une passion profonde pour la cuisine traditionnelle congolaise 
+                      App_Restaurant est né d'une passion profonde pour la cuisine traditionnelle congolaise 
                       et d'un désir de partager les saveurs authentiques de notre patrimoine culinaire.
                     </p>
                     <p>
@@ -34,7 +34,7 @@ export const Story = () => {
                       garantir l'authenticité des saveurs qui font la richesse de notre cuisine.
                     </p>
                     <p className="font-medium text-gray-800">
-                      Aujourd'hui, Resto_Congo est reconnu comme l'un des meilleurs restaurants africains 
+                      Aujourd'hui, App_Restaurant est reconnu comme l'un des meilleurs restaurants africains 
                       de Brazzaville, accueillant chaque jour des familles, des amis et des visiteurs venus 
                       découvrir ou redécouvrir la richesse de notre cuisine locale dans une ambiance unique.
                     </p>

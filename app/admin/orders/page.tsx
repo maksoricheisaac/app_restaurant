@@ -7,6 +7,9 @@ import { Plus } from "lucide-react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { PermissionGuard } from "@/components/admin/PermissionGuard";
+import { Permission } from "@/types/permissions";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -47,28 +50,21 @@ const orderItemSchema = z.object({
 });
 
 const formSchema = z.object({
-  // customerId optional to allow staff to create walk-in orders
-  customerId: z.string().min(0,"ID client invalide").optional(),
-  // contact info optional when staff creates a simplified order
-  email: z.string().optional(),
-  phone: z.string().optional(),
+  // userId optional to allow staff to create walk-in orders
+  userId: z.string().optional().or(z.literal("")).or(z.literal("cl_comptoir_user")),
   items: z.array(orderItemSchema).min(1, "La commande doit avoir au moins un article"),
   total: z.number().min(0, "Le total doit être positif"),
   status: z.enum(["pending", "preparing", "ready", "served", "cancelled"]),
   type: z.enum(["dine_in", "takeaway", "delivery"]),
-  time: z.string(),
-  date: z.date(),
-  tableId: z.string().nullable(),
+  tableId: z.string().optional().or(z.literal("")).or(z.literal("none")).or(z.null()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 
 
-type OrderInput = Omit<FormValues, "date" | "tableId"> & {
-  date: string;
+type OrderInput = FormValues & {
   tableId?: string;
-  userId?: string; // optional to support staff-created orders without a linked user
 };
 
 type OrderUpdateInput = OrderInput & {
@@ -166,16 +162,12 @@ export default function OrdersPage() {
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      customerId: "cl_comptoir_user",
-      email: "",
-      phone: "",
+      userId: "cl_comptoir_user",
       items: [],
       total: 0,
       status: "pending" as const,
       type: "dine_in" as const,
-      time: "",
-      date: new Date(),
-      tableId: "",
+      tableId: "none",
     },
   });
 
@@ -209,25 +201,21 @@ export default function OrdersPage() {
   const { data: tablesData } = useQuery({
     queryKey: ["tables"],
     queryFn: () => getTables({}),
-    refetchInterval: 50000,
   });
 
   const { data: customersData } = useQuery({
     queryKey: ["customers"],
     queryFn: () => getCustomers({}),
-    refetchInterval: 10000,
   });
 
   const { data: menuData } = useQuery({
     queryKey: ["menu"],
     queryFn: () => getPublicMenu({}),
-    refetchInterval: 0,
   });
 
   const { data: categoriesData } = useQuery({
     queryKey: ["menu-categories"],
-    queryFn: () => getPublicCategories(),
-    refetchInterval: 0,
+    queryFn: () => getPublicCategories()
   });
 
   // Transform the data to match the expected Order type
@@ -254,7 +242,7 @@ export default function OrdersPage() {
     orderItems: Array<{
       id: string;
       orderId: string;
-      menuItemId?: string; // Accept optional for mapping
+      menuItemId: string | null; // Match server response type
       name: string;
       quantity: number;
       price: number;
@@ -267,7 +255,7 @@ export default function OrdersPage() {
     type: order.type as "dine_in" | "takeaway" | "delivery",
     orderItems: order.orderItems.map(item => ({
       ...item,
-      menuItemId: item.menuItemId ?? "", // Provide a default value if missing
+      menuItemId: item.menuItemId ?? "", // Convert null to empty string
     })),
   }));
 
@@ -361,38 +349,28 @@ export default function OrdersPage() {
   const onSubmit = async (values: FormValues) => {
     const input = {
       ...values,
-      date: values.date.toISOString(),
+      tableId: values.tableId && values.tableId !== "none" ? values.tableId : undefined,
     };
     if (selectedOrder) {
       updateOrderMutation.mutate({
         ...input,
         id: selectedOrder.id,
         userId: selectedOrder.userId,
-        tableId: input.tableId || undefined,
       });
     } else {
-      createOrderMutation.mutate({
-        ...input,
-        // pass undefined when no customerId so server can fallback to a guest user
-        userId: input.customerId || undefined,
-        tableId: input.tableId || undefined,
-      });
+      createOrderMutation.mutate(input);
     }
   };
 
   const handleAdd = () => {
     setSelectedOrder(null);
     form.reset({
-      customerId: "cl_comptoir_user",
-      email: "",
-      phone: "",
+      userId: "cl_comptoir_user",
       items: [],
       total: 0,
       status: "pending",
       type: "dine_in",
-      time: "",
-      date: new Date(),
-      tableId: undefined,
+      tableId: "none",
     });
     setIsOpen(true);
   };
@@ -444,20 +422,23 @@ export default function OrdersPage() {
   };
 
   return (
-    <div className="space-y-8">
-      {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Commandes</h1>
-          <p className="text-gray-500 mt-2">
-            Gérez les commandes de votre restaurant
-          </p>
+    <ProtectedRoute requiredPermission={Permission.VIEW_ORDERS}>
+      <div className="space-y-8">
+        {/* En-tête */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Commandes</h1>
+            <p className="text-gray-500 mt-2">
+              Gérez les commandes de votre restaurant
+            </p>
+          </div>
+          <PermissionGuard permission={Permission.CREATE_ORDERS}>
+            <Button onClick={handleAdd} className="cursor-pointer">
+              <Plus className="mr-2 h-4 w-4" />
+              Nouvelle commande
+            </Button>
+          </PermissionGuard>
         </div>
-        <Button onClick={handleAdd} className="cursor-pointer">
-          <Plus className="mr-2 h-4 w-4" />
-          Nouvelle commande
-        </Button>
-      </div>
 
       {/* Statistiques */}
       <StatisticsCards
@@ -534,13 +515,13 @@ export default function OrdersPage() {
 
       {/* Modal d'édition */}
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-[60vw] w-[60vw] h-[90vh] overflow-hidden flex flex-col sm:max-w-[98vw]">
+        <DialogContent className="max-w-[80vw] w-full max-h-[95vh] overflow-hidden flex flex-col sm:max-w-[95vw]">
           <DialogHeader className="flex-shrink-0">
             <DialogTitle>
               {selectedOrder ? "Modifier la commande" : "Nouvelle commande"}
             </DialogTitle>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto min-h-0">
             <OrderForm 
               form={form}
               onSubmit={onSubmit}
@@ -593,6 +574,7 @@ export default function OrdersPage() {
         isLoading={false}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

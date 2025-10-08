@@ -3,14 +3,26 @@
 import { useSession } from '@/lib/auth-client';
 import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Permission, UserRole } from '@/types/permissions';
 
 interface ProtectedRouteProps {
   children: ReactNode;
-  requiredRole?: 'admin' | 'manager';
+  requiredRole?: UserRole;
+  requiredPermission?: Permission;
+  requiredPermissions?: Permission[];
+  requireAll?: boolean;
 }
 
-export function ProtectedRoute({ children, requiredRole = 'manager' }: ProtectedRouteProps) {
+export function ProtectedRoute({ 
+  children, 
+  requiredRole, 
+  requiredPermission, 
+  requiredPermissions = [], 
+  requireAll = false 
+}: ProtectedRouteProps) {
   const { data: session, isPending: isLoading, error } = useSession();
+  const { hasPermission, hasAnyPermission, hasAllPermissions, hasRole, isStaff } = usePermissions();
   const router = useRouter();
 
   useEffect(() => {
@@ -20,21 +32,36 @@ export function ProtectedRoute({ children, requiredRole = 'manager' }: Protected
     }
 
     if (!isLoading && session) {
-      const userRole = session.user?.role;
-      
-      // Vérifier si l'utilisateur a le rôle requis
-      if (!userRole || (userRole !== 'admin' && userRole !== 'manager')) {
+      // Vérifier si l'utilisateur fait partie du personnel
+      if (!isStaff()) {
         router.replace('/login?error=access_denied');
         return;
       }
 
-      // Si un rôle spécifique est requis, vérifier s'il correspond
-      if (requiredRole === 'admin' && userRole !== 'admin') {
+      // Vérifier le rôle spécifique si requis
+      if (requiredRole && !hasRole(requiredRole)) {
         router.replace('/login?error=insufficient_permissions');
         return;
       }
+
+      // Vérifier les permissions
+      if (requiredPermission && !hasPermission(requiredPermission)) {
+        router.replace('/login?error=insufficient_permissions');
+        return;
+      }
+
+      if (requiredPermissions.length > 0) {
+        const hasRequiredPermissions = requireAll 
+          ? hasAllPermissions(requiredPermissions)
+          : hasAnyPermission(requiredPermissions);
+        
+        if (!hasRequiredPermissions) {
+          router.replace('/login?error=insufficient_permissions');
+          return;
+        }
+      }
     }
-  }, [isLoading, session, router, requiredRole]);
+  }, [isLoading, session, router, requiredRole, requiredPermission, requiredPermissions, requireAll, hasPermission, hasAnyPermission, hasAllPermissions, hasRole, isStaff]);
 
   if (isLoading) {
     return (
@@ -69,8 +96,8 @@ export function ProtectedRoute({ children, requiredRole = 'manager' }: Protected
     return null;
   }
 
-  const userRole = session.user?.role;
-  if (!userRole || (userRole !== 'admin' && userRole !== 'manager')) {
+  // Vérifications côté client pour l'affichage
+  if (!isStaff()) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
         <div className="text-center">
@@ -88,13 +115,40 @@ export function ProtectedRoute({ children, requiredRole = 'manager' }: Protected
     );
   }
 
-  if (requiredRole === 'admin' && userRole !== 'admin') {
+  // Vérifier les permissions spécifiques
+  let hasAccess = true;
+  let errorMessage = "Vous n'avez pas les permissions nécessaires.";
+
+  if (requiredRole && !hasRole(requiredRole)) {
+    hasAccess = false;
+    errorMessage = `Cette section nécessite le rôle ${requiredRole}.`;
+  }
+
+  if (requiredPermission && !hasPermission(requiredPermission)) {
+    hasAccess = false;
+    errorMessage = "Permission spécifique requise.";
+  }
+
+  if (requiredPermissions.length > 0) {
+    const hasRequiredPermissions = requireAll 
+      ? hasAllPermissions(requiredPermissions)
+      : hasAnyPermission(requiredPermissions);
+    
+    if (!hasRequiredPermissions) {
+      hasAccess = false;
+      errorMessage = requireAll 
+        ? "Toutes les permissions requises ne sont pas accordées."
+        : "Aucune des permissions requises n'est accordée.";
+    }
+  }
+
+  if (!hasAccess) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-yellow-50 to-yellow-100 flex items-center justify-center">
         <div className="text-center">
           <div className="text-yellow-600 text-6xl mb-4">⚠️</div>
           <h1 className="text-2xl font-bold text-yellow-800 mb-2">Permissions insuffisantes</h1>
-          <p className="text-yellow-600 mb-4">Cette section nécessite des privilèges d&apos;administrateur.</p>
+          <p className="text-yellow-600 mb-4">{errorMessage}</p>
           <button 
             onClick={() => router.push('/admin/dashboard')}
             className="bg-yellow-600 text-white px-6 py-2 rounded-lg hover:bg-yellow-700 transition-colors"

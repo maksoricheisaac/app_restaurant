@@ -1,12 +1,15 @@
 import { z } from "zod";
 import { $Enums } from "@/generated/prisma";
 
+// Constantes pour les rôles (synchronisées avec src/types/permissions.ts)
+const VALID_ROLES = ["admin", "owner", "manager", "head_chef", "chef", "waiter", "cashier", "user"] as const;
+
 // --- Personnel Schemas ---
 export const PersonnelSchema = z.object({
   firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
   lastName: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   email: z.string().email("Email invalide"),
-  role: z.enum(["admin", "manager", "waiter", "kitchen", "cashier"]),
+  role: z.enum(VALID_ROLES),
   password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
 });
 
@@ -15,7 +18,7 @@ export const UpdatePersonnelSchema = z.object({
   firstName: z.string().min(2, "Le prénom doit contenir au moins 2 caractères"),
   lastName: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   email: z.string().email("Email invalide"),
-  role: z.enum(["admin", "manager", "waiter", "kitchen", "cashier"]),
+  role: z.enum(VALID_ROLES),
 });
 
 // --- Settings Schemas ---

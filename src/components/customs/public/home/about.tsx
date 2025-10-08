@@ -22,7 +22,7 @@ export const About = () => {
                   
                   <div className="space-y-4 sm:space-y-6 lg:space-y-8 text-base sm:text-lg text-gray-700 leading-relaxed">
                     <p className="text-lg sm:text-xl">
-                      Depuis notre ouverture en 2020, Resto_Congo s'est imposé comme le restaurant de référence 
+                      Depuis notre ouverture en 2020, App_Restaurant s'est imposé comme le restaurant de référence 
                       pour la cuisine africaine à Brazzaville.
                     </p>
                     <p>

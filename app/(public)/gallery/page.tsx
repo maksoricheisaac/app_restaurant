@@ -24,7 +24,7 @@ const galleryImages = [
 	},
 	{
 		src: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg',
-		alt: 'Légumes traditionnels africains - Restaurant Resto_Congo',
+		alt: 'Légumes traditionnels africains - Restaurant App_Restaurant',
 		category: 'Plats',
 		title: 'Saka-Saka',
 		description: 'Feuilles de manioc à la sauce d\'arachide',

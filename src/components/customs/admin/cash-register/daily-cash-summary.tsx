@@ -93,11 +93,15 @@ export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummar
                 <div className="text-sm text-gray-600">Montant reçu (espèces)</div>
                 <div className="text-xl font-bold text-green-700">{formatCurrency(summary.receivedCash)}</div>
               </div>
-            </div>
-            <div className="p-3 rounded border mt-4">
-              <div className="text-sm text-gray-600">Écart</div>
-              <div className={`text-xl font-bold ${summary.variance === 0 ? 'text-gray-900' : summary.variance > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                {formatCurrency(summary.variance)}
+              <div className="p-3 rounded border">
+                <div className="text-sm text-gray-600">Monnaie remise</div>
+                <div className="text-xl font-bold text-orange-600">{formatCurrency(summary.changeGiven)}</div>
+              </div>
+              <div className="p-3 rounded border">
+                <div className="text-sm text-gray-600">Écart</div>
+                <div className={`text-xl font-bold ${summary.variance === 0 ? 'text-gray-900' : summary.variance > 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  {formatCurrency(summary.variance)}
+                </div>
               </div>
             </div>
           </div>

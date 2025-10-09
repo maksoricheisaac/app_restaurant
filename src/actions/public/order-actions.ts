@@ -133,11 +133,11 @@ export const createOrder = actionClient
         throw new Error(`Prix invalides pour les articles suivants : ${invalidItemNames}`);
       }
 
-      // Calculer le total de la commande
-      const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+      // Calculer le sous-total de la commande
+      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
       // Déterminer les informations de livraison et éventuels frais
-      let deliveryFee: number | null = null;
+      let deliveryFee: number = 0;
       if (orderType === 'delivery') {
         const zone = await prisma.deliveryZone.findUnique({
           where: { id: deliveryZoneId! }
@@ -147,6 +147,9 @@ export const createOrder = actionClient
         }
         deliveryFee = zone.price;
       }
+      
+      // Calculer le total final avec les frais de livraison
+      const total = subtotal + deliveryFee;
 
       // Créer la commande
       const order = await prisma.order.create({
@@ -170,7 +173,8 @@ export const createOrder = actionClient
         },
         include: {
           user: true,
-          orderItems: true
+          orderItems: true,
+          deliveryZone: true
         }
       });
 

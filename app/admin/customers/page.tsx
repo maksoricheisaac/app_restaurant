@@ -54,20 +54,24 @@ const fetchCustomers = async (
   search: string,
   status: CustomerStatus | undefined,
   sort: SortField,
-  order: "asc" | "desc"
+  order: "asc" | "desc",
+  page: number,
+  limit: number
 ) => {
   const result = await getCustomers({
     search,
     status,
     sort,
     order,
+    page,
+    limit,
   });
 
   if (!result.data) {
     throw new Error("Erreur survenue lors de la récupération de la liste des clients");
   }
   
-  return result.data;
+  return result;
 };
 
 export default function CustomersPage() {
@@ -75,6 +79,8 @@ export default function CustomersPage() {
   const [status, setStatus] = useState<CustomerStatus | undefined>();
   const [sort, setSort] = useState<SortField>("createdAt");
   const [order, setOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
   const [isOpen, setIsOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
@@ -83,11 +89,12 @@ export default function CustomersPage() {
   const queryClient = useQueryClient();
 
   const { data: customersData, isLoading } = useQuery({
-    queryKey: ["customers", search, status, sort, order],
-    queryFn: () => fetchCustomers(search, status, sort, order),
+    queryKey: ["customers", search, status, sort, order, page, limit],
+    queryFn: () => fetchCustomers(search, status, sort, order, page, limit),
   });
 
-  const customers = customersData?.data || [];
+  const customers = customersData?.data?.data || [];
+  const pagination = customersData?.data?.pagination;
 
   // Statistiques des clients
   const totalCustomers = customers.length;
@@ -163,6 +170,31 @@ export default function CustomersPage() {
     setIsOpen(true);
   };
 
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+  };
+
+  // Reset to first page when filters change
+  const handleSearchChange = (newSearch: string) => {
+    setSearch(newSearch);
+    setPage(1);
+  };
+
+  const handleStatusChange = (newStatus: CustomerStatus | undefined) => {
+    setStatus(newStatus);
+    setPage(1);
+  };
+
+  const handleSortChange = (newSort: SortField) => {
+    setSort(newSort);
+    setPage(1);
+  };
+
+  const handleOrderChange = () => {
+    setOrder(order === "asc" ? "desc" : "asc");
+    setPage(1);
+  };
+
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_CUSTOMERS}>
       <div className="space-y-8">
@@ -175,13 +207,13 @@ export default function CustomersPage() {
       
       <CustomerFilters
         search={search}
-        onSearchChange={setSearch}
+        onSearchChange={handleSearchChange}
         status={status}
-        onStatusChange={setStatus}
+        onStatusChange={handleStatusChange}
         sort={sort}
-        onSortChange={setSort}
+        onSortChange={handleSortChange}
         order={order}
-        onOrderChange={() => setOrder(order === "asc" ? "desc" : "asc")}
+        onOrderChange={handleOrderChange}
       />
       
       <CustomerTable
@@ -190,6 +222,8 @@ export default function CustomersPage() {
         onEdit={handleEdit}
         onDelete={handleDelete}
         onAdd={handleAdd}
+        pagination={pagination}
+        onPageChange={handlePageChange}
       />
       
       <CustomerForm

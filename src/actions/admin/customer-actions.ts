@@ -26,6 +26,8 @@ const getCustomersSchema = z.object({
   status: z.enum(["active", "inactive", "vip"]).optional(),
   sort: z.enum(["name", "email", "status", "createdAt"]).optional(),
   order: z.enum(["asc", "desc"]).optional(),
+  page: z.number().min(1).default(1),
+  limit: z.number().min(1).max(100).default(10),
 });
 
 export const createCustomer = actionClient
@@ -105,7 +107,7 @@ export const deleteCustomer = actionClient
 
 export const getCustomers = actionClient
   .inputSchema(getCustomersSchema)
-  .action(async ({ parsedInput: { search, status, sort = "createdAt", order = "desc" } }) => {
+  .action(async ({ parsedInput: { search, status, sort = "createdAt", order = "desc", page = 1, limit = 10 } }) => {
     try {
       const where = {
         role: "user",
@@ -120,9 +122,15 @@ export const getCustomers = actionClient
 
       const orderBy = { [sort]: order };
 
+      // Count total customers
+      const total = await prisma.user.count({ where });
+
+      // Get paginated customers
       const customers = await prisma.user.findMany({
         where,
         orderBy,
+        skip: (page - 1) * limit,
+        take: limit,
         include: {
           _count: {
             select: { orders: true },
@@ -130,13 +138,28 @@ export const getCustomers = actionClient
         },
       });
 
-      return { success: true, data: customers };
+      return { 
+        success: true, 
+        data: customers,
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
+        }
+      };
     } catch (error) {
       console.error('Erreur lors de la récupération des clients:', error);
       return { 
         success: false, 
         error: "Erreur lors de la récupération des clients",
-        data: []
+        data: [],
+        pagination: {
+          page: 1,
+          limit: 10,
+          total: 0,
+          totalPages: 0,
+        }
       };
     }
   }); 

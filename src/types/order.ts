@@ -40,6 +40,7 @@ export interface Order {
   } | null;
   orderItems: OrderItem[];
   total?: number | null;
+  deliveryFee?: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -122,5 +123,6 @@ export interface CashDailySummary {
   servedOrdersCount: number;
   expectedAmount: number; // sum of totals from served orders of the day
   receivedCash: number; // total cash received for the day
+  changeGiven: number; // total change given back to customers
   variance: number; // receivedCash - expectedAmount
 }

@@ -5,10 +5,10 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider        = "prisma-client-js"
-  output          = "../src/generated/prisma"
-  binaryTargets   = ["native", "linux-musl", "rhel-openssl-3.0.x"]
-  engineType      = "library"
+  provider      = "prisma-client-js"
+  output        = "../src/generated/prisma"
+  binaryTargets = ["native", "linux-musl", "rhel-openssl-3.0.x"]
+  engineType    = "library"
 }
 
 datasource db {
@@ -65,54 +65,54 @@ enum Permission {
   // Dashboard
   VIEW_DASHBOARD
   VIEW_ANALYTICS
-  
+
   // Commandes
   VIEW_ORDERS
   CREATE_ORDERS
   UPDATE_ORDERS
   DELETE_ORDERS
   MANAGE_ORDER_STATUS
-  
+
   // Menu
   VIEW_MENU
   CREATE_MENU_ITEMS
   UPDATE_MENU_ITEMS
   DELETE_MENU_ITEMS
-  
+
   // Tables
   VIEW_TABLES
   MANAGE_TABLES
-  
+
   // Réservations
   VIEW_RESERVATIONS
   CREATE_RESERVATIONS
   UPDATE_RESERVATIONS
   DELETE_RESERVATIONS
-  
+
   // Clients
   VIEW_CUSTOMERS
   MANAGE_CUSTOMERS
-  
+
   // Caisse
   VIEW_CASH_REGISTER
   MANAGE_PAYMENTS
   MANAGE_TRANSACTIONS
   VIEW_REPORTS
-  
+
   // Inventaire
   VIEW_INVENTORY
   MANAGE_INVENTORY
   MANAGE_STOCK
-  
+
   // Personnel
   VIEW_STAFF
   MANAGE_STAFF
   MANAGE_PERMISSIONS
-  
+
   // Paramètres
   VIEW_SETTINGS
   MANAGE_SETTINGS
-  
+
   // Messages
   VIEW_MESSAGES
   MANAGE_MESSAGES
@@ -423,12 +423,16 @@ model Transaction {
 model Ingredient {
   id       String  @id @default(uuid())
   name     String
-  unit     String // ex: kg, L, pièce
+  unit     String // ex: kg, L, pièce, unité
   price    Float // prix d'achat unitaire
   stock    Float   @default(0) // quantité actuelle
   minStock Float? // seuil d'alerte
   supplier String? // fournisseur optionnel
   isActive Boolean @default(true)
+
+  // Conversion pack/unité pour les boissons (ex: 1 pack = 12 unités)
+  packSize Int? // nombre d'unités dans un pack (null si pas applicable)
+  category String? // ex: "Boisson", "Ingrédient", pour filtrage rapide
 
   recipes   Recipe[] // relation avec les recettes
   movements StockMovement[]

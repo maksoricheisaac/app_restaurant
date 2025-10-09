@@ -450,10 +450,18 @@ export const getDailyCashSummary = actionClient
     // Montant reçu: paiements complétés du jour (espèces uniquement)
     const payments = await prisma.payment.findMany({
       where: { status: "completed", createdAt: { gte: dayStart, lte: dayEnd } },
-      select: { amount: true, method: true },
+      select: { amount: true, method: true, order: { select: { total: true } } },
     });
 
     const receivedCash = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+    
+    // Calculer la monnaie remise (différence entre montant reçu et total de la commande)
+    const changeGiven = payments.reduce((sum, p) => {
+      const orderTotal = p.order?.total ?? 0;
+      const change = (p.amount || 0) - orderTotal;
+      return sum + (change > 0 ? change : 0);
+    }, 0);
+    
     const variance = receivedCash - expectedAmount;
 
     return {
@@ -461,6 +469,7 @@ export const getDailyCashSummary = actionClient
       servedOrdersCount,
       expectedAmount,
       receivedCash,
+      changeGiven,
       variance,
     };
   });

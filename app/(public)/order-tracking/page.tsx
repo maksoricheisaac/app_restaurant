@@ -21,6 +21,10 @@ function OrderTrackingInner() {
   const [activeTab, setActiveTab] = useState<string>(initialOrderId ? 'tracking' : 'history');
   const { data : session} = useSession()
   
+  // Vérifier si l'utilisateur est anonyme
+  const isAnonymousUser = session?.user?.isAnonymous === true;
+  const showHistoryTab = session?.user && !isAnonymousUser;
+  
   const { 
     data: orderData,
     isLoading,
@@ -100,14 +104,14 @@ function OrderTrackingInner() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6 md:space-y-8">
-          <TabsList className={`grid w-full ${session?.user ? 'grid-cols-2' : 'grid-cols-1'} max-w-xs sm:max-w-sm md:max-w-md mx-auto h-auto p-1 bg-gray-100 rounded-xl`}>
+          <TabsList className={`grid w-full ${showHistoryTab ? 'grid-cols-2' : 'grid-cols-1'} max-w-xs sm:max-w-sm md:max-w-md mx-auto h-auto p-1 bg-gray-100 rounded-xl`}>
             <TabsTrigger 
               value="tracking" 
               className="text-xs sm:text-sm md:text-base font-medium py-2 sm:py-3 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200"
             >
               Suivi de commande
             </TabsTrigger>
-            {session?.user && (
+            {showHistoryTab && (
               <TabsTrigger 
                 value="history" 
                 className="text-xs sm:text-sm md:text-base font-medium py-2 sm:py-3 px-3 sm:px-4 data-[state=active]:bg-white data-[state=active]:text-orange-600 data-[state=active]:shadow-sm rounded-lg transition-all duration-200"
@@ -159,7 +163,7 @@ function OrderTrackingInner() {
             )}
           </TabsContent>
 
-          {session?.user && (
+          {showHistoryTab && (
             <TabsContent value="history" className="mt-4 sm:mt-6">
               <OrderHistory email={session.user.email} onOrderSelect={handleOrderSelect}  />
             </TabsContent>

@@ -53,7 +53,7 @@ export const adminNav = [
   },
   { 
     name: "Inventaire", 
-    href: "/admin/inventory", 
+    href: "/admin/inventory-v2", 
     icon: Warehouse,
     permission: Permission.VIEW_INVENTORY
   },

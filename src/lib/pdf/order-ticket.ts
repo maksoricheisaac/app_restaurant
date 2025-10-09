@@ -19,6 +19,9 @@ export interface OrderLike {
   status: string;
   orderItems: OrderItem[];
   total?: number | null;
+  deliveryFee?: number | null;
+  amountPaid?: number | null;
+  change?: number | null;
 }
 
 export async function generateOrderTicketPdf(options: {
@@ -28,6 +31,7 @@ export async function generateOrderTicketPdf(options: {
   typeLabels: Record<string, string>;
   fileName?: string;
   openInsteadOfDownload?: boolean;
+  amountPaid?: number;
 }) {
   const { order, paperWidth, statusLabels, typeLabels } = options;
 
@@ -168,11 +172,50 @@ export async function generateOrderTicketPdf(options: {
   rule(leftX, cursorY, rightX, 1.5);
   move(mmToPt(5));
 
+  // Total breakdown with delivery fee if applicable
+  const subtotal = (order.total || 0) - (order.deliveryFee || 0);
+  
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    // Show subtotal
+    const subtotalText = `Sous-total: ${amount(subtotal)} FCFA`;
+    const subtotalWidth = font.widthOfTextAtSize(subtotalText, bodySize);
+    text(subtotalText, (widthPt - subtotalWidth) / 2, cursorY - line(bodySize), bodySize);
+    move(line(bodySize) + mmToPt(1));
+    
+    // Show delivery fee
+    const deliveryText = `Frais de livraison: ${amount(order.deliveryFee)} FCFA`;
+    const deliveryWidth = font.widthOfTextAtSize(deliveryText, bodySize);
+    text(deliveryText, (widthPt - deliveryWidth) / 2, cursorY - line(bodySize), bodySize);
+    move(line(bodySize) + mmToPt(2));
+    
+    // Separator line
+    dashedRule(leftX, cursorY, rightX);
+    move(mmToPt(3));
+  }
+  
   // Total avec mise en valeur
   const totalText = `TOTAL: ${amount(order.total || 0)} FCFA`;
   const totalWidth = fontBold.widthOfTextAtSize(totalText, subHeaderSize + 2);
   text(totalText, (widthPt - totalWidth) / 2, cursorY - line(subHeaderSize + 2), subHeaderSize + 2, true);
-  move(line(subHeaderSize + 2) + mmToPt(4));
+  move(line(subHeaderSize + 2) + mmToPt(2));
+  
+  // Payment information if available
+  const amountPaid = options.amountPaid || order.amountPaid;
+  if (amountPaid && amountPaid > 0) {
+    const paidText = `REÇU: ${amount(amountPaid)} FCFA`;
+    const paidWidth = font.widthOfTextAtSize(paidText, bodySize);
+    text(paidText, (widthPt - paidWidth) / 2, cursorY - line(bodySize), bodySize);
+    move(line(bodySize) + mmToPt(1));
+    
+    const change = amountPaid - (order.total || 0);
+    if (change > 0) {
+      const changeText = `MONNAIE: ${amount(change)} FCFA`;
+      const changeWidth = fontBold.widthOfTextAtSize(changeText, bodySize);
+      text(changeText, (widthPt - changeWidth) / 2, cursorY - line(bodySize), bodySize, true);
+      move(line(bodySize) + mmToPt(2));
+    }
+  }
+  
   rule(leftX, cursorY, rightX, 1.5);
   move(mmToPt(8));
 

@@ -140,14 +140,17 @@ export async function generateDailyCashSummaryPdf(
     });
   };
 
-  // KPI Cards
+  // KPI Cards - Ligne 1
   drawKpiCard(margin, y, 'Commandes servies', `${summary.servedOrdersCount}`);
   drawKpiCard(margin + kpiCardWidth + mmToPt(10), y, 'Montant attendu', fmt(summary.expectedAmount));
   y -= kpiCardHeight + mmToPt(8);
 
+  // Ligne 2
   drawKpiCard(margin, y, 'Montant reçu (espèces)', fmt(summary.receivedCash));
+  drawKpiCard(margin + kpiCardWidth + mmToPt(10), y, 'Monnaie remise', fmt(summary.changeGiven));
+  y -= kpiCardHeight + mmToPt(8);
 
-  // Variance
+  // Variance (Ligne 3 - pleine largeur)
   const varianceText = `${fmt(summary.variance)}`;
   const varianceLabel = summary.variance === 0 ? 'Équilibre' : summary.variance > 0 ? 'Surplus' : 'Manquant';
   let varianceColor = colors.white;
@@ -160,24 +163,26 @@ export async function generateDailyCashSummaryPdf(
     varianceTextColor = colors.danger;
   }
 
+  // Carte variance en pleine largeur
+  const fullWidth = width - 2 * margin;
   page.drawRectangle({
-    x: margin + kpiCardWidth + mmToPt(10),
+    x: margin,
     y,
-    width: kpiCardWidth,
+    width: fullWidth,
     height: kpiCardHeight,
     color: varianceColor,
     borderColor: colors.background,
     borderWidth: 1,
   });
   page.drawText('Écart', {
-    x: margin + kpiCardWidth + mmToPt(15),
+    x: margin + mmToPt(5),
     y: y + kpiCardHeight - mmToPt(10),
     font: font,
     size: 12,
     color: colors.secondary,
   });
   page.drawText(`${varianceText} (${varianceLabel})`, {
-    x: margin + kpiCardWidth + mmToPt(15),
+    x: margin + mmToPt(5),
     y: y + mmToPt(5),
     font: bold,
     size: 16,

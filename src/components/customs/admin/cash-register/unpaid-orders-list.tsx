@@ -13,18 +13,19 @@ import {
   CreditCard, 
   DollarSign, 
   Receipt, 
-  Clock, 
   User, 
   Table,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from "lucide-react";
-import { PaymentMethod } from "@/types/order";
 import { processPayment } from "@/actions/admin/cash-register-actions";
 import { toast } from "sonner";
+import { PaymentMethod } from "@/types/order";
 
 interface UnpaidOrderItem {
   id: string;
+  name: string;
   quantity: number;
   price: number;
   menuItem: { name: string };
@@ -72,6 +73,8 @@ export function UnpaidOrdersList({ orders, onPaymentProcessed, formatCurrency }:
       });
 
       toast.success(`Le paiement de ${formatCurrency(paymentData.amount)} a été enregistré avec succès.`);
+
+      
 
       setPaymentDialogOpen(false);
       setSelectedOrder(null);

@@ -11,6 +11,7 @@ import { getUnpaidOrders } from "@/actions/admin/cash-register-actions";
 // Minimal shape for unpaid orders used in this dashboard and UnpaidOrdersList
 interface UnpaidOrderItem {
   id: string;
+  name: string;
   quantity: number;
   price: number;
   menuItem: { name: string };
@@ -67,6 +68,7 @@ export function CashRegisterDashboard() {
         table: o.table ? { number: o.table.number } : null,
         orderItems: (o.orderItems || []).map((it: RawUnpaidOrderItem) => ({
           id: it.id,
+          name: it.menuItem?.name ?? it.name ?? "",
           quantity: it.quantity,
           price: it.price,
           menuItem: { name: it.menuItem?.name ?? it.name ?? "" },

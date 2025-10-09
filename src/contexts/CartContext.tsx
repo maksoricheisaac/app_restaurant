@@ -36,6 +36,7 @@ interface CartContextType {
   clearCart: () => void;
   getTotalItems: () => number;
   getTotalPrice: () => number;
+  getTotalPriceWithDelivery: (deliveryFee?: number) => number;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   tableId: string | null;
@@ -172,6 +173,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
     );
   }, [items]);
 
+  const getTotalPriceWithDelivery = useCallback((deliveryFee: number = 0) => {
+    return getTotalPrice() + deliveryFee;
+  }, [getTotalPrice]);
+
   // Mutation createOrder avec TanStack Query
   const { mutateAsync: createOrderMutation } = useMutation({
     mutationFn: async ({
@@ -259,6 +264,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         clearCart,
         getTotalItems,
         getTotalPrice,
+        getTotalPriceWithDelivery,
         isOpen,
         setIsOpen,
         tableId,

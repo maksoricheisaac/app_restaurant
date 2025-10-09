@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { Printer } from "lucide-react";
 import { generateOrderTicketPdf } from "@/lib/pdf/order-ticket";
 import {
@@ -21,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Order, OrderStatus, OrderType } from "@/types/order";
+import QRCode from "qrcode";
 
 interface OrderTicketPreviewProps {
   order: Order | null;
@@ -39,6 +38,26 @@ export function OrderTicketPreview({
   typeLabels,
 }: OrderTicketPreviewProps) {
   const [paperWidth, setPaperWidth] = useState<"57" | "80">("80");
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  
+  // Générer le QR code
+  useEffect(() => {
+    if (!order) return;
+    
+    const qrPayload = {
+      id: order.id,
+      total: order.total || 0,
+      status: order.status,
+      type: order.type,
+      createdAt: new Date(order.createdAt).toISOString(),
+      items: order.orderItems.map((i) => ({ n: i.name, q: i.quantity, p: i.price })),
+    };
+    
+    QRCode.toDataURL(JSON.stringify(qrPayload), { width: 250, margin: 1 })
+      .then(url => setQrCodeUrl(url))
+      .catch(err => console.error("Erreur génération QR code:", err));
+  }, [order]);
+  
   if (!order) return null;
 
   const formatAmountForPdf = (amount: number) => {
@@ -91,73 +110,76 @@ export function OrderTicketPreview({
           </div>
           
           {/* En-tête du ticket */}
-          <Card className="border-2 border-orange-100">
-            <CardHeader className="text-center pb-2">
-              <CardTitle className="text-xl font-bold text-orange-700">
+          <Card className="border-2 border-gray-300 bg-white shadow-lg">
+            <CardHeader className="text-center pb-3 pt-6">
+              <CardTitle className="text-2xl font-bold text-black mb-2">
                 APP RESTAURANT
               </CardTitle>
-              <p className="text-sm text-gray-600">Ticket de Commande</p>
+              <p className="text-base text-black font-normal">--- Ticket de Commande ---</p>
             </CardHeader>
             
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-4 px-6">
               {/* Informations de la commande */}
-              <div className="grid grid-cols-2 gap-4 text-sm">
+              <div className="space-y-1 text-sm text-black">
                 <div>
-                  <span style={{fontSize: "semibold"}}>ID:</span> {order.id}
+                  <span className="font-normal">ID:</span> <span className="font-normal">{order.id.slice(-8).toUpperCase()}</span>
                 </div>
                 <div>
-                  <span style={{fontSize: "semibold"}}>Date:</span> {format(new Date(order.createdAt), "d MMMM yyyy", { locale: fr })} à {order.createdAt.toTimeString().split(" ")[0]}
+                  <span className="font-normal">Date:</span> <span className="font-normal">{format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: fr })}</span>
                 </div>
                 <div>
-                  <span style={{fontSize: "semibold"}}>Client:</span> {order.user.name || 'Invité'}
+                  <span className="font-normal">Client:</span> <span className="font-normal">{order.user.name || 'Invité'}</span>
                 </div>
                 <div>
-                  <span style={{fontSize: "semibold"}}>Email:</span> {order.user.email}
-                </div>
-                {order.user.phone && (
-                  <div>
-                    <span style={{fontSize: "semibold"}}>Téléphone:</span> {order.user.phone}
-                  </div>
-                )}
-                {order.table && (
-                  <div>
-                    <span style={{fontSize: "semibold"}}>Table:</span> {order.table.number}
-                  </div>
-                )}
-                <div>
-                  <span style={{fontSize: "semibold"}}>Type:</span> {typeLabels[order.type]}
+                  <span className="font-normal">Type:</span> <span className="font-normal">{typeLabels[order.type]}</span>
                 </div>
                 <div>
-                  <span style={{fontSize: "semibold"}}>Statut:</span> 
-                  <Badge className="ml-2">{statusLabels[order.status]}</Badge>
+                  <span className="font-normal">Statut:</span> <span className="font-normal">{statusLabels[order.status]}</span>
                 </div>
               </div>
               
-              <Separator />
+              <div className="border-t border-gray-400 pt-4 mt-4"></div>
               
               {/* Articles */}
               <div>
-                <h4 className="font-semibold mb-3">Articles:</h4>
-                <div className="space-y-2">
+                <h4 className="font-bold text-black mb-2 text-base">ARTICLES COMMANDÉS</h4>
+                <div className="border-t border-dashed border-gray-400 pt-3 space-y-3">
                   {order.orderItems.map((item) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm">
-                      <span>{item.quantity}× {item.name}</span>
-                      <span className="font-medium">{formatAmountForPdf(item.price * item.quantity)}</span>
+                    <div key={item.id} className="flex justify-between items-start text-sm text-black">
+                      <span className="font-normal flex-1">{item.quantity} x {item.name}</span>
+                      <span className="font-bold ml-4">{formatAmountForPdf(item.price * item.quantity)} FCFA</span>
                     </div>
                   ))}
                 </div>
               </div>
               
-              <Separator />
+              <div className="border-t border-gray-400 pt-4 mt-4"></div>
               
               {/* Total */}
-              <div className="flex justify-between items-center text-lg font-bold">
-                <span>Total:</span>
-                <span className="text-orange-600">{formatAmountForPdf(order.total || 0)}</span>
+              <div className="text-center">
+                <div className="text-xl font-bold text-black">
+                  TOTAL: {formatAmountForPdf(order.total || 0)} FCFA
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-400 pt-4 mt-4"></div>
+              
+              {/* QR Code */}
+              <div className="flex justify-center py-4">
+                <div className="border-2 border-gray-400 p-3 bg-white">
+                  {qrCodeUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={qrCodeUrl} alt="QR Code" className="w-40 h-40" />
+                  ) : (
+                    <div className="w-40 h-40 bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+                      Chargement...
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Pied de page */}
-              <div className="text-center text-sm text-gray-500 pt-4">
+              <div className="text-center text-base font-bold text-black pt-2 pb-4">
                 Merci de votre visite !
               </div>
             </CardContent>

@@ -9,6 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Pagination } from "@/components/ui/pagination";
 
 type CustomerStatus = "active" | "inactive" | "vip";
 
@@ -42,27 +43,38 @@ const statusLabels = {
   vip: "VIP",
 } as const;
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 interface CustomerTableProps {
   customers: Customer[];
   isLoading: boolean;
   onAdd: () => void;
   onEdit?: (customer: Customer) => void;
   onDelete?: (id: string) => void;
+  pagination?: PaginationInfo;
+  onPageChange?: (page: number) => void;
 }
 
 export function CustomerTable({
   customers,
   isLoading,
   onAdd,
+  pagination,
+  onPageChange,
 }: CustomerTableProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg font-medium">
           Liste des clients
-          {customers.length > 0 && (
+          {pagination && (
             <span className="text-sm font-normal text-gray-500 ml-2">
-              ({customers.length} client{customers.length > 1 ? 's' : ''})
+              ({pagination.total} client{pagination.total > 1 ? 's' : ''} au total)
             </span>
           )}
         </CardTitle>
@@ -126,6 +138,21 @@ export function CustomerTable({
                 ))}
               </TableBody>
             </Table>
+          </div>
+        )}
+        
+        {/* Pagination */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="mt-6 flex flex-col items-center space-y-4">
+            <Pagination
+              currentPage={pagination.page}
+              totalPages={pagination.totalPages}
+              onPageChange={(page) => onPageChange && onPageChange(page)}
+            />
+            
+            <div className="text-sm text-gray-500 text-center">
+              Page {pagination.page} sur {pagination.totalPages} - {pagination.total} clients au total
+            </div>
           </div>
         )}
       </CardContent>

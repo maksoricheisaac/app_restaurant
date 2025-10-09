@@ -94,13 +94,21 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
   });
 
   const orderType = form.watch('orderType');
-
-
+  const selectedDeliveryZoneId = form.watch('deliveryZoneId');
+  
   const { data: deliveryZones } = useQuery({
     queryKey: ['delivery-zones'],
     queryFn: fetchDeliveryZones,
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
+  
+  // Calculate delivery fee
+  const selectedDeliveryZone = deliveryZones?.find(zone => zone.id === selectedDeliveryZoneId);
+  const deliveryFee = orderType === 'delivery' && selectedDeliveryZone ? selectedDeliveryZone.price : 0;
+  
+  // Calculate total with delivery fee
+  const subtotal = getTotalPrice();
+  const totalWithDelivery = subtotal + deliveryFee;
 
   // Charger les paramètres du restaurant (services activés)
   const { data: restaurantSettings } = useQuery({
@@ -143,7 +151,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
 
       // Snapshot du panier avant vidage pour l'écran de succès
       setPurchasedItems([...items]);
-      setPurchasedTotal(getTotalPrice());
+      setPurchasedTotal(totalWithDelivery); // Use total with delivery fee
       setOrderId(orderId);
       setOrderCreated(true);
       clearCart();
@@ -227,9 +235,20 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                 </div>
               ))}
               <Separator />
-              <div className="flex justify-between items-center font-semibold">
+              <div className="flex justify-between items-center">
+                <span>Sous-total</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              {deliveryFee > 0 && (
+                <div className="flex justify-between items-center text-orange-600">
+                  <span>Frais de livraison</span>
+                  <span>{formatPrice(deliveryFee)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between items-center font-semibold text-lg">
                 <span>Total</span>
-                <span>{formatPrice(purchasedTotal)}</span>
+                <span className={deliveryFee > 0 ? 'text-orange-600' : ''}>{formatPrice(purchasedTotal)}</span>
               </div>
             </div>
           </div>
@@ -386,9 +405,22 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                 </div>
               ))}
               <Separator />
-              <div className="flex justify-between font-bold">
+              <div className="flex justify-between items-center">
+                <span>Sous-total</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              {orderType === 'delivery' && deliveryFee > 0 && (
+                <div className="flex justify-between items-center text-orange-600">
+                  <span>Frais de livraison</span>
+                  <span>{formatPrice(deliveryFee)}</span>
+                </div>
+              )}
+              <Separator />
+              <div className="flex justify-between font-bold text-lg">
                 <span>Total</span>
-                <span>{formatPrice(getTotalPrice())}</span>
+                <span className={orderType === 'delivery' && deliveryFee > 0 ? 'text-orange-600' : ''}>
+                  {formatPrice(totalWithDelivery)}
+                </span>
               </div>
             </div>
 

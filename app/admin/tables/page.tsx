@@ -191,7 +191,7 @@ export default function TablesPage() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_TABLES}>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
       <PageHeader onAddClick={handleAdd} />
 
       <StatisticsCards

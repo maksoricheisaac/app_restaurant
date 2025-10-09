@@ -9,6 +9,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { TableLoading } from "@/components/ui/table-loading";
+import { ResponsiveTableWrapper } from "@/components/ui/responsive-table-wrapper";
 import { Eye, Edit, Trash2 } from "lucide-react";
 import Image from "next/image";
 import type { MenuItem } from "@/types/menu";
@@ -51,16 +53,14 @@ export function MenuTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p>Chargement des plats...</p>
-          </div>
+          <TableLoading message="Chargement des plats..." />
         ) : !items || items.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-4">
             <p className="text-muted-foreground">Aucun plat trouvé</p>
             <Button onClick={onAdd} className="cursor-pointer">Ajouter votre premier plat</Button>
           </div>
         ) : (
-          <div className="rounded-md border">
+          <ResponsiveTableWrapper>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -131,7 +131,7 @@ export function MenuTable({
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTableWrapper>
         )}
       </CardContent>
     </Card>

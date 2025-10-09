@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Pagination } from "@/components/ui/pagination";
+import { TableLoading } from "@/components/ui/table-loading";
+import { ResponsiveTableWrapper } from "@/components/ui/responsive-table-wrapper";
 
 type CustomerStatus = "active" | "inactive" | "vip";
 
@@ -81,16 +83,14 @@ export function CustomerTable({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="flex items-center justify-center h-32">
-            <p>Chargement des clients...</p>
-          </div>
+          <TableLoading message="Chargement des clients..." />
         ) : !customers || customers.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-32 gap-4">
             <p className="text-muted-foreground">Aucun client trouvé</p>
             <Button onClick={onAdd}>Créer votre premier client</Button>
           </div>
         ) : (
-          <div className="rounded-md border">
+          <ResponsiveTableWrapper>
             <Table>
               <TableHeader>
                 <TableRow>
@@ -138,7 +138,7 @@ export function CustomerTable({
                 ))}
               </TableBody>
             </Table>
-          </div>
+          </ResponsiveTableWrapper>
         )}
         
         {/* Pagination */}

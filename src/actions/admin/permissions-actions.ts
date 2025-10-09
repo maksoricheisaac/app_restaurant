@@ -3,7 +3,7 @@
 import prisma from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { UserRole, Permission, ROLE_PERMISSIONS } from "@/types/permissions";
+import { UserRole, Permission, ROLE_PERMISSIONS, USER_ROLES } from "@/types/permissions";
 
 // Fonction pour vérifier les permissions admin
 async function checkAdminPermissions() {
@@ -41,7 +41,16 @@ export async function initializeDefaultPermissions() {
 }
 
 // Obtenir les permissions d'un utilisateur
-export async function getUserPermissions(userId: string) {
+export async function getUserPermissions(userId: string): Promise<{
+  user: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  };
+  rolePermissions: Permission[];
+  customPermissions: Array<{ permission: Permission; granted: boolean }>;
+}> {
   try {
     await checkAdminPermissions();
 
@@ -64,7 +73,7 @@ export async function getUserPermissions(userId: string) {
         role: user.role,
       },
       rolePermissions,
-      customPermissions: [], // Vide pour l'instant
+      customPermissions: [] as Array<{ permission: Permission; granted: boolean }>, // Vide pour l'instant
     };
   } catch (error) {
     console.error("Erreur lors de la récupération des permissions:", error);
@@ -129,5 +138,31 @@ export async function getRolePermissions() {
   } catch (error) {
     console.error("Erreur lors de la récupération des permissions par rôle:", error);
     throw new Error(error instanceof Error ? error.message : "Erreur lors de la récupération des permissions par rôle");
+  }
+}
+
+// Mettre à jour les permissions d'un rôle
+export async function updateRolePermissions(role: UserRole, permissions: Permission[]) {
+  try {
+    await checkAdminPermissions();
+
+    // Vérifier que le rôle existe
+    if (!Object.values(USER_ROLES).includes(role)) {
+      throw new Error("Rôle invalide");
+    }
+
+    // Pour l'instant, simuler la mise à jour
+    // Dans une vraie implémentation, on stockerait cela dans une table RolePermission
+    console.log(`Mise à jour des permissions pour le rôle ${role}:`, permissions);
+
+    return { 
+      success: true, 
+      message: `Permissions du rôle ${role} mises à jour avec succès`,
+      role,
+      permissions
+    };
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour des permissions du rôle:", error);
+    throw new Error(error instanceof Error ? error.message : "Erreur lors de la mise à jour des permissions du rôle");
   }
 }

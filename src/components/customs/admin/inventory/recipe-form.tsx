@@ -124,7 +124,7 @@ export function RecipeForm({
                   <FormLabel>Plat du menu *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choisir un plat" />
                       </SelectTrigger>
                     </FormControl>
@@ -149,7 +149,7 @@ export function RecipeForm({
                   <FormLabel>Ingrédient *</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="w-full">
                         <SelectValue placeholder="Choisir un ingrédient" />
                       </SelectTrigger>
                     </FormControl>

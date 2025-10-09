@@ -10,6 +10,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { TableLoading } from "@/components/ui/table-loading";
+import { ResponsiveTableWrapper } from "@/components/ui/responsive-table-wrapper";
 import { TableData } from "./types";
 import { Plus } from "lucide-react";
 
@@ -63,7 +65,8 @@ export function TablesList({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <Table>
+        <ResponsiveTableWrapper>
+          <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Numéro</TableHead>
@@ -78,11 +81,8 @@ export function TablesList({
           <TableBody>
             {isLoading ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24">
-                  <div className="flex items-center justify-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                    <span className="ml-3 text-gray-600">Chargement...</span>
-                  </div>
+                <TableCell colSpan={7}>
+                  <TableLoading message="Chargement des tables..." />
                 </TableCell>
               </TableRow>
             ) : (
@@ -138,7 +138,8 @@ export function TablesList({
               ))
             )}
           </TableBody>
-        </Table>
+          </Table>
+        </ResponsiveTableWrapper>
       </CardContent>
     </Card>
   );

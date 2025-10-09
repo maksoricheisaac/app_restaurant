@@ -8,21 +8,23 @@ import { LimitsForm } from "./limits-form";
 import { OpeningHoursForm } from "./opening-hours-form";
 import { SocialLinksForm } from "./social-links-form";
 import { PersonnelManagement } from "./personnel-management";
-import { PermissionsManagement } from "./permissions-management";
+import { AdvancedPermissionsManagement } from "./advanced-permissions-management";
 
 export function SettingsTabs() {
   return (
     <Tabs defaultValue="general" className="w-full">
-      <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-8">
-        <TabsTrigger value="general">Général</TabsTrigger>
-        <TabsTrigger value="opening-hours">Horaires</TabsTrigger>
-        <TabsTrigger value="delivery-zones">Livraisons</TabsTrigger>
-        <TabsTrigger value="limits">Limitations</TabsTrigger>
-        <TabsTrigger value="social-links">Réseaux sociaux</TabsTrigger>
-        <TabsTrigger value="personnel">Personnel</TabsTrigger>
-        <TabsTrigger value="permissions">Permissions</TabsTrigger>
-        <TabsTrigger value="advanced">Avancé</TabsTrigger>
-      </TabsList>
+      <div className="overflow-x-auto pb-2">
+        <TabsList className="inline-flex w-full min-w-max md:grid md:grid-cols-4 lg:grid-cols-8">
+          <TabsTrigger value="general" className="whitespace-nowrap">Général</TabsTrigger>
+          <TabsTrigger value="opening-hours" className="whitespace-nowrap">Horaires</TabsTrigger>
+          <TabsTrigger value="delivery-zones" className="whitespace-nowrap">Livraisons</TabsTrigger>
+          <TabsTrigger value="limits" className="whitespace-nowrap">Limitations</TabsTrigger>
+          <TabsTrigger value="social-links" className="whitespace-nowrap">Réseaux</TabsTrigger>
+          <TabsTrigger value="personnel" className="whitespace-nowrap">Personnel</TabsTrigger>
+          <TabsTrigger value="permissions" className="whitespace-nowrap">Permissions</TabsTrigger>
+          <TabsTrigger value="advanced" className="whitespace-nowrap">Avancé</TabsTrigger>
+        </TabsList>
+      </div>
 
       <TabsContent value="general">
         <GeneralSettingsForm />
@@ -43,7 +45,7 @@ export function SettingsTabs() {
         <PersonnelManagement />
       </TabsContent>
       <TabsContent value="permissions">
-        <PermissionsManagement />
+        <AdvancedPermissionsManagement />
       </TabsContent>
       <TabsContent value="advanced">
         <AdvancedSettingsForm />

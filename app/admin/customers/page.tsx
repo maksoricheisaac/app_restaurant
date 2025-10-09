@@ -197,7 +197,7 @@ export default function CustomersPage() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_CUSTOMERS}>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         <CustomerHeader onAdd={handleAdd} />
       
       <CustomerStats

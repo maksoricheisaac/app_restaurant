@@ -423,19 +423,20 @@ export default function OrdersPage() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_ORDERS}>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         {/* En-tête */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Commandes</h1>
-            <p className="text-gray-500 mt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate">Commandes</h1>
+            <p className="text-sm md:text-base text-gray-500 mt-1 md:mt-2">
               Gérez les commandes de votre restaurant
             </p>
           </div>
           <PermissionGuard permission={Permission.CREATE_ORDERS}>
-            <Button onClick={handleAdd} className="cursor-pointer">
+            <Button onClick={handleAdd} className="cursor-pointer w-full sm:w-auto flex-shrink-0">
               <Plus className="mr-2 h-4 w-4" />
-              Nouvelle commande
+              <span className="hidden sm:inline">Nouvelle commande</span>
+              <span className="sm:hidden">Ajouter</span>
             </Button>
           </PermissionGuard>
         </div>

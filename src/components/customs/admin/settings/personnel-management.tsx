@@ -69,9 +69,6 @@ const fetchPersonnelStats = async () => {
 
 export function PersonnelManagement() {
 
-
-  const [actionLoading, setActionLoading] = useState(false);
-
   const [newPersonnel, setNewPersonnel] = useState({
     firstName: "",
     lastName: "",
@@ -104,35 +101,36 @@ export function PersonnelManagement() {
     mutationFn: deletePersonnel,
     onSuccess: () => {
       toast.success("Personnel supprimé avec succès");
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la suppression du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
     },
   })
 
   const toggleStatusMutation = useMutation({
     mutationFn: togglePersonnelStatus,
     onSuccess: () => {
-      toast.success("Satus mis à jour avec succès");
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      toast.success("Statut mis à jour avec succès");
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : "Une erreur est survenue");
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la mise à jour du statut");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
     },
   })
 
 
-  const handleAddPersonnel = async () => {
-    if (!newPersonnel.firstName || !newPersonnel.lastName || !newPersonnel.email || !newPersonnel.role) {
-      toast.error("Veuillez remplir tous les champs obligatoires");
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      await addPersonnel(newPersonnel);
-      
+  const addPersonnelMutation = useMutation({
+    mutationFn: addPersonnel,
+    onSuccess: () => {
       toast.success("Personnel ajouté avec succès");
       setNewPersonnel({
         firstName: "",
@@ -142,19 +140,43 @@ export function PersonnelManagement() {
         password: "MotDePasse123!"
       });
       setIsDialogOpen(false);
-      
-      // Recharger les données
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de l'ajout du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
       queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
       queryClient.invalidateQueries({ queryKey: ["stats-data"] });
-     
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur lors de l'ajout du personnel");
-    } finally {
-      setActionLoading(false);
+    },
+  });
+
+  const handleAddPersonnel = () => {
+    if (!newPersonnel.firstName || !newPersonnel.lastName || !newPersonnel.email || !newPersonnel.role) {
+      toast.error("Veuillez remplir tous les champs obligatoires");
+      return;
     }
+    addPersonnelMutation.mutate(newPersonnel);
   };
 
-  const handleEditPersonnel = async () => {
+  const updatePersonnelMutation = useMutation({
+    mutationFn: updatePersonnel,
+    onSuccess: () => {
+      toast.success("Personnel modifié avec succès");
+      setEditingPersonnel(null);
+      setIsDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la modification du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
+    },
+  });
+
+  const handleEditPersonnel = () => {
     if (!editingPersonnel) return;
 
     if (!editingPersonnel.firstName || !editingPersonnel.lastName || !editingPersonnel.email || !editingPersonnel.role) {
@@ -162,42 +184,29 @@ export function PersonnelManagement() {
       return;
     }
 
-    try {
-      setActionLoading(true);
-      await updatePersonnel({
-        id: editingPersonnel.id,
-        firstName: editingPersonnel.firstName,
-        lastName: editingPersonnel.lastName,
-        email: editingPersonnel.email,
-        role: editingPersonnel.role as StaffRole
-      });
-      
-      toast.success("Personnel modifié avec succès");
-      setEditingPersonnel(null);
-      setIsDialogOpen(false);
-      
-      // Recharger les données
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
-      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
-     
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Erreur lors de la modification du personnel");
-    } finally {
-      setActionLoading(false);
-    }
+    updatePersonnelMutation.mutate({
+      id: editingPersonnel.id,
+      firstName: editingPersonnel.firstName,
+      lastName: editingPersonnel.lastName,
+      email: editingPersonnel.email,
+      role: editingPersonnel.role as StaffRole
+    });
   };
 
-  const handleDeletePersonnel = async (id: string) => {
-    setActionLoading(true);
-    deletePersonnelMutation.mutate(id)
-    setActionLoading(false);
+  const handleDeletePersonnel = (id: string) => {
+    deletePersonnelMutation.mutate(id);
   };
 
-  const handleToggleStatus = async (id: string) => {
-    setActionLoading(true);
-    toggleStatusMutation.mutate(id)
-    setActionLoading(false);
+  const handleToggleStatus = (id: string) => {
+    toggleStatusMutation.mutate(id);
   };
+
+  // Calculer l'état de chargement global
+  const isAnyMutationLoading = 
+    deletePersonnelMutation.isPending || 
+    toggleStatusMutation.isPending || 
+    addPersonnelMutation.isPending || 
+    updatePersonnelMutation.isPending;
 
   const getRoleLabel = (roleValue: string) => {
     const role = roles.find(r => r.value === roleValue);
@@ -230,14 +239,6 @@ export function PersonnelManagement() {
     });
     setIsDialogOpen(true);
   };
-/* 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    );
-  } */
 
   return (
     <div className="space-y-6">
@@ -451,16 +452,16 @@ export function PersonnelManagement() {
                           password: "MotDePasse123!"
                         });
                       }}
-                      disabled={actionLoading}
+                      disabled={isAnyMutationLoading}
                     >
                       Annuler
                     </Button>
                     <Button 
                       type="submit"
-                      disabled={actionLoading}
+                      disabled={isAnyMutationLoading}
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
-                      {actionLoading ? (
+                      {(addPersonnelMutation.isPending || updatePersonnelMutation.isPending) ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                       ) : null}
                       {editingPersonnel ? "Modifier" : "Ajouter"}
@@ -527,7 +528,7 @@ export function PersonnelManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={() => openEditDialog(person)}
-                            disabled={actionLoading}
+                            disabled={isAnyMutationLoading}
                           >
                             <Edit className="w-4 h-4" />
                           </Button>
@@ -535,7 +536,7 @@ export function PersonnelManagement() {
                             variant="ghost"
                             size="sm"
                             onClick={() => handleToggleStatus(person.id)}
-                            disabled={actionLoading}
+                            disabled={isAnyMutationLoading}
                             className={person.isActive ? "text-orange-600 hover:text-orange-700" : "text-green-600 hover:text-green-700"}
                           >
                             {person.isActive ? "Désactiver" : "Activer"}

@@ -1,9 +1,12 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
-import { Message } from '@/types/message';
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { LoadingState } from "@/components/ui/loading-state";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 
 import { MessageHeader } from '@/components/customs/admin/messages/message-header';
 import { MessageStats } from '@/components/customs/admin/messages/message-stats';
@@ -17,8 +20,8 @@ import {
   updateMessage,
   deleteMessage,
 } from '@/actions/admin/message-actions';
-import { Button } from '@/components/ui/button';
 import { usePusher } from '@/hooks/usePusher';
+import type { Message } from '@/types/message';
 
 type MessageStatus = 'new' | 'read' | 'replied' | 'closed';
 type FilterStatus = MessageStatus | 'all';
@@ -141,11 +144,7 @@ export default function MessagesPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <LoadingState message="Chargement des messages..." fullScreen />;
   }
 
   if (error) {
@@ -181,7 +180,8 @@ export default function MessagesPage() {
   const newMessages = messages.filter((m: Message) => m.status === 'new').length;
 
   return (
-    <div className="space-y-8">
+    <ProtectedRoute requiredPermission={Permission.VIEW_MESSAGES}>
+      <div className="space-y-4 md:space-y-8">
       <MessageHeader periodFilter={periodFilter} selectedDate={selectedDate} />
       
       <MessageStats
@@ -232,6 +232,7 @@ export default function MessagesPage() {
         isLoading={deleteMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

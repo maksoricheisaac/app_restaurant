@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ProtectedRoute } from '@/components/admin/ProtectedRoute';
+import { Permission } from '@/types/permissions';
 
 import {
   HeaderSection,
@@ -50,11 +52,7 @@ export default function AdminReports() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-orange-600" />
-      </div>
-    );
+    return <LoadingState message="Chargement des rapports..." fullScreen />;
   }
 
   // Utiliser les métriques calculées - accéder à data.data
@@ -72,38 +70,40 @@ export default function AdminReports() {
   };
 
   return (
-    <div className="space-y-8 w-full">
-      <HeaderSection
-        selectedPeriod={selectedPeriod}
-        setSelectedPeriod={setSelectedPeriod}
-        selectedDate={selectedDate}
-        setSelectedDate={setSelectedDate}
-      />
-
-      <KeyMetrics
-        latestReport={currentMetrics}
-        formatPrice={formatPrice}
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart
-          data={chartData?.data || []}
-          period={selectedPeriod}
+    <ProtectedRoute requiredPermission={Permission.VIEW_REPORTS}>
+      <div className="space-y-4 md:space-y-8 w-full">
+        <HeaderSection
+          selectedPeriod={selectedPeriod}
+          setSelectedPeriod={setSelectedPeriod}
+          selectedDate={selectedDate}
+          setSelectedDate={setSelectedDate}
         />
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Actions</h3>
-            <ExportButtons
-              data={currentMetrics}
-              chartData={chartData?.data || []}
-              formatPrice={formatPrice}
+
+        <KeyMetrics
+          latestReport={currentMetrics}
+          formatPrice={formatPrice}
+        />
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <RevenueChart
+            data={chartData?.data || []}
+            period={selectedPeriod}
+          />
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-lg font-semibold">Actions</h3>
+              <ExportButtons
+                data={currentMetrics}
+                chartData={chartData?.data || []}
+                formatPrice={formatPrice}
+              />
+            </div>
+            <SalesReport
+              topDishes={currentMetrics.topDishes || []}
             />
           </div>
-          <SalesReport
-            topDishes={currentMetrics.topDishes || []}
-          />
         </div>
       </div>
-    </div>
+    </ProtectedRoute>
   );
 }

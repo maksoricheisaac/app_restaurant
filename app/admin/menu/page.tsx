@@ -234,7 +234,7 @@ export default function MenuPage() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_MENU}>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         <MenuHeader onAdd={handleAdd} />
       
       <MenuStats

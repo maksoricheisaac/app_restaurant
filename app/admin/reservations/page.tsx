@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import { LoadingState } from '@/components/ui/loading-state';
+import { ProtectedRoute } from '@/components/admin/ProtectedRoute';
+import { Permission } from '@/types/permissions';
 import {
   getReservations,
   updateReservation,
@@ -169,11 +172,7 @@ export default function ReservationsPage() {
   const totalGuests = filteredReservations.reduce((acc, r) => acc + (r.table?.seats || 0), 0);
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-gray-900"></div>
-      </div>
-    );
+    return <LoadingState message="Chargement des réservations..." fullScreen />;
   }
 
   if (error) {
@@ -186,12 +185,13 @@ export default function ReservationsPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <ProtectedRoute requiredPermission={Permission.VIEW_RESERVATIONS}>
+      <div className="space-y-4 md:space-y-8">
       {/* En-tête */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Réservations</h1>
-          <p className="text-gray-500 mt-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 truncate">Réservations</h1>
+          <p className="text-sm md:text-base text-gray-500 mt-1 md:mt-2">
             Gérez les réservations de votre restaurant
           </p>
         </div>
@@ -252,6 +252,7 @@ export default function ReservationsPage() {
         isLoading={deleteMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

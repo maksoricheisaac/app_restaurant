@@ -1,9 +1,10 @@
 "use client";
 
-
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
 
 import { CategoryHeader } from "@/components/customs/admin/categories/category-header";
 import { CategorySearch } from "@/components/customs/admin/categories/category-search";
@@ -150,7 +151,8 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="space-y-8">
+    <ProtectedRoute requiredPermission={Permission.VIEW_MENU}>
+      <div className="space-y-4 md:space-y-8">
       <CategoryHeader onAdd={handleAdd} />
       
       <CategorySearch 
@@ -199,6 +201,7 @@ export default function CategoriesPage() {
         isLoading={deleteMutation.isPending}
         variant="destructive"
       />
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 } 

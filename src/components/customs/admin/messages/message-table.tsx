@@ -9,7 +9,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Message } from '@/generated/prisma';
+import type { Message } from '@/types/message';
 
 
 interface MessageTableProps {

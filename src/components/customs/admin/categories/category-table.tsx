@@ -16,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Pagination } from "@/components/ui/pagination";
+import { TableLoading } from "@/components/ui/table-loading";
+import { ResponsiveTableWrapper } from "@/components/ui/responsive-table-wrapper";
 
 interface Category {
   id: string;
@@ -59,7 +61,7 @@ export function CategoryTable({
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
+        <ResponsiveTableWrapper>
           <Table>
             <TableHeader>
               <TableRow>
@@ -89,8 +91,8 @@ export function CategoryTable({
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center">
-                    Chargement...
+                  <TableCell colSpan={3}>
+                    <TableLoading message="Chargement des catégories..." />
                   </TableCell>
                 </TableRow>
               ) : categories.length === 0 ? (
@@ -131,7 +133,7 @@ export function CategoryTable({
               )}
             </TableBody>
           </Table>
-        </div>
+        </ResponsiveTableWrapper>
 
         {pagination && (
           <div className="mt-4 flex items-center justify-between px-2">

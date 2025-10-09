@@ -1,375 +1,340 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { InventoryHeader } from "@/components/customs/admin/inventory/inventory-header";
-import { InventoryStats } from "@/components/customs/admin/inventory/inventory-stats";
-import { IngredientTable } from "@/components/customs/admin/inventory/ingredient-table";
-import { RecipeTable } from "@/components/customs/admin/inventory/recipe-table";
-import { StockMovementTable } from "@/components/customs/admin/inventory/stock-movement-table";
-import { IngredientForm } from "@/components/customs/admin/inventory/ingredient-form";
-import { RecipeForm } from "@/components/customs/admin/inventory/recipe-form";
-import { StockMovementForm } from "@/components/customs/admin/inventory/stock-movement-form";
-import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { LoadingState } from "@/components/ui/loading-state";
+import { Plus } from "lucide-react";
+import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { Permission } from "@/types/permissions";
+import { QuickInventoryTable } from "@/components/customs/admin/inventory/quick-inventory-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 import {
-  getAllIngredients,
-  createIngredient,
-  updateIngredient,
-  deleteIngredient,
-  toggleIngredientStatus,
-  createRecipe,
-  updateRecipe,
-  deleteRecipe,
-  getStockMovements,
-  createStockMovement,
-  getInventoryDashboard,
-} from "@/actions/admin/inventory-actions";
+  getInventoryProducts,
+  quickAddStock,
+  quickRemoveStock,
+  quickAdjustStock,
+  createProduct,
+} from "@/actions/admin/inventory-quick-actions";
 
-import type { 
-  Ingredient, 
-  Recipe, 
-  IngredientFormData, 
-  RecipeFormData, 
-  StockMovementFormData,
-  InventoryFilters,
-  StockMovementFilters
-} from "@/types/inventory";
-
-export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState("ingredients");
-  const [isIngredientFormOpen, setIsIngredientFormOpen] = useState(false);
-  const [isRecipeFormOpen, setIsRecipeFormOpen] = useState(false);
-  const [isStockMovementFormOpen, setIsStockMovementFormOpen] = useState(false);
-  const [selectedIngredient, setSelectedIngredient] = useState<Ingredient | null>(null);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
-  const [deleteItemId, setDeleteItemId] = useState<string | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [deleteType, setDeleteType] = useState<"ingredient" | "recipe" | "movement">("ingredient");
-
-  // Filtres pour les ingrédients
-  const [ingredientFilters, setIngredientFilters] = useState<InventoryFilters>({
-    search: "",
-    page: 1,
-    perPage: 10,
-    sortBy: "name",
-    sortOrder: "asc",
-  });
-
-  // Filtres pour les mouvements de stock
-  const [movementFilters, setMovementFilters] = useState<StockMovementFilters>({
-    search: "",
-    page: 1,
-    perPage: 10,
+export default function InventoryV2Page() {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  
+  // Formulaire de création
+  const [newProduct, setNewProduct] = useState({
+    name: "",
+    unit: "unité",
+    price: "",
+    stock: "0",
+    minStock: "",
+    supplier: "",
+    category: "Boisson",
+    packSize: "",
   });
 
   const queryClient = useQueryClient();
 
-  // Récupération du dashboard
-  const { data: dashboardData, isLoading: isDashboardLoading } = useQuery({
-    queryKey: ["inventory-dashboard"],
+  // Récupération des produits
+  const { data, isLoading, refetch } = useQuery({
+    queryKey: ["inventory-products"],
     queryFn: async () => {
-      const result = await getInventoryDashboard();
+      const result = await getInventoryProducts({
+        stockStatus: 'all',
+      });
+      
       if (!result.data) {
-        throw new Error("Erreur lors de la récupération du dashboard");
+        throw new Error("Erreur lors de la récupération des produits");
       }
+      
       return result.data;
     },
   });
 
-  // Récupération des ingrédients
-  const { data: ingredientsData, isLoading: isIngredientsLoading } = useQuery({
-    queryKey: ["ingredients", ingredientFilters],
-    queryFn: async () => {
-      const result = await getAllIngredients(ingredientFilters);
-      if (!result.data) {
-        throw new Error("Erreur lors de la récupération des ingrédients");
-      }
-      return result.data;
+  // Mutation pour ajouter du stock
+  const addStockMutation = useMutation({
+    mutationFn: async ({ productId, quantity, isPack }: { productId: string; quantity: number; isPack: boolean }) => {
+      const result = await quickAddStock({ ingredientId: productId, quantity, isPack });
+      if (!result.data) throw new Error("Erreur lors de l'ajout du stock");
+      return result;
     },
-  });
-
-  // Récupération des mouvements de stock
-  const { data: movementsData, isLoading: isMovementsLoading } = useQuery({
-    queryKey: ["stock-movements", movementFilters],
-    queryFn: async () => {
-      const result = await getStockMovements(movementFilters);
-      if (!result.data) {
-        throw new Error("Erreur lors de la récupération des mouvements");
-      }
-      return result.data;
-    },
-  });
-
-  // Mutations pour les ingrédients
-  const createIngredientMutation = useMutation({
-    mutationFn: createIngredient,
-    onSuccess: () => {
-      toast.success("Ingrédient créé avec succès");
-      setIsIngredientFormOpen(false);
-      setSelectedIngredient(null);
-      queryClient.invalidateQueries({ queryKey: ["ingredients", "inventory-dashboard"] });
+    onSuccess: (result) => {
+      toast.success(result.data?.message || "Stock ajouté avec succès");
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(error.message || "Erreur lors de l'ajout du stock");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement après la mutation
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
     },
   });
 
-  const updateIngredientMutation = useMutation({
-    mutationFn: updateIngredient,
-    onSuccess: () => {
-      toast.success("Ingrédient mis à jour avec succès");
-      setIsIngredientFormOpen(false);
-      setSelectedIngredient(null);
-      queryClient.invalidateQueries({ queryKey: ["ingredients", "inventory-dashboard"] });
+  // Mutation pour retirer du stock
+  const removeStockMutation = useMutation({
+    mutationFn: async ({ productId, quantity, isPack }: { productId: string; quantity: number; isPack: boolean }) => {
+      const result = await quickRemoveStock({ ingredientId: productId, quantity, isPack });
+      if (!result.data) throw new Error("Erreur lors du retrait du stock");
+      return result;
+    },
+    onSuccess: (result) => {
+      toast.success(result.data?.message || "Stock retiré avec succès");
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(error.message || "Erreur lors du retrait du stock");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement après la mutation
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
     },
   });
 
-  const deleteIngredientMutation = useMutation({
-    mutationFn: deleteIngredient,
-    onSuccess: () => {
-      toast.success("Ingrédient supprimé avec succès");
-      queryClient.invalidateQueries({ queryKey: ["ingredients", "inventory-dashboard"] });
+  // Mutation pour ajuster le stock
+  const adjustStockMutation = useMutation({
+    mutationFn: async ({ productId, newStock, description }: { productId: string; newStock: number; description?: string }) => {
+      const result = await quickAdjustStock({ ingredientId: productId, newStock, description });
+      if (!result.data) throw new Error("Erreur lors de l'ajustement du stock");
+      return result;
+    },
+    onSuccess: (result) => {
+      toast.success(result.data?.message || "Stock ajusté avec succès");
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(error.message || "Erreur lors de l'ajustement du stock");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement après la mutation
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
     },
   });
 
-  const toggleIngredientStatusMutation = useMutation({
-    mutationFn: toggleIngredientStatus,
-    onSuccess: () => {
-      toast.success("Statut de l'ingrédient mis à jour");
-      queryClient.invalidateQueries({ queryKey: ["ingredients", "inventory-dashboard"] });
+  // Mutation pour créer un produit
+  const createProductMutation = useMutation({
+    mutationFn: createProduct,
+    onSuccess: (result) => {
+      toast.success(result.data?.message || "Produit créé avec succès");
+      setIsCreateDialogOpen(false);
+      setNewProduct({
+        name: "",
+        unit: "unité",
+        price: "",
+        stock: "0",
+        minStock: "",
+        supplier: "",
+        category: "Boisson",
+        packSize: "",
+      });
     },
     onError: (error: Error) => {
-      toast.error(error.message);
+      toast.error(error.message || "Erreur lors de la création du produit");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement après la mutation
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
     },
   });
 
-  // Mutations pour les recettes
-  const createRecipeMutation = useMutation({
-    mutationFn: createRecipe,
-    onSuccess: () => {
-      toast.success("Recette créée avec succès");
-      setIsRecipeFormOpen(false);
-      setSelectedRecipe(null);
-      queryClient.invalidateQueries({ queryKey: ["recipes"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+  // Handlers
+  const handleQuickAdd = useCallback(async (productId: string, quantity: number, isPack: boolean) => {
+    await addStockMutation.mutateAsync({ productId, quantity, isPack });
+  }, [addStockMutation]);
 
-  const updateRecipeMutation = useMutation({
-    mutationFn: updateRecipe,
-    onSuccess: () => {
-      toast.success("Recette mise à jour avec succès");
-      setIsRecipeFormOpen(false);
-      setSelectedRecipe(null);
-      queryClient.invalidateQueries({ queryKey: ["recipes"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+  const handleQuickRemove = useCallback(async (productId: string, quantity: number, isPack: boolean) => {
+    await removeStockMutation.mutateAsync({ productId, quantity, isPack });
+  }, [removeStockMutation]);
 
-  const deleteRecipeMutation = useMutation({
-    mutationFn: deleteRecipe,
-    onSuccess: () => {
-      toast.success("Recette supprimée avec succès");
-      queryClient.invalidateQueries({ queryKey: ["recipes"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
+  const handleQuickAdjust = useCallback(async (productId: string, newStock: number, description?: string) => {
+    await adjustStockMutation.mutateAsync({ productId, newStock, description });
+  }, [adjustStockMutation]);
 
-  // Mutation pour les mouvements de stock
-  const createStockMovementMutation = useMutation({
-    mutationFn: createStockMovement,
-    onSuccess: () => {
-      toast.success("Mouvement de stock créé avec succès");
-      setIsStockMovementFormOpen(false);
-      queryClient.invalidateQueries({ queryKey: ["stock-movements", "ingredients", "inventory-dashboard"] });
-    },
-    onError: (error: Error) => {
-      toast.error(error.message);
-    },
-  });
-
-  // Gestionnaires d'événements
-  const handleIngredientSubmit = async (values: IngredientFormData) => {
-    // Normaliser les champs nullable en undefined pour correspondre aux schémas des actions
-    const normalizedValues = {
-      ...values,
-      minStock: values.minStock ?? undefined,
-      supplier: values.supplier ?? undefined,
+  const handleCreateProduct = () => {
+    const productData = {
+      name: newProduct.name,
+      unit: newProduct.unit,
+      price: parseFloat(newProduct.price),
+      stock: parseFloat(newProduct.stock),
+      minStock: newProduct.minStock ? parseFloat(newProduct.minStock) : undefined,
+      supplier: newProduct.supplier || undefined,
+      category: newProduct.category || undefined,
+      packSize: newProduct.packSize ? parseInt(newProduct.packSize) : undefined,
     };
 
-    if (selectedIngredient) {
-      updateIngredientMutation.mutate({
-        ...normalizedValues,
-        id: selectedIngredient.id,
-      });
-    } else {
-      createIngredientMutation.mutate(normalizedValues);
-    }
+    createProductMutation.mutate(productData);
   };
 
-  const handleRecipeSubmit = async (values: RecipeFormData) => {
-    if (selectedRecipe) {
-      updateRecipeMutation.mutate({
-        ...values,
-        id: selectedRecipe.id,
-      });
-    } else {
-      createRecipeMutation.mutate(values);
-    }
-  };
-
-  const handleStockMovementSubmit = async (values: StockMovementFormData) => {
-    createStockMovementMutation.mutate(values);
-  };
-
-  const handleDelete = async (id: string, type: "ingredient" | "recipe" | "movement") => {
-    setDeleteItemId(id);
-    setDeleteType(type);
-    setIsDeleteDialogOpen(true);
-  };
-
-  const handleDeleteConfirm = () => {
-    if (deleteItemId) {
-      if (deleteType === "ingredient") {
-        deleteIngredientMutation.mutate({ id: deleteItemId });
-      } else if (deleteType === "recipe") {
-        deleteRecipeMutation.mutate({ id: deleteItemId });
-      }
-      setIsDeleteDialogOpen(false);
-      setDeleteItemId(null);
-    }
-  };
-
-  const handleEditIngredient = (ingredient: Ingredient) => {
-    setSelectedIngredient(ingredient);
-    setIsIngredientFormOpen(true);
-  };
-
-  const handleEditRecipe = (recipe: Recipe) => {
-    setSelectedRecipe(recipe);
-    setIsRecipeFormOpen(true);
-  };
-
-  const handleAddIngredient = () => {
-    setSelectedIngredient(null);
-    setIsIngredientFormOpen(true);
-  };
-
-  const handleAddRecipe = () => {
-    setSelectedRecipe(null);
-    setIsRecipeFormOpen(true);
-  };
-
-  const handleAddStockMovement = () => {
-    setIsStockMovementFormOpen(true);
-  };
-
-  const handleToggleIngredientStatus = (id: string) => {
-    toggleIngredientStatusMutation.mutate({ id });
-  };
+  if (isLoading) {
+    return <LoadingState message="Chargement de l'inventaire..." />;
+  }
 
   return (
-    <div className="space-y-8">
-      <InventoryHeader onAddIngredient={handleAddIngredient} onAddStockMovement={handleAddStockMovement} />
-      
-      <InventoryStats 
-        data={dashboardData?.data}
-        isLoading={isDashboardLoading}
-      />
-      
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="ingredients">Ingrédients</TabsTrigger>
-          <TabsTrigger value="recipes">Recettes</TabsTrigger>
-          <TabsTrigger value="movements">Mouvements</TabsTrigger>
-        </TabsList>
+    <ProtectedRoute requiredPermission={Permission.VIEW_INVENTORY}>
+      <div className="space-y-4 md:space-y-6">
+      {/* En-tête */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight truncate">Inventaire & Stock</h1>
+          <p className="text-sm md:text-base text-muted-foreground">
+            Gestion rapide et visuelle de votre stock
+          </p>
+        </div>
+        <Button onClick={() => setIsCreateDialogOpen(true)} className="bg-orange-600 hover:bg-orange-700 w-full sm:w-auto flex-shrink-0">
+          <Plus className="mr-2 h-4 w-4" />
+          <span className="hidden sm:inline">Nouveau Produit</span>
+          <span className="sm:hidden">Ajouter</span>
+        </Button>
+      </div>
 
-        <TabsContent value="ingredients" className="space-y-6">
-          <IngredientTable
-            ingredients={ingredientsData?.data?.ingredients || []}
-            isLoading={isIngredientsLoading}
-            filters={ingredientFilters}
-            onFiltersChange={setIngredientFilters}
-            onEdit={handleEditIngredient}
-            onDelete={(id) => handleDelete(id, "ingredient")}
-            onToggleStatus={handleToggleIngredientStatus}
-            pagination={ingredientsData?.data?.pagination}
-          />
-        </TabsContent>
-
-        <TabsContent value="recipes" className="space-y-6">
-          <RecipeTable
-            onAdd={handleAddRecipe}
-            onEdit={handleEditRecipe}
-            onDelete={(id) => handleDelete(id, "recipe")}
-          />
-        </TabsContent>
-
-        <TabsContent value="movements" className="space-y-6">
-          <StockMovementTable
-            movements={movementsData?.data?.movements || []}
-            isLoading={isMovementsLoading}
-            filters={movementFilters}
-            onFiltersChange={setMovementFilters}
-            pagination={movementsData?.data?.pagination}
-          />
-        </TabsContent>
-      </Tabs>
-
-      {/* Formulaires */}
-      <IngredientForm
-        isOpen={isIngredientFormOpen}
-        onOpenChange={setIsIngredientFormOpen}
-        selectedIngredient={selectedIngredient}
-        onSubmit={handleIngredientSubmit}
-        isLoading={createIngredientMutation.isPending || updateIngredientMutation.isPending}
+      {/* Tableau principal */}
+      <QuickInventoryTable
+        products={data?.data.products || []}
+        stats={data?.data.stats || { total: 0, lowStock: 0, outOfStock: 0, totalValue: 0 }}
+        onQuickAdd={handleQuickAdd}
+        onQuickRemove={handleQuickRemove}
+        onQuickAdjust={handleQuickAdjust}
+        onRefresh={() => refetch()}
       />
 
-      <RecipeForm
-        isOpen={isRecipeFormOpen}
-        onOpenChange={setIsRecipeFormOpen}
-        selectedRecipe={selectedRecipe}
-        onSubmit={handleRecipeSubmit}
-        isLoading={createRecipeMutation.isPending || updateRecipeMutation.isPending}
-      />
+      {/* Dialog Création Produit */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg md:text-xl">Créer un nouveau produit</DialogTitle>
+            <DialogDescription className="text-sm">
+              Ajouter un nouveau produit à l&apos;inventaire
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Nom du produit *</Label>
+              <Input
+                id="name"
+                placeholder="Ex: Primus 72cl"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+              />
+            </div>
 
-      <StockMovementForm
-        isOpen={isStockMovementFormOpen}
-        onOpenChange={setIsStockMovementFormOpen}
-        onSubmit={handleStockMovementSubmit}
-        isLoading={createStockMovementMutation.isPending}
-      />
+            <div className="space-y-2">
+              <Label htmlFor="category">Catégorie</Label>
+              <Select value={newProduct.category} onValueChange={(v) => setNewProduct({ ...newProduct, category: v })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Boisson">Boisson</SelectItem>
+                  <SelectItem value="Ingrédient">Ingrédient</SelectItem>
+                  <SelectItem value="Autre">Autre</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-      {/* Dialog de confirmation de suppression */}
-      <ConfirmationDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => {
-          setIsDeleteDialogOpen(false);
-          setDeleteItemId(null);
-        }}
-        onConfirm={handleDeleteConfirm}
-        title={`Supprimer ${deleteType === "ingredient" ? "l'ingrédient" : deleteType === "recipe" ? "la recette" : "le mouvement"}`}
-        description={`Êtes-vous sûr de vouloir supprimer ${deleteType === "ingredient" ? "cet ingrédient" : deleteType === "recipe" ? "cette recette" : "ce mouvement"} ? Cette action est irréversible.`}
-        confirmText="Supprimer"
-        cancelText="Annuler"
-        isLoading={deleteIngredientMutation.isPending || deleteRecipeMutation.isPending}
-        variant="destructive"
-      />
-    </div>
+            <div className="space-y-2">
+              <Label htmlFor="unit">Unité *</Label>
+              <Select value={newProduct.unit} onValueChange={(v) => setNewProduct({ ...newProduct, unit: v })}>
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="unité">Unité</SelectItem>
+                  <SelectItem value="L">Litre (L)</SelectItem>
+                  <SelectItem value="kg">Kilogramme (kg)</SelectItem>
+                  <SelectItem value="g">Gramme (g)</SelectItem>
+                  <SelectItem value="pack">Pack</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="price">Prix unitaire (FCFA) *</Label>
+              <Input
+                id="price"
+                type="number"
+                placeholder="500"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                min="0"
+                step="1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="stock">Stock initial</Label>
+              <Input
+                id="stock"
+                type="number"
+                placeholder="0"
+                value={newProduct.stock}
+                onChange={(e) => setNewProduct({ ...newProduct, stock: e.target.value })}
+                min="0"
+                step="0.1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="minStock">Stock minimum (alerte)</Label>
+              <Input
+                id="minStock"
+                type="number"
+                placeholder="10"
+                value={newProduct.minStock}
+                onChange={(e) => setNewProduct({ ...newProduct, minStock: e.target.value })}
+                min="0"
+                step="0.1"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="packSize">Taille du pack (optionnel)</Label>
+              <Input
+                id="packSize"
+                type="number"
+                placeholder="12"
+                value={newProduct.packSize}
+                onChange={(e) => setNewProduct({ ...newProduct, packSize: e.target.value })}
+                min="1"
+              />
+              <p className="text-xs text-muted-foreground">
+                Ex: 12 pour un pack de 12 bouteilles
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="supplier">Fournisseur</Label>
+              <Input
+                id="supplier"
+                placeholder="Ex: Bralima"
+                value={newProduct.supplier}
+                onChange={(e) => setNewProduct({ ...newProduct, supplier: e.target.value })}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button 
+              onClick={handleCreateProduct} 
+              disabled={!newProduct.name || !newProduct.price || createProductMutation.isPending}
+            >
+              {createProductMutation.isPending ? "Création..." : "Créer le produit"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      </div>
+    </ProtectedRoute>
   );
 }

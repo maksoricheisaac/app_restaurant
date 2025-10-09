@@ -15,6 +15,8 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { ProtectedRoute } from '@/components/admin/ProtectedRoute';
+import { Permission } from '@/types/permissions';
 
 export default function SupportPage() {
   const copyToClipboard = (text: string, label: string) => {
@@ -23,7 +25,8 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <ProtectedRoute requiredPermission={Permission.VIEW_DASHBOARD}>
+      <div className="space-y-4 md:space-y-6 p-4 md:p-6">
       {/* Header */}
       <div className="space-y-2">
         <h1 className="text-3xl font-bold">Support & Assistance</h1>
@@ -258,6 +261,7 @@ export default function SupportPage() {
           </div>
         </CardContent>
       </Card>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }

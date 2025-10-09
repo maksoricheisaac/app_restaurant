@@ -198,7 +198,7 @@ export default function AdminDashboard() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_DASHBOARD}>
-      <div className="space-y-8">
+      <div className="space-y-4 md:space-y-8">
         <DashboardHeader />
       
       <DashboardDateSelector

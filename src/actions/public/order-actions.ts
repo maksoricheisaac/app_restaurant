@@ -21,6 +21,8 @@ const orderSchema = z.object({
   deliveryZoneId: z.string().optional(),
   deliveryAddress: z.string().optional(),
   contactPhone: z.string().optional(),
+  // Notes spéciales
+  specialNotes: z.string().optional(),
 });
 
 class RateLimitError extends Error {
@@ -66,7 +68,7 @@ export const createOrder = actionClient
       // Vérifier les limites de taux (log uniquement pour l'instant)
       await checkRateLimit(ipAddress);
 
-      const { orderType, tableId, userId, items, deliveryZoneId, deliveryAddress, contactPhone } = parsedInput;
+      const { orderType, tableId, userId, items, deliveryZoneId, deliveryAddress, contactPhone, specialNotes } = parsedInput;
 
       // Vérifier que l'utilisateur existe
       const user = await prisma.user.findUnique({
@@ -231,6 +233,7 @@ export const createOrder = actionClient
           deliveryZoneId: orderType === 'delivery' ? deliveryZoneId! : undefined,
           deliveryAddress: orderType === 'delivery' ? deliveryAddress! : undefined,
           deliveryFee: orderType === 'delivery' ? deliveryFee : undefined,
+          specialNotes: specialNotes || undefined,
           ipAddress: user.isAnonymous ? ipAddress : undefined, // Stocker l'IP pour les utilisateurs anonymes
           orderItems: {
             create: items.map((item) => ({

@@ -28,6 +28,7 @@ const orderSchema = z.object({
   // Champs optionnels pour les commandes créées par le personnel
   email: z.string().email("Email invalide").optional().or(z.literal("")),
   phone: z.string().optional().or(z.literal("")),
+  specialNotes: z.string().optional().or(z.literal("")),
 });
 
 // Get all orders
@@ -153,6 +154,7 @@ export const createOrder = actionClient
           status: parsedInput.status,
           type: parsedInput.type,
           total: parsedInput.total,
+          specialNotes: parsedInput.specialNotes && parsedInput.specialNotes !== "" ? parsedInput.specialNotes : null,
           orderItems: {
             create: parsedInput.items.map(item => ({
               name: item.name,
@@ -220,6 +222,9 @@ export const updateOrder = actionClient
       if (data.status) updateData.status = data.status;
       if (data.type) updateData.type = data.type;
       if (data.total) updateData.total = data.total;
+      if (data.specialNotes !== undefined) {
+        updateData.specialNotes = data.specialNotes && data.specialNotes !== "" ? data.specialNotes : null;
+      }
 
       if (data.tableId) {
         updateData.table = { connect: { id: data.tableId } };

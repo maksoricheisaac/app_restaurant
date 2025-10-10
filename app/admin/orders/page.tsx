@@ -58,10 +58,10 @@ const formSchema = z.object({
   type: z.enum(["dine_in", "takeaway", "delivery"]),
   tableId: z.string().optional().or(z.literal("")).or(z.literal("none")).or(z.null()),
   deliveryFee: z.number().optional().or(z.null()),
-  specialNotes: z.string().optional().or(z.literal("")).or(z.null()),
+  specialNotes: z.string().optional().or(z.literal("")),
 });
 
-type FormValues = z.infer<typeof formSchema>;
+export type FormValues = z.infer<typeof formSchema>;
 
 
 

@@ -10,6 +10,7 @@ import { Search, User, ShoppingCart, FileText, ChevronRight, ChevronLeft, Check 
 import { toast } from "sonner";
 import Image from "next/image";
 import type { UseFormReturn } from "react-hook-form";
+import { FormValues } from "@app/admin/orders/page";
 
 type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
 type OrderType = "dine_in" | "takeaway" | "delivery";
@@ -20,16 +21,7 @@ type Customer = { id: string; name?: string | null; email?: string | null };
 type Table = { id: string; number: number; seats: number };
 
 type OrderItemForm = { name: string; quantity: number; price: number; image?: string; menuItemId?: string };
-type OrderFormValues = {
-  userId?: string;
-  tableId?: string | null;
-  type: OrderType;
-  status: OrderStatus;
-  items: OrderItemForm[];
-  total: number;
-  deliveryFee?: number | null;
-  specialNotes?: string | null;
-};
+
 
 export function OrderForm({
   form,
@@ -40,8 +32,8 @@ export function OrderForm({
   menuItems,
   categories,
 }: {
-  form: UseFormReturn<OrderFormValues>;
-  onSubmit: (values: OrderFormValues) => Promise<void> | void;
+  form: UseFormReturn<FormValues>;
+  onSubmit: (values: FormValues) => Promise<void> | void;
   selectedOrder: unknown | null;
   customers: Customer[];
   tables: Table[];
@@ -355,8 +347,8 @@ export function OrderForm({
               <label className="text-sm text-gray-600">Notes spéciales (optionnel)</label>
               <textarea
                 placeholder="Instructions spéciales, allergies, préférences..."
-                value={form.watch("specialNotes") || ""}
-                onChange={(e) => form.setValue("specialNotes", e.target.value || null)}
+                value={form.watch("specialNotes") || "-"}
+                onChange={(e) => form.setValue("specialNotes", e.target.value || "-")}
                 className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-transparent resize-none"
               />
             </div>

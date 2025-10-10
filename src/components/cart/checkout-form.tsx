@@ -146,7 +146,8 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
         data.orderType as OrderType,
         isDelivery ? (data.deliveryZoneId || undefined) : undefined,
         isDelivery ? (data.deliveryAddress || undefined) : undefined,
-        isDelivery ? (data.contactPhone || undefined) : undefined
+        isDelivery ? (data.contactPhone || undefined) : undefined,
+        data.notes || undefined
       );
 
       // Snapshot du panier avant vidage pour l'écran de succès

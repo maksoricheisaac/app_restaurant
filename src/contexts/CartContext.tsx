@@ -46,7 +46,8 @@ interface CartContextType {
     orderType: OrderType,
     deliveryZoneId?: string,
     deliveryAddress?: string,
-    contactPhone?: string
+    contactPhone?: string,
+    specialNotes?: string
   ) => Promise<string>;
 }
 
@@ -183,12 +184,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
       orderType,
       deliveryZoneId,
       deliveryAddress,
-      contactPhone
+      contactPhone,
+      specialNotes
     }: {
       orderType: OrderType;
       deliveryZoneId?: string;
       deliveryAddress?: string;
       contactPhone?: string;
+      specialNotes?: string;
     }) => {
       // Vérifier que l'utilisateur est connecté
       if (!session?.user) {
@@ -209,7 +212,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
         // Champs livraison
         deliveryZoneId,
         deliveryAddress,
-        contactPhone
+        contactPhone,
+        // Notes spéciales
+        specialNotes
       });
 
       // Log complet pour debug
@@ -274,13 +279,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
           orderType: OrderType,
           deliveryZoneId?: string,
           deliveryAddress?: string,
-          contactPhone?: string
+          contactPhone?: string,
+          specialNotes?: string
         ) =>
           createOrderMutation({
             orderType,
             deliveryZoneId,
             deliveryAddress,
-            contactPhone
+            contactPhone,
+            specialNotes
           })
       }}
     >

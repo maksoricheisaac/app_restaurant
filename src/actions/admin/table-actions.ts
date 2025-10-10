@@ -4,6 +4,7 @@ import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { requireStaff } from "@/lib/auth-helpers";
 
 
 // Schema for table validation
@@ -27,6 +28,7 @@ export const getTables = actionClient
   }))
   .action(async ({ parsedInput }) => {
     try {
+      await requireStaff();
       const {
         search,
         isAvailable,
@@ -93,6 +95,7 @@ export const getTableById = actionClient
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
       const table = await prisma.table.findUnique({
         where: { id },
         include: {
@@ -121,6 +124,7 @@ export const createTable = actionClient
   .inputSchema(tableSchema)
   .action(async ({ parsedInput }) => {
     try {
+      await requireStaff();
       const table = await prisma.table.create({
         data: {
           number: parsedInput.number,
@@ -167,6 +171,7 @@ export const updateTable = actionClient
   }))
   .action(async ({ parsedInput: { id, ...data } }) => {
     try {
+      await requireStaff();
       const table = await prisma.table.update({
         where: { id },
         data: {
@@ -213,6 +218,7 @@ export const deleteTable = actionClient
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
       
       await prisma.table.delete({
         where: { id },
@@ -239,6 +245,7 @@ export const getAvailableTables = actionClient
   .inputSchema(z.void())
   .action(async () => {
     try {
+      await requireStaff();
       const tables = await prisma.table.findMany({
         where: { 
           status: 'available'
@@ -265,6 +272,7 @@ export const getTableLocations = actionClient
   .inputSchema(z.void())
   .action(async () => {
     try {
+      await requireStaff();
       const locations = await prisma.table.findMany({
         select: { location: true },
         distinct: ['location'],

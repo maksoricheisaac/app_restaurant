@@ -40,7 +40,8 @@ export interface Order {
   } | null;
   orderItems: OrderItem[];
   total?: number | null;
-  deliveryFee?: number;
+  deliveryFee?: number | null;
+  specialNotes?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }

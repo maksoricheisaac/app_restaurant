@@ -47,8 +47,32 @@ async function checkAdminPermissions() {
     where: { id: session.user.id },
   });
 
-  if (!user || user.role !== "admin") {
-    throw new Error("Accès refusé. Rôle administrateur requis.");
+  // Vérifier si l'utilisateur est membre du staff
+  const staffRoles = ['admin', 'owner', 'manager', 'head_chef', 'chef', 'waiter', 'cashier'];
+  if (!user || !staffRoles.includes(user.role)) {
+    throw new Error("Accès refusé. Vous devez être membre du personnel.");
+  }
+
+  return user;
+}
+
+// Fonction pour vérifier les permissions spécifiques d'admin/owner/manager
+async function checkManagementPermissions() {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  });
+  if (!session?.user) {
+    throw new Error("Non autorisé");
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+  });
+
+  // Seuls admin, owner et manager peuvent gérer les paramètres
+  const managementRoles = ['admin', 'owner', 'manager'];
+  if (!user || !managementRoles.includes(user.role)) {
+    throw new Error("Accès refusé. Permissions de gestion requises.");
   }
 
   return user;
@@ -102,7 +126,7 @@ export async function getPersonnel(): Promise<Personnel[]> {
 // Ajouter un nouveau membre du personnel
 export async function addPersonnel(data: z.infer<typeof PersonnelSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     // Valider les données
     const validatedData = PersonnelSchema.parse(data);
@@ -152,7 +176,7 @@ export async function addPersonnel(data: z.infer<typeof PersonnelSchema>) {
 // Modifier un membre du personnel
 export async function updatePersonnel(data: z.infer<typeof UpdatePersonnelSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     // Valider les données
     const validatedData = UpdatePersonnelSchema.parse(data);
@@ -201,7 +225,7 @@ export async function updatePersonnel(data: z.infer<typeof UpdatePersonnelSchema
 // Supprimer un membre du personnel
 export async function deletePersonnel(id: string) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     // Vérifier si l'utilisateur existe
     const existingUser = await prisma.user.findUnique({
@@ -242,7 +266,7 @@ export async function deletePersonnel(id: string) {
 // Activer/Désactiver un membre du personnel
 export async function togglePersonnelStatus(id: string) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     const user = await prisma.user.findUnique({
       where: { id }
@@ -327,7 +351,8 @@ export async function getPersonnelStats() {
 // Récupérer les paramètres du restaurant
 export async function getRestaurantSettings() {
 try {
-let settings = await prisma.restaurantSettings.findFirst();
+  // Pas de vérification de permissions - accessible à tous (public et staff)
+  let settings = await prisma.restaurantSettings.findFirst();
 
 if (!settings) {
   // Si aucun paramètre n'existe, en créer un par défaut
@@ -350,7 +375,7 @@ throw new Error("Impossible de charger les paramètres du restaurant.");
 // Mettre à jour les paramètres généraux
 export async function updateGeneralSettings(data: z.infer<typeof GeneralSettingsSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     const validatedData = GeneralSettingsSchema.parse(data);
 
@@ -381,6 +406,7 @@ export async function updateGeneralSettings(data: z.infer<typeof GeneralSettings
 // Récupérer les horaires d'ouverture
 export async function getOpeningHours() {
   try {
+    // Pas de vérification - accessible à tous (public)
     const hours = await prisma.openingHours.findMany({
       orderBy: {
         // Assurer un ordre logique des jours
@@ -411,7 +437,7 @@ export async function getOpeningHours() {
 // Mettre à jour les horaires d'ouverture
 export async function updateOpeningHours(data: z.infer<typeof OpeningHourSchema>[]) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
 
     const transactions = data.map(hour => {
       const validatedHour = OpeningHourSchema.parse(hour);
@@ -440,6 +466,7 @@ export async function updateOpeningHours(data: z.infer<typeof OpeningHourSchema>
 // Récupérer les fermetures exceptionnelles
 export async function getExceptionalClosures() {
   try {
+    // Pas de vérification - accessible à tous (public)
     return await prisma.exceptionalClosure.findMany({
       orderBy: { date: 'asc' },
     });
@@ -452,7 +479,7 @@ export async function getExceptionalClosures() {
 // Ajouter une fermeture exceptionnelle
 export async function addExceptionalClosure(data: z.infer<typeof ExceptionalClosureSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     const validatedData = ExceptionalClosureSchema.parse(data);
     await prisma.exceptionalClosure.create({ data: validatedData });
     revalidatePath("/admin/settings");
@@ -466,7 +493,7 @@ export async function addExceptionalClosure(data: z.infer<typeof ExceptionalClos
 // Supprimer une fermeture exceptionnelle
 export async function deleteExceptionalClosure(id: string) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     await prisma.exceptionalClosure.delete({ where: { id } });
     revalidatePath("/admin/settings");
     return { success: true, message: "Date de fermeture supprimée." };
@@ -481,6 +508,7 @@ export async function deleteExceptionalClosure(id: string) {
 // Récupérer les zones de livraison
 export async function getDeliveryZones() {
   try {
+    // Pas de vérification - accessible à tous (public pour les commandes)
     return await prisma.deliveryZone.findMany({ orderBy: { name: 'asc' } });
   } catch (error) {
     console.error("Erreur lors de la récupération des zones de livraison:", error);
@@ -491,7 +519,7 @@ export async function getDeliveryZones() {
 // Ajouter ou modifier une zone de livraison
 export async function upsertDeliveryZone(data: z.infer<typeof DeliveryZoneSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     const validatedData = DeliveryZoneSchema.parse(data);
     const { id, ...rest } = validatedData;
 
@@ -517,7 +545,7 @@ export async function upsertDeliveryZone(data: z.infer<typeof DeliveryZoneSchema
 // Supprimer une zone de livraison
 export async function deleteDeliveryZone(id: string) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     await prisma.deliveryZone.delete({ where: { id } });
     revalidatePath("/admin/settings");
     return { success: true, message: "Zone de livraison supprimée." };
@@ -532,7 +560,7 @@ export async function deleteDeliveryZone(id: string) {
 // Mettre à jour les limitations de commandes
 export async function updateOrderLimits(data: z.infer<typeof OrderLimitsSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     const validatedData = OrderLimitsSchema.parse(data);
 
     const settings = await prisma.restaurantSettings.findFirst();
@@ -558,7 +586,7 @@ export async function updateOrderLimits(data: z.infer<typeof OrderLimitsSchema>)
 // Mettre à jour les liens des réseaux sociaux
 export async function updateSocialLinks(data: z.infer<typeof SocialLinksSchema>) {
   try {
-    await checkAdminPermissions();
+    await checkManagementPermissions();
     const validatedData = SocialLinksSchema.parse(data);
 
     const settings = await prisma.restaurantSettings.findFirst();

@@ -27,6 +27,8 @@ type OrderFormValues = {
   status: OrderStatus;
   items: OrderItemForm[];
   total: number;
+  deliveryFee?: number | null;
+  specialNotes?: string | null;
 };
 
 export function OrderForm({
@@ -124,7 +126,9 @@ export function OrderForm({
 
   const computeTotal = () => {
     const list = (form.getValues("items") as OrderItemForm[]) || [];
-    const total = list.reduce((acc: number, it: OrderItemForm) => acc + (it.quantity || 0) * (it.price || 0), 0);
+    const itemsTotal = list.reduce((acc: number, it: OrderItemForm) => acc + (it.quantity || 0) * (it.price || 0), 0);
+    const deliveryFee = form.getValues("deliveryFee") || 0;
+    const total = itemsTotal + deliveryFee;
     form.setValue("total", total, { shouldDirty: true });
   };
 
@@ -327,6 +331,35 @@ export function OrderForm({
                 </Select>
               </div>
             </div>
+            
+            {/* Delivery Fee - Only show for delivery orders */}
+            {form.watch("type") === "delivery" && (
+              <div className="mt-4">
+                <label className="text-sm text-gray-600">Frais de livraison (FCFA)</label>
+                <Input
+                  type="number"
+                  placeholder="0"
+                  value={form.watch("deliveryFee") || ""}
+                  onChange={(e) => {
+                    const value = e.target.value === "" ? null : parseFloat(e.target.value);
+                    form.setValue("deliveryFee", value);
+                    computeTotal();
+                  }}
+                  className="h-11"
+                />
+              </div>
+            )}
+            
+            {/* Special Notes */}
+            <div className="mt-4">
+              <label className="text-sm text-gray-600">Notes spéciales (optionnel)</label>
+              <textarea
+                placeholder="Instructions spéciales, allergies, préférences..."
+                value={form.watch("specialNotes") || ""}
+                onChange={(e) => form.setValue("specialNotes", e.target.value || null)}
+                className="w-full h-20 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:border-transparent resize-none"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -440,12 +473,7 @@ export function OrderForm({
 
           {/* Articles commandés */}
           <div className="space-y-4 rounded-xl border border-[#FF6B35]/15 bg-white/70 shadow-sm p-5">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <h3 className="text-lg font-semibold text-[#FF6B35]">Articles commandés ({items.length})</h3>
-              <div className="bg-[#FFE5D9] rounded-lg px-4 py-2 font-bold text-[#FF6B35] text-lg text-center lg:text-right">
-                Total: {formatCurrency((form.watch("total") as number) || 0)}
-              </div>
-            </div>
+            <h3 className="text-lg font-semibold text-[#FF6B35] mb-4">Articles commandés ({items.length})</h3>
             <div className="space-y-3">
               {items.length === 0 ? (
                 <div className="text-center py-8">
@@ -472,6 +500,34 @@ export function OrderForm({
                 ))
               )}
             </div>
+            
+            {/* Total breakdown */}
+            <div className="border-t pt-4 mt-4 space-y-2">
+              {form.watch("deliveryFee") && form.watch("deliveryFee")! > 0 && (
+                <>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Sous-total</span>
+                    <span>{formatCurrency(items.reduce((acc, it) => acc + it.price * it.quantity, 0))}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Frais de livraison</span>
+                    <span>{formatCurrency(form.watch("deliveryFee")!)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between items-center bg-[#FFE5D9] rounded-lg px-4 py-3">
+                <span className="font-bold text-[#FF6B35] text-lg">Total</span>
+                <span className="font-bold text-[#FF6B35] text-lg">{formatCurrency((form.watch("total") as number) || 0)}</span>
+              </div>
+            </div>
+            
+            {/* Special notes display */}
+            {form.watch("specialNotes") && (
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded mt-4">
+                <p className="font-semibold text-sm text-gray-700 mb-1">Notes spéciales :</p>
+                <p className="text-sm text-gray-600">{form.watch("specialNotes")}</p>
+              </div>
+            )}
           </div>
         </div>
       )}

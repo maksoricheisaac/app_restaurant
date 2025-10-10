@@ -57,6 +57,8 @@ const formSchema = z.object({
   status: z.enum(["pending", "preparing", "ready", "served", "cancelled"]),
   type: z.enum(["dine_in", "takeaway", "delivery"]),
   tableId: z.string().optional().or(z.literal("")).or(z.literal("none")).or(z.null()),
+  deliveryFee: z.number().optional().or(z.null()),
+  specialNotes: z.string().optional().or(z.literal("")).or(z.null()),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -168,6 +170,8 @@ export default function OrdersPage() {
       status: "pending" as const,
       type: "dine_in" as const,
       tableId: "none",
+      deliveryFee: null,
+      specialNotes: "",
     },
   });
 
@@ -310,7 +314,7 @@ export default function OrdersPage() {
 
   const updateOrderStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OrderStatus }) => {
-      const result = await updateOrderStatus({ orderId: id, status });
+      const result = await updateOrderStatus({ id, status });
       if (!result.data) {
         throw new Error("Échec de la mise à jour du statut de la commande");
       }
@@ -371,6 +375,8 @@ export default function OrdersPage() {
       status: "pending",
       type: "dine_in",
       tableId: "none",
+      deliveryFee: null,
+      specialNotes: "",
     });
     setIsOpen(true);
   };

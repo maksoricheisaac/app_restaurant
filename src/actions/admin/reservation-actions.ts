@@ -4,6 +4,7 @@ import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
+import { requireStaff } from "@/lib/auth-helpers";
 
 // Schema for reservation validation
 const reservationSchema = z.object({
@@ -25,6 +26,7 @@ export const getReservations = actionClient
   .schema(z.void())
   .action(async () => {
     try {
+      await requireStaff();
       const reservations = await prisma.reservation.findMany({
         include: {
           user: true,

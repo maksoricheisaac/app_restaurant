@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
+import { requireStaff } from "@/lib/auth-helpers";
 
 const customerSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -34,6 +35,7 @@ export const createCustomer = actionClient
   .inputSchema(customerSchema)
   .action(async ({ parsedInput }) => {
     try {
+      await requireStaff();
       const customer = await prisma.user.create({
         data: {
           ...parsedInput,
@@ -63,6 +65,7 @@ export const updateCustomer = actionClient
   .inputSchema(updateCustomerSchema)
   .action(async ({ parsedInput: { id, ...data } }) => {
     try {
+      await requireStaff();
       const customer = await prisma.user.update({
         where: { id },
         data: {
@@ -93,6 +96,7 @@ export const deleteCustomer = actionClient
   .inputSchema(customerIdSchema)
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
       await prisma.user.delete({
         where: { id },
       });
@@ -109,6 +113,7 @@ export const getCustomers = actionClient
   .inputSchema(getCustomersSchema)
   .action(async ({ parsedInput: { search, status, sort = "createdAt", order = "desc", page = 1, limit = 10 } }) => {
     try {
+      await requireStaff();
       const where = {
         role: "user",
         ...(status && { status }),

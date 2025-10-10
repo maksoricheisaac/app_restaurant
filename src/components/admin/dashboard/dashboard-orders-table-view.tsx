@@ -57,6 +57,16 @@ export function DashboardOrdersTableView({ orders, getStatusBadgeColor }: Dashbo
                       {index < order.orderItems.length - 1 ? ", " : ""}
                     </span>
                   ))}
+                  {order.deliveryFee && order.deliveryFee > 0 && (
+                    <div className="text-xs text-blue-600 mt-1">
+                      + Livraison: {order.deliveryFee.toLocaleString()} FCFA
+                    </div>
+                  )}
+                  {order.specialNotes && (
+                    <div className="text-xs text-amber-600 mt-1 italic">
+                      Note: {order.specialNotes}
+                    </div>
+                  )}
                 </div>
               </TableCell>
               <TableCell>

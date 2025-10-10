@@ -11,11 +11,11 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2, User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { signUp, signIn } from "@/lib/auth-client";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -33,12 +33,23 @@ const signUpSchema = z.object({
 
 type SignUpFormData = z.infer<typeof signUpSchema>;
 
-export default function SignUp() {
+function SignUpForm() {
 	const router = useRouter();
+	const searchParams = useSearchParams();
 	const [loading, setLoading] = useState(false);
 	const [googleLoading, setGoogleLoading] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+	// Récupérer le tableId depuis localStorage ou URL
+	const [redirectUrl, setRedirectUrl] = useState("/");
+	const tableId = searchParams.get("tableId") || localStorage.getItem("restaurant_table_id");
+	useEffect(() => {
+		
+		if (tableId) {
+			setRedirectUrl(`/menu?tableId=${tableId}`);
+		}
+	}, [tableId]);
 
 	const {
 		register,
@@ -55,7 +66,7 @@ export default function SignUp() {
 				email: data.email,
 				password: data.password,
 				name: data.name,
-				callbackURL: "/",
+				callbackURL: redirectUrl,
 				fetchOptions: {
 					onResponse: () => {
 						setLoading(false);
@@ -69,7 +80,7 @@ export default function SignUp() {
 					},
 					onSuccess: async () => {
 						toast.success("Inscription réussie !");
-						router.push("/");
+						router.push(redirectUrl);
 					},
 				},
 			});
@@ -85,7 +96,7 @@ export default function SignUp() {
 			await signIn.social(
 				{
 					provider: "google",
-					callbackURL: "/",
+					callbackURL: redirectUrl,
 				},
 				{
 					onRequest: () => {
@@ -100,7 +111,7 @@ export default function SignUp() {
 					},
 					onSuccess: () => {
 						toast.success("Connexion avec Google réussie !");
-						router.push("/");
+						router.push(redirectUrl);
 					},
 				}
 			);
@@ -313,5 +324,20 @@ export default function SignUp() {
 				</CardFooter>
 			</Card>
 		</div>
+	);
+}
+
+export default function SignUp() {
+	return (
+		<Suspense fallback={
+			<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50">
+				<div className="flex flex-col items-center gap-4">
+					<Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+					<p className="text-gray-600">Chargement...</p>
+				</div>
+			</div>
+		}>
+			<SignUpForm />
+		</Suspense>
 	);
 }

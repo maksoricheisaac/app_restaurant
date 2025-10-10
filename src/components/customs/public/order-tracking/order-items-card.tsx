@@ -81,23 +81,19 @@ export const OrderItemsCard: React.FC<OrderItemsCardProps> = ({ order }) => (
         <Separator className="my-3 sm:my-4 md:my-6 lg:my-8" />
         
         <div className="flex flex-col space-y-2 sm:space-y-3 md:space-y-4">
-          {/* <div className="flex justify-between items-center text-sm sm:text-base md:text-lg text-gray-600">
-            <span>Sous-total</span>
-            <span className="font-medium">{formatPrice(order.subtotal)}</span>
-          </div>
           {order.deliveryFee && order.deliveryFee > 0 && (
-            <div className="flex justify-between items-center text-sm sm:text-base md:text-lg text-gray-600">
-              <span>Frais de livraison</span>
-              <span className="font-medium">{formatPrice(order.deliveryFee)}</span>
-            </div>
+            <>
+              <div className="flex justify-between items-center text-sm sm:text-base md:text-lg text-gray-600">
+                <span>Sous-total</span>
+                <span className="font-medium">{formatPrice((order.total || 0) - order.deliveryFee)}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm sm:text-base md:text-lg text-gray-600">
+                <span>Frais de livraison</span>
+                <span className="font-medium">{formatPrice(order.deliveryFee)}</span>
+              </div>
+              <Separator className="my-2 sm:my-3 md:my-4" />
+            </>
           )}
-          {order.tip && order.tip > 0 && (
-            <div className="flex justify-between items-center text-sm sm:text-base md:text-lg text-gray-600">
-              <span>Pourboire</span>
-              <span className="font-medium">{formatPrice(order.tip)}</span>
-            </div>
-          )}
-          <Separator className="my-2 sm:my-3 md:my-4" /> */}
           <div className="flex justify-between items-center text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-orange-600 bg-orange-50 p-3 sm:p-4 md:p-6 rounded-lg sm:rounded-xl lg:rounded-2xl">
             <span>Total</span>
             <span>{formatPrice(order.total || 0)}</span>

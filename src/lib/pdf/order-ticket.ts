@@ -20,6 +20,7 @@ export interface OrderLike {
   orderItems: OrderItem[];
   total?: number | null;
   deliveryFee?: number | null;
+  specialNotes?: string | null;
   amountPaid?: number | null;
   change?: number | null;
 }
@@ -80,8 +81,17 @@ export async function generateOrderTicketPdf(options: {
     const rows = wrapText(name, font, bodySize, maxTextWidth);
     heightPt += rows.length * line(bodySize) + mmToPt(1.5);
   });
-  // Separator + total
-  heightPt += mmToPt(2) + line(subHeaderSize) + mmToPt(2);
+  // Special notes if present
+  if (order.specialNotes) {
+    const noteRows = wrapText(order.specialNotes, font, smallSize, maxTextWidth);
+    heightPt += mmToPt(4) + line(smallSize) + noteRows.length * line(smallSize) + mmToPt(3);
+  }
+  // Separator + total (with delivery fee breakdown if applicable)
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    heightPt += mmToPt(2) + line(bodySize) * 2 + mmToPt(3) + line(subHeaderSize) + mmToPt(2);
+  } else {
+    heightPt += mmToPt(2) + line(subHeaderSize) + mmToPt(2);
+  }
   // QR + thanks
   const qrSizeMm = paperWidth === '57' ? 28 : 32;
   heightPt += mmToPt(qrSizeMm) + line(smallSize) * 2 + mmToPt(8);
@@ -166,6 +176,23 @@ export async function generateOrderTicketPdf(options: {
       move(line(bodySize));
     });
     move(mmToPt(2)); // Espacement entre articles augmenté
+  }
+
+  // Special notes section
+  if (order.specialNotes) {
+    move(mmToPt(3));
+    dashedRule(leftX, cursorY, rightX);
+    move(mmToPt(3));
+    
+    text('NOTES SPECIALES:', leftX, cursorY - line(smallSize), smallSize, true);
+    move(line(smallSize) + mmToPt(1));
+    
+    const noteRows = wrapText(order.specialNotes, font, smallSize, maxTextWidth + mmToPt(20));
+    noteRows.forEach((row) => {
+      text(row, leftX, cursorY - line(smallSize), smallSize);
+      move(line(smallSize));
+    });
+    move(mmToPt(1));
   }
 
   move(mmToPt(3));

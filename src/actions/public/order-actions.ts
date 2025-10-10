@@ -77,6 +77,75 @@ export const createOrder = actionClient
         throw new Error("Utilisateur non trouvé");
       }
 
+      // Récupérer les paramètres du restaurant pour vérifier les limitations
+      const settings = await prisma.restaurantSettings.findFirst();
+      
+      if (settings) {
+        // Vérifier la limitation globale de commandes par heure
+        if (settings.maxOrdersPerHour > 0) {
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          const recentOrdersCount = await prisma.order.count({
+            where: {
+              createdAt: {
+                gte: oneHourAgo
+              },
+              status: {
+                not: 'cancelled'
+              }
+            }
+          });
+
+          if (recentOrdersCount >= settings.maxOrdersPerHour) {
+            throw new Error(`Limite de commandes atteinte. Le restaurant accepte maximum ${settings.maxOrdersPerHour} commandes par heure. Veuillez réessayer plus tard.`);
+          }
+        }
+
+        // Vérifier la limitation de commandes par utilisateur par heure
+        if (settings.maxOrdersPerUserHour > 0) {
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          
+          // Pour les utilisateurs anonymes, vérifier par IP plutôt que par userId
+          if (user.isAnonymous && ipAddress !== 'unknown') {
+            // Compter les commandes depuis cette IP dans la dernière heure
+            const ipOrdersCount = await prisma.order.count({
+              where: {
+                ipAddress: ipAddress,
+                user: {
+                  isAnonymous: true
+                },
+                createdAt: {
+                  gte: oneHourAgo
+                },
+                status: {
+                  not: 'cancelled'
+                }
+              }
+            });
+
+            if (ipOrdersCount >= settings.maxOrdersPerUserHour) {
+              throw new Error(`Limite de commandes atteinte pour les utilisateurs anonymes. Maximum ${settings.maxOrdersPerUserHour} commande(s) par heure. Veuillez vous connecter ou patienter.`);
+            }
+          } else {
+            // Pour les utilisateurs connectés, vérifier par userId
+            const userRecentOrdersCount = await prisma.order.count({
+              where: {
+                userId: userId,
+                createdAt: {
+                  gte: oneHourAgo
+                },
+                status: {
+                  not: 'cancelled'
+                }
+              }
+            });
+
+            if (userRecentOrdersCount >= settings.maxOrdersPerUserHour) {
+              throw new Error(`Vous avez atteint votre limite de ${settings.maxOrdersPerUserHour} commande(s) par heure. Veuillez patienter avant de passer une nouvelle commande.`);
+            }
+          }
+        }
+      }
+
       // Récupérer l'ID de la table si un numéro est fourni
       if (parsedInput.tableId && orderType === 'dine_in') {
         const table = await prisma.table.findUnique({
@@ -162,6 +231,7 @@ export const createOrder = actionClient
           deliveryZoneId: orderType === 'delivery' ? deliveryZoneId! : undefined,
           deliveryAddress: orderType === 'delivery' ? deliveryAddress! : undefined,
           deliveryFee: orderType === 'delivery' ? deliveryFee : undefined,
+          ipAddress: user.isAnonymous ? ipAddress : undefined, // Stocker l'IP pour les utilisateurs anonymes
           orderItems: {
             create: items.map((item) => ({
               quantity: item.quantity,

@@ -328,6 +328,8 @@ model Order {
   deliveryZone    DeliveryZone?   @relation(fields: [deliveryZoneId], references: [id], onDelete: SetNull)
   deliveryAddress String? // Adresse de livraison spécifique
   deliveryFee     Float? // Frais de livraison appliqués
+  specialNotes    String? // Notes spéciales pour la commande
+  ipAddress       String? // Adresse IP du client (pour rate limiting des anonymes)
   orderItems      OrderItem[]
   total           Float?
   payment         Payment?

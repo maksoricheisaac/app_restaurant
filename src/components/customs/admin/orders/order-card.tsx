@@ -70,6 +70,19 @@ export function OrderCard({
 					<div>
 						<span className="font-semibold text-gray-700">Date :</span> {format(new Date(order.createdAt), "d MMMM yyyy", { locale: fr })} à {format(new Date(order.createdAt), "HH:mm")}
 					</div>
+					{order.deliveryFee && order.deliveryFee > 0 && (
+						<div>
+							<span className="font-semibold text-gray-700">Frais de livraison :</span> {formatCurrency(order.deliveryFee)}
+						</div>
+					)}
+					{order.specialNotes && (
+						<div>
+							<span className="font-semibold text-gray-700">Notes spéciales :</span>
+							<div className="text-sm text-gray-600 bg-yellow-50 p-2 rounded mt-1 border-l-4 border-yellow-400">
+								{order.specialNotes}
+							</div>
+						</div>
+					)}
 					<div>
 						<span className="font-semibold text-gray-700">Articles :</span>
 						<ul className="list-disc ml-5 text-sm text-gray-700">

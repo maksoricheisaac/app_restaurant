@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 import { Prisma } from "@/generated/prisma";
+import { requireStaff } from "@/lib/auth-helpers";
 
 // Schema for message validation
 const messageSchema = z.object({
@@ -24,6 +25,7 @@ export const getMessages = actionClient
   .inputSchema(z.void())
   .action(async () => {
     try {
+      await requireStaff();
       const messages = await prisma.message.findMany({
         orderBy: {
           createdAt: 'desc',
@@ -44,6 +46,7 @@ export const getMessageById = actionClient
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
       const message = await prisma.message.findUnique({
         where: { id },
       });

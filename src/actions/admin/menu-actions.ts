@@ -2,6 +2,7 @@
 import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { requireStaff, requireRole } from "@/lib/auth-helpers";
 
 const menuItemSchema = z.object({
   name: z.string().min(1),
@@ -36,6 +37,7 @@ export const getAllMenuItems = actionClient
   .inputSchema(getMenuItemsSchema)
   .action(async ({ parsedInput: { search, page, perPage, categoryId, sortBy, sortOrder } }) => {
     try {
+      await requireStaff();
       const where = {
         ...(search ? {
           OR: [
@@ -93,6 +95,7 @@ export const getAllMenuItems = actionClient
   });
 
 export const createMenuItem = actionClient.inputSchema(menuItemSchema).action(async ({ parsedInput }) => {
+  await requireRole(['admin', 'owner', 'manager', 'head_chef']);
   const item = await prisma.menuItem.create({
     data: parsedInput,
     include: { category: true },
@@ -101,6 +104,7 @@ export const createMenuItem = actionClient.inputSchema(menuItemSchema).action(as
 });
 
 export const updateMenuItem = actionClient.inputSchema(updateMenuItemSchema).action(async ({ parsedInput }) => {
+  await requireRole(['admin', 'owner', 'manager', 'head_chef']);
   const { id, ...data } = parsedInput;
   const item = await prisma.menuItem.update({
     where: { id },
@@ -111,11 +115,13 @@ export const updateMenuItem = actionClient.inputSchema(updateMenuItemSchema).act
 });
 
 export const deleteMenuItem = actionClient.inputSchema(z.object({ id: z.string().min(1) })).action(async ({ parsedInput }) => {
+  await requireRole(['admin', 'owner', 'head_chef']);
   await prisma.menuItem.delete({ where: { id: parsedInput.id } });
   return { success: true };
 });
 
 export const getCategories = actionClient.action(async () => {
+  await requireStaff();
   const categories = await prisma.menuCategory.findMany({
     orderBy: { name: "asc" },
     include: {

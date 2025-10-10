@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { pusherServer } from "@/lib/pusher";
 import { Prisma } from "@/generated/prisma";
+import { requireStaff } from "@/lib/auth-helpers";
 
 // Schema for order item validation
 const orderItemSchema = z.object({
@@ -34,6 +35,9 @@ export const getOrders = actionClient
   .inputSchema(z.void())
   .action(async () => {
     try {
+      // Vérifier que l'utilisateur est membre du staff
+      await requireStaff();
+      
       const orders = await prisma.order.findMany({
         include: {
           user: true,
@@ -59,6 +63,8 @@ export const getOrderById = actionClient
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
+      
       const order = await prisma.order.findUnique({
         where: { id },
         include: {
@@ -84,6 +90,32 @@ export const createOrder = actionClient
   .inputSchema(orderSchema)
   .action(async ({ parsedInput }) => {
     try {
+      await requireStaff();
+      
+      // Récupérer les paramètres du restaurant pour vérifier les limitations
+      const settings = await prisma.restaurantSettings.findFirst();
+      
+      if (settings) {
+        // Vérifier la limitation globale de commandes par heure
+        if (settings.maxOrdersPerHour > 0) {
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+          const recentOrdersCount = await prisma.order.count({
+            where: {
+              createdAt: {
+                gte: oneHourAgo
+              },
+              status: {
+                not: 'cancelled'
+              }
+            }
+          });
+
+          if (recentOrdersCount >= settings.maxOrdersPerHour) {
+            throw new Error(`Limite de commandes atteinte. Le restaurant accepte maximum ${settings.maxOrdersPerHour} commandes par heure. Veuillez réessayer plus tard.`);
+          }
+        }
+      }
+
       let userIdToUse = parsedInput.userId;
       // Si userId est vide, "cl_comptoir_user" ou invalide, créer un utilisateur invité
       if (!userIdToUse || userIdToUse === "" || userIdToUse === "cl_comptoir_user") {
@@ -181,6 +213,8 @@ export const updateOrder = actionClient
   }))
   .action(async ({ parsedInput: { id, ...data } }) => {
     try {
+      await requireStaff();
+      
       const updateData: Prisma.OrderUpdateInput = {};
 
       if (data.status) updateData.status = data.status;
@@ -267,6 +301,7 @@ export const deleteOrder = actionClient
   }))
   .action(async ({ parsedInput: { id } }) => {
     try {
+      await requireStaff();
       await prisma.order.delete({
         where: { id },
       });
@@ -398,14 +433,15 @@ export const getAvailableTables = actionClient
 // Update order status
 export const updateOrderStatus = actionClient
   .inputSchema(z.object({
-    orderId: z.string().uuid("Invalid order ID"),
+    id: z.string().uuid("Invalid order ID"),
     status: z.enum(["pending", "preparing", "ready", "served", "cancelled"]),
   }))
-  .action(async ({ parsedInput: { orderId, status } }) => {
+  .action(async ({ parsedInput: { id, status } }) => {
     try {
+      await requireStaff();
       // Récupérer la commande actuelle pour vérifier le statut précédent
       const currentOrder = await prisma.order.findUnique({
-        where: { id: orderId },
+        where: { id },
         include: {
           orderItems: {
             include: {
@@ -429,7 +465,7 @@ export const updateOrderStatus = actionClient
 
       // Mettre à jour le statut de la commande
       const updatedOrder = await prisma.order.update({
-        where: { id: orderId },
+        where: { id },
         data: { status },
         include: {
           user: true,
@@ -448,8 +484,8 @@ export const updateOrderStatus = actionClient
         try {
           // Importer la fonction de décrementation des stocks
           const { decrementStockForOrder } = await import("./inventory-actions");
-          await decrementStockForOrder({ orderId });
-          console.log(`Stock décrementé automatiquement pour la commande ${orderId}`);
+          await decrementStockForOrder({ orderId: id });
+          console.log(`Stock décrémenté automatiquement pour la commande ${id}`);
         } catch (stockError) {
           console.error('Erreur lors de la décrementation du stock:', stockError);
           // Ne pas faire échouer la mise à jour du statut si la décrementation échoue
@@ -460,13 +496,13 @@ export const updateOrderStatus = actionClient
       // Notification en temps réel via Pusher
       try {
         await pusherServer.trigger('admin-orders', 'order-status-updated', {
-          orderId,
+          orderId: id,
           status,
           order: updatedOrder,
         });
         // Broadcast pour le tracking public (page order-tracking)
         await pusherServer.trigger('restaurant-channel', 'order-status-updated', {
-          orderId,
+          orderId: id,
           status,
         });
       } catch (pusherError) {

@@ -38,7 +38,7 @@ export function UserNav({
   const displayEmail = user?.email || "-";
   const displayAvatar = user?.avatar || "/avatar.png";
   const role = ( user?.role && user?.role == "user" ) ? "client" : user.role.trim()
-  const canGoToDashboard = ['admin', 'waiter','owner']
+  const canGoToDashboard = ['admin', 'waiter', 'owner', 'manager', 'head_chef', 'chef', 'cashier']
   const isAnonymous = user?.isAnonymous === true;
 
 

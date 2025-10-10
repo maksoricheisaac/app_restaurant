@@ -153,14 +153,44 @@ export function OrderTicketPreview({
                 </div>
               </div>
               
+              {/* Notes spéciales */}
+              {order.specialNotes && (
+                <>
+                  <div className="border-t border-dashed border-gray-400 pt-3 mt-3"></div>
+                  <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 rounded">
+                    <p className="font-semibold text-black text-sm mb-1">Notes spéciales :</p>
+                    <p className="text-sm text-gray-700">{order.specialNotes}</p>
+                  </div>
+                </>
+              )}
+              
               <div className="border-t border-gray-400 pt-4 mt-4"></div>
               
-              {/* Total */}
-              <div className="text-center">
-                <div className="text-xl font-bold text-black">
-                  TOTAL: {formatAmountForPdf(order.total || 0)} FCFA
+              {/* Total breakdown */}
+              {order.deliveryFee && order.deliveryFee > 0 ? (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center text-sm text-black">
+                    <span className="font-normal">Sous-total</span>
+                    <span className="font-normal">{formatAmountForPdf((order.total || 0) - order.deliveryFee)} FCFA</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm text-black">
+                    <span className="font-normal">Frais de livraison</span>
+                    <span className="font-normal">{formatAmountForPdf(order.deliveryFee)} FCFA</span>
+                  </div>
+                  <div className="border-t border-dashed border-gray-400 pt-2 mt-2"></div>
+                  <div className="text-center">
+                    <div className="text-xl font-bold text-black">
+                      TOTAL: {formatAmountForPdf(order.total || 0)} FCFA
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="text-center">
+                  <div className="text-xl font-bold text-black">
+                    TOTAL: {formatAmountForPdf(order.total || 0)} FCFA
+                  </div>
+                </div>
+              )}
               
               <div className="border-t border-gray-400 pt-4 mt-4"></div>
               

@@ -1,23 +1,30 @@
 "use client"
-
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { Loader2, Mail, Lock, Eye, EyeOff, LogIn, User } from "lucide-react";
 import { signIn } from "@/lib/auth-client";
 import Link from "next/link";
-
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-export default function SignIn() {
+function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const tableId = searchParams.get("tableId") || localStorage.getItem("restaurant_table_id");
+  const [redirectUrl, setRedirectUrl] = useState("/");
+  
+  useEffect(() => {
+    if (tableId) {
+      setRedirectUrl(`/menu?tableId=${tableId}`);
+    }
+  }, [tableId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50 p-4">
@@ -89,7 +96,7 @@ export default function SignIn() {
                 {
                     email,
                     password,
-                    callbackURL: '/'
+                    callbackURL: redirectUrl
                 },
                 {
                   onRequest: () => {
@@ -140,7 +147,7 @@ export default function SignIn() {
               onClick={async () => {
                 await signIn.anonymous()
                 toast.success("Connexion anonyme effectuée")
-                router.push("/")
+                router.push(redirectUrl)
               }}
             >
               <User />
@@ -155,7 +162,7 @@ export default function SignIn() {
                 await signIn.social(
                 {
                   provider: "google",
-                  callbackURL: "/"
+                  callbackURL: redirectUrl
                 },
                 {
                   onRequest: () => {
@@ -190,5 +197,20 @@ export default function SignIn() {
         </CardFooter>
       </Card>
     </div>
+  );
+}
+
+export default function SignIn() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 via-white to-orange-50">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-orange-600" />
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    }>
+      <SignInForm />
+    </Suspense>
   );
 }

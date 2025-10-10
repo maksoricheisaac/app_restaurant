@@ -86,7 +86,7 @@ export default function AdminDashboard() {
 
   const updateOrderMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: OrderStatus }) => {
-      const result = await updateOrderStatus({ orderId: id, status });
+      const result = await updateOrderStatus({ id, status });
       if ('data' in result && result.data) {
         return result.data;
       }

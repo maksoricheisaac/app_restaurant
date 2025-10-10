@@ -1,11 +1,10 @@
 "use server";
 import { PaymentMethod } from "@/types/order";
-import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import z from "zod";
 import { actionClient } from "@/lib/safe-action";
 import prisma from "@/lib/prisma";
+import { requireRole } from "@/lib/auth-helpers";
 
 // Schémas de validation
 const processPaymentSchema = z.object({
@@ -44,12 +43,7 @@ const getTransactionsSchema = z.object({
 export const processPayment = actionClient
   .inputSchema(processPaymentSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    const { session } = await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const { orderId, amount, reference } = parsedInput;
 
@@ -131,12 +125,7 @@ export const processPayment = actionClient
 export const createTransaction = actionClient
   .inputSchema(createTransactionSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    const { session } = await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const { type, amount, method, description, orderId } = parsedInput;
 
@@ -169,12 +158,7 @@ export const createTransaction = actionClient
 export const getCashRegisterStats = actionClient
   .inputSchema(getCashRegisterStatsSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const { dateFrom, dateTo, cashierId } = parsedInput;
 
@@ -278,12 +262,7 @@ export const getCashRegisterStats = actionClient
 export const getTransactions = actionClient
   .inputSchema(getTransactionsSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const {
       dateFrom,
@@ -346,12 +325,7 @@ export const getTransactions = actionClient
 export const exportTransactionsCSV = actionClient
   .inputSchema(getTransactionsSchema)
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers()
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const {
       dateFrom,
@@ -430,8 +404,7 @@ export const exportTransactionsCSV = actionClient
 export const getDailyCashSummary = actionClient
   .inputSchema(z.object({ date: z.date().optional() }))
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({ headers: await headers() });
-    if (!session?.user) throw new Error("Non autorisé");
+    await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const targetDate = parsedInput.date ? new Date(parsedInput.date) : new Date();
     const dayStart = new Date(targetDate);
@@ -478,12 +451,7 @@ export const getDailyCashSummary = actionClient
 export const getUnpaidOrders = actionClient
   .inputSchema(z.object({ date: z.date().optional() }))
   .action(async ({ parsedInput }) => {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-    if (!session?.user) {
-      throw new Error("Non autorisé");
-    }
+    await requireRole(['cashier', 'admin', 'owner', 'manager']);
 
     const targetDate = parsedInput.date ? new Date(parsedInput.date) : new Date();
     const dayStart = new Date(targetDate);

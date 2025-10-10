@@ -112,7 +112,12 @@ export function CartDrawer() {
                   Ajoutez des plats délicieux à votre panier pour commencer
                 </p>
                 <Button
-                  onClick={() => setIsOpen(false)}
+                  onClick={
+                    () => {
+                      setIsOpen(false);
+                      router.push("/menu");
+                    }
+                  }
                   className="bg-gradient-to-r from-orange-600 to-orange-700 hover:from-orange-700 hover:to-orange-800"
                 >
                   Parcourir le menu

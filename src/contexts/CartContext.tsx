@@ -231,10 +231,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
         throw new Error(errorMessage);
       }
 
+      // Vérifier si l'action a échoué (success: false)
+      if (result.data && 'success' in result.data && !result.data.success) {
+        const errorMessage = result.data.error || "Erreur lors de la création de la commande";
+        throw new Error(errorMessage);
+      }
+
       // Vérifier que l'orderId existe
       if (!result.data?.data?.orderId) {
         console.log("Structure de result.data:", result.data);
-        throw new Error("ID de commande manquant dans la réponse");
+        throw new Error("Erreur lors de la création de la commande. Veuillez réessayer.");
       }
 
       return result.data.data.orderId;

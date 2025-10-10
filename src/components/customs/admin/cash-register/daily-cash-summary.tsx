@@ -23,7 +23,7 @@ function formatCurrency(amount: number) {
 export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummaryProps) {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CashDailySummaryType | null>(null);
-  console.log('Summary : ', summary)
+
   const loadSummary = useCallback(async (date: Date) => {
     try {
       setLoading(true);

@@ -435,7 +435,7 @@ export const getDailyCashSummary = actionClient
       return sum + (change > 0 ? change : 0);
     }, 0);
     
-    const variance = receivedCash - expectedAmount;
+    const variance = receivedCash - changeGiven - expectedAmount;
 
     return {
       date: dayStart.toLocaleDateString("fr-CA"),

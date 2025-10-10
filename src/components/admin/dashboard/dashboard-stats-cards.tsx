@@ -4,7 +4,6 @@ import {
   ShoppingCart, 
   DollarSign, 
   Users,
-  Calendar
 } from "lucide-react";
 
 interface DashboardStats {
@@ -71,21 +70,7 @@ export function DashboardStatsCards({ statsData, isLoading }: DashboardStatsCard
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent className="pt-4 md:pt-6">
-            <div className="flex items-center justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs md:text-sm font-medium text-gray-500 truncate">Réservations</p>
-                <p className="text-lg md:text-2xl font-bold text-gray-900">
-                  {isLoading ? "..." : statsData?.totalReservations || 0}
-                </p>
-              </div>
-              <div className="bg-purple-100 p-2 md:p-3 rounded-full flex-shrink-0 ml-2">
-                <Calendar className="h-4 w-4 md:h-6 md:w-6 text-purple-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        
       </div>
     </ManagerOrAdmin>
   );

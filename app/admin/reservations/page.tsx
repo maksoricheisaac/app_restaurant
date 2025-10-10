@@ -44,7 +44,7 @@ export default function ReservationsPage() {
   const [deleteReservationId, setDeleteReservationId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   
-  // Queries
+  // Récupération des réservations
   const { data: reservationsData, isLoading, error } = useQuery({
     queryKey: ['reservations'],
     queryFn: fetchReservations

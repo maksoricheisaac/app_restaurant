@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+.pnp
+.pnp.*
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+.env.*
+!.env.example
+
+# Build outputs
+dist
+.next
+/build
+/out
+
+# Test coverage
+coverage
+.nyc_output
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# OS
+.DS_Store
+*.pem
+
+# Claude Code local config (not for repo)
+.claude/
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json

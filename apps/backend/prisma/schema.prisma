@@ -1,0 +1,635 @@
+generator client {
+  provider     = "prisma-client-js"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- CORE SAAS MODELS ---
+
+model Tenant {
+  id           String       @id @default(uuid())
+  name         String
+  slug         String       @unique // Utilisé pour {slug}.flashmenu.app
+  plan         TenantPlan   @default(free)
+  status       TenantStatus @default(active)
+  logo         String?
+  primaryColor String   @default("#f97316")
+  country      String?
+  currency     String   @default("EUR")
+  timezone     String   @default("Europe/Paris")
+  cuisineType  String?
+  onboardingCompleted Boolean @default(false)
+
+  // Stripe subscription tracking
+  stripeCustomerId      String?   @unique
+  stripeSubscriptionId  String?   @unique
+  subscriptionStatus    String?   // active | past_due | canceled | trialing | unpaid
+  subscriptionCurrentPeriodEnd DateTime?
+  gracePeriodEndsAt     DateTime? // paid grace after payment failure (3 days)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations métier
+  memberships         TenantMembership[]
+  users               User[]
+  customers           Customer[]
+  orders              Order[]
+  menuItems           MenuItem[]
+  menuCategories      MenuCategory[]
+  tables              Table[]
+  reservations        Reservation[]
+  ingredients         Ingredient[]
+  stockMovements      StockMovement[]
+  payments            Payment[]
+  transactions        Transaction[]
+  deliveryZones       DeliveryZone[]
+  openingHours        OpeningHours[]
+  exceptionalClosures ExceptionalClosure[]
+  settings            RestaurantSettings[]
+  messages            Message[]
+  reports             Report[]
+  featureFlags        FeatureFlag[]
+  domains             Domain[]
+  rolePermissions     RolePermission[]
+  userPermissions     UserPermission[]
+
+  @@index([slug])
+}
+
+model TenantMembership {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String
+  role        String // owner, manager, waiter, head_chef, chef, cashier
+  permissions String[] // Override optionnel de permissions
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId])
+  @@index([tenantId])
+}
+
+model Domain {
+  id       String  @id @default(uuid())
+  domain   String  @unique
+  tenantId String
+  verified Boolean @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model FeatureFlag {
+  id       String  @id @default(uuid())
+  tenantId String
+  key      String
+  enabled  Boolean @default(false)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+}
+
+model User {
+  id            String  @id @default(uuid())
+  name          String
+  firstName     String?
+  lastName      String?
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  password      String
+  image         String?
+  phone         String?
+  status        UserStatus   @default(active)
+  platformRole  PlatformRole @default(user)
+  accountType   String?      // OWNER, MULTI_MANAGER, FRANCHISE
+
+  onboardingStep      Int     @default(0)
+  onboardingCompleted Boolean @default(false)
+  onboardingData      Json?
+
+  emailVerificationToken   String?   @unique
+  emailVerificationExpiry  DateTime?
+
+  passwordResetToken       String?   @unique
+  passwordResetExpiry      DateTime?
+
+  // Relation multi-tenant
+  tenantId    String? // Dernier tenant accédé ou tenant principal
+  tenant      Tenant?            @relation(fields: [tenantId], references: [id])
+  memberships TenantMembership[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orders          Order[]
+  payments        Payment[]
+  reservations    Reservation[]
+  stockMovements  StockMovement[]
+  transactions    Transaction[]
+  userPermissions UserPermission[]
+  refreshTokens   RefreshToken[]
+
+  @@index([tenantId])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Customer {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String?
+  email        String?
+  phone        String?
+  authProvider String? // email | google | anonymous
+  externalId   String? // google id
+  isAnonymous  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime? // Soft delete
+
+  orders Order[]
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([tenantId, deletedAt])
+}
+
+model RestaurantSettings {
+  id       String @id @default(uuid())
+  tenantId String @unique
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name                 String
+  phone                String?
+  email                String?
+  address              String?
+  description          String?
+  website              String?
+  logo                 String?
+
+  deliveryEnabled      Boolean @default(true)
+  takeawayEnabled      Boolean @default(true)
+  dineInEnabled        Boolean @default(true)
+  maxOrdersPerHour     Int     @default(10)
+  maxOrdersPerUserHour Int     @default(3)
+  maxReservationGuests Int     @default(20)
+  maxDaysInAdvance     Int     @default(30)
+
+  facebookUrl          String?
+  instagramUrl         String?
+  twitterUrl           String?
+  youtubeUrl           String?
+}
+
+model Table {
+  id       String      @id @default(uuid())
+  number   Int
+  seats    Int
+  location String?
+  status   TableStatus @default(available)
+  tenantId String
+  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  deletedAt DateTime? // Soft delete — unicité (tenantId, number) gérée applicativement
+
+  orders       Order[]
+  reservations Reservation[]
+
+  // Contrainte unique retirée au profit d'un index simple + vérification applicative
+  // pour permettre le soft delete (un nouveau numéro peut remplacer un table supprimée)
+  @@index([tenantId, number])
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model Reservation {
+  id       String            @id @default(uuid())
+  date     DateTime
+  time     String?
+  guests   Int?
+  status   ReservationStatus @default(pending)
+  tenantId String
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerName String?
+  email        String?
+  phone        String?
+  userId       String?
+  tableId      String?
+
+  table Table? @relation(fields: [tableId], references: [id])
+  user  User?  @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+}
+
+model MenuCategory {
+  id        String    @id @default(uuid())
+  name      String
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deletedAt DateTime? // Soft delete
+
+  items MenuItem[]
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  name        String
+  description String?
+  price       Decimal      // Decimal pour éviter les erreurs d'arrondi sur les prix
+  image       String?
+  available   Boolean      @default(true)
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId  String
+  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  deletedAt   DateTime?    // Soft delete
+
+  orderItems OrderItemsOnOrders[]
+  recipes    Recipe[]
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model Order {
+  id        String      @id @default(uuid())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  status    OrderStatus @default(pending)
+  type      OrderType   @default(dine_in)
+  tenantId  String
+  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId     String?
+  customerId String?
+  tableId    String?
+
+  deliveryZoneId  String?
+  deliveryAddress String?
+  deliveryFee     Decimal? // Decimal pour précision financière
+  total           Decimal? // Decimal pour précision financière
+  ipAddress       String?
+  specialNotes    String?
+
+  user           User?                @relation(fields: [userId], references: [id])
+  customer       Customer?            @relation(fields: [customerId], references: [id])
+  table          Table?               @relation(fields: [tableId], references: [id])
+  deliveryZone   DeliveryZone?        @relation(fields: [deliveryZoneId], references: [id])
+  orderItems     OrderItemsOnOrders[]
+  payment        Payment?
+  stockMovements StockMovement[]
+  transactions   Transaction[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])    // Filtrage par statut (dashboard, KDS)
+  @@index([tenantId, createdAt]) // Comptage mensuel quota + rapports
+}
+
+model OrderItemsOnOrders {
+  id         String  @id @default(uuid())
+  orderId    String
+  menuItemId String?
+  quantity   Int     @default(1)
+  price      Decimal // Snapshot du prix au moment de la commande
+  name       String
+  image      String?
+
+  order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  orderId   String        @unique
+  tenantId  String
+  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  amount    Decimal       // Decimal pour précision financière
+  method    PaymentMethod
+  status    PaymentStatus @default(completed)
+  cashierId String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Restrict : empêche la suppression d'un caissier s'il a des paiements historiques
+  cashier User  @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+}
+
+model Ingredient {
+  id       String @id @default(uuid())
+  name     String
+  unit     String
+  stock    Float  @default(0)   // Quantité en stock (mesure physique, Float suffisant)
+  price    Decimal?             // Prix d'achat (Decimal pour précision financière)
+  minStock Float?               // Seuil d'alerte (mesure physique)
+  supplier String?
+  isActive Boolean @default(true)
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deletedAt DateTime?           // Soft delete
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  recipes        Recipe[]
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model Recipe {
+  id           String @id @default(uuid())
+  menuItemId   String
+  ingredientId String
+  quantity     Float  // Quantité de l'ingrédient dans la recette (mesure physique)
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, ingredientId])
+}
+
+model Message {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerName String
+  email        String
+  subject      String?
+  message      String
+  read         Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime? // Soft delete
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model Report {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  title     String
+  type      String
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+}
+
+model RolePermission {
+  id          String       @id @default(uuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  role        String
+  permissions Permission[]
+
+  @@unique([tenantId, role])
+}
+
+model UserPermission {
+  id         String     @id @default(uuid())
+  userId     String
+  tenantId   String
+  permission Permission
+  granted    Boolean    @default(true)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, tenantId, permission])
+  @@index([tenantId])
+}
+
+model DeliveryZone {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name         String
+  description  String?
+  price        Decimal  // Decimal pour précision financière
+  minOrder     Decimal? // Decimal pour précision financière
+  deliveryTime Int?
+  isActive     Boolean  @default(true)
+  polygon      String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // Soft delete
+
+  orders Order[]
+
+  @@index([tenantId])
+  @@index([tenantId, deletedAt])
+}
+
+model OpeningHours {
+  id        String    @id @default(uuid())
+  tenantId  String
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  dayOfWeek DayOfWeek
+  openTime  String
+  closeTime String
+  isClosed  Boolean   @default(false)
+
+  @@unique([tenantId, dayOfWeek])
+}
+
+model ExceptionalClosure {
+  id       String   @id @default(uuid())
+  tenantId String
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  date     DateTime
+  reason   String?
+
+  @@index([tenantId])
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  tenantId    String
+  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  type        TransactionType
+  amount      Decimal         // Decimal pour précision financière
+  method      PaymentMethod
+  description String?
+  cashierId   String
+  orderId     String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Restrict : empêche la suppression d'un caissier s'il a des transactions historiques
+  cashier User   @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  order   Order? @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId])
+  @@index([tenantId, createdAt]) // Filtrage par période (dashboard, rapports)
+}
+
+model StockMovement {
+  id           String            @id @default(uuid())
+  tenantId     String
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  ingredientId String
+  type         StockMovementType
+  quantity     Float
+  description  String?
+  userId       String?
+  orderId      String?
+  createdAt    DateTime          @default(now())
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  user       User?      @relation(fields: [userId], references: [id])
+  order      Order?     @relation(fields: [orderId], references: [id])
+
+  @@index([tenantId])
+}
+
+enum TenantPlan {
+  free
+  pro
+  enterprise
+}
+
+enum TenantStatus {
+  active
+  suspended
+  trial
+  expired
+}
+
+enum UserStatus {
+  active
+  inactive
+  banned
+}
+
+enum PlatformRole {
+  user
+  support
+  super_admin
+}
+
+enum TableStatus {
+  available
+  occupied
+  reserved
+}
+
+enum ReservationStatus {
+  pending
+  confirmed
+  cancelled
+}
+
+enum OrderStatus {
+  pending
+  preparing
+  ready
+  served
+  cancelled
+}
+
+enum OrderType {
+  dine_in
+  takeaway
+  delivery
+}
+
+enum PaymentMethod {
+  cash
+  card
+  online
+}
+
+enum PaymentStatus {
+  completed
+  refunded
+  cancelled
+}
+
+enum Permission {
+  VIEW_DASHBOARD
+  VIEW_ANALYTICS
+  VIEW_ORDERS
+  CREATE_ORDERS
+  UPDATE_ORDERS
+  DELETE_ORDERS
+  MANAGE_ORDER_STATUS
+  VIEW_MENU
+  CREATE_MENU_ITEMS
+  UPDATE_MENU_ITEMS
+  DELETE_MENU_ITEMS
+  VIEW_TABLES
+  MANAGE_TABLES
+  VIEW_RESERVATIONS
+  CREATE_RESERVATIONS
+  UPDATE_RESERVATIONS
+  DELETE_RESERVATIONS
+  VIEW_CUSTOMERS
+  MANAGE_CUSTOMERS
+  VIEW_CASH_REGISTER
+  MANAGE_PAYMENTS
+  MANAGE_TRANSACTIONS
+  VIEW_REPORTS
+  VIEW_INVENTORY
+  MANAGE_INVENTORY
+  MANAGE_STOCK
+  VIEW_STAFF
+  MANAGE_STAFF
+  MANAGE_PERMISSIONS
+  VIEW_SETTINGS
+  MANAGE_SETTINGS
+  VIEW_MESSAGES
+  MANAGE_MESSAGES
+}
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum TransactionType {
+  sale
+  refund
+  adjustment
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}

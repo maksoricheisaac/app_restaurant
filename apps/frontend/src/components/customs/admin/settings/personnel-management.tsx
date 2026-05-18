@@ -1,0 +1,565 @@
+ 
+"use client";
+
+import { useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { 
+  Users, 
+  Edit, 
+  Trash2, 
+  Eye, 
+  EyeOff,
+  UserPlus,
+  Key,
+  Mail,
+  Shield,
+  Loader2
+} from "lucide-react";
+import { toast } from "sonner";
+import { usePersonnel, useCreateStaff, useUpdateStaff, useDeleteStaff } from "@/hooks/api/usePermissions";
+import { generateSecurePassword } from "@/utils/passwordUtils";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { AlertDialog } from "@radix-ui/react-alert-dialog";
+import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
+
+type StaffRole = "admin" | "owner" | "manager" | "head_chef" | "chef" | "waiter" | "cashier";
+
+const roles = [
+  { value: ADMIN, label: ROLE_LABELS[ADMIN], color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
+  { value: OWNER, label: ROLE_LABELS[OWNER], color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
+  { value: MANAGER, label: ROLE_LABELS[MANAGER], color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
+  { value: HEAD_CHEF, label: ROLE_LABELS[HEAD_CHEF], color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
+  { value: CHEF, label: ROLE_LABELS[CHEF], color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+  { value: WAITER, label: ROLE_LABELS[WAITER], color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
+  { value: CASHIER, label: ROLE_LABELS[CASHIER], color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" }
+];
+
+export function PersonnelManagement() {
+
+  const [newPersonnel, setNewPersonnel] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    role: "waiter" as StaffRole,
+    password: "MotDePasse123!"
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingPersonnel, setEditingPersonnel] = useState<any | null>(null);
+
+  const queryClient = useQueryClient()
+
+
+  // Chargements des données
+
+  const { data: personnelData, isLoading: personnelLoading } = usePersonnel();
+  const createMutation = useCreateStaff();
+  const updateMutation = useUpdateStaff();
+  const deleteMutation = useDeleteStaff();
+
+  const personnel: any[] = (personnelData as any)?.data ?? personnelData ?? [];
+
+  const stats = {
+    total: personnel.length,
+    active: personnel.filter((p: any) => p.user?.status !== 'inactive').length,
+    byRole: personnel.reduce((acc: Record<string, number>, p: any) => {
+      const role = p.role ?? 'unknown';
+      acc[role] = (acc[role] ?? 0) + 1;
+      return acc;
+    }, {}),
+  };
+
+  // Mutations des données
+  const deletePersonnelMutation = useMutation({
+    mutationFn: (id: string) => deleteMutation.mutateAsync(id),
+    onSuccess: () => {
+      toast.success("Personnel supprimé avec succès");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la suppression du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+    },
+  })
+
+  const toggleStatusMutation = useMutation({
+    mutationFn: (id: string) => updateMutation.mutateAsync({ id, data: { status: 'active' } }),
+    onSuccess: () => {
+      toast.success("Statut mis à jour avec succès");
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la mise à jour du statut");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+    },
+  })
+
+
+  const addPersonnelMutation = useMutation({
+    mutationFn: (data: any) => createMutation.mutateAsync({
+      name: `${data.firstName} ${data.lastName}`.trim(),
+      email: data.email,
+      role: data.role,
+      password: data.password,
+    }),
+    onSuccess: () => {
+      toast.success("Personnel ajouté avec succès");
+      setNewPersonnel({
+        firstName: "",
+        lastName: "",
+        email: "",  
+        role: "waiter", 
+        password: "MotDePasse123!"
+      });
+      setIsDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de l'ajout du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
+    },
+  });
+
+  const handleAddPersonnel = () => {
+    if (!newPersonnel.firstName || !newPersonnel.lastName || !newPersonnel.email || !newPersonnel.role) {
+      toast.error("Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+    addPersonnelMutation.mutate(newPersonnel);
+  };
+
+  const updatePersonnelMutation = useMutation({
+    mutationFn: (data: any) => updateMutation.mutateAsync({ id: data.id, data: {
+      name: `${data.firstName} ${data.lastName}`.trim(),
+      email: data.email,
+      role: data.role,
+    }}),
+    onSuccess: () => {
+      toast.success("Personnel modifié avec succès");
+      setEditingPersonnel(null);
+      setIsDialogOpen(false);
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : "Erreur lors de la modification du personnel");
+    },
+    onSettled: () => {
+      // Rafraîchir immédiatement les données
+      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["stats-data"] });
+    },
+  });
+
+  const handleEditPersonnel = () => {
+    if (!editingPersonnel) return;
+
+    if (!editingPersonnel.firstName || !editingPersonnel.lastName || !editingPersonnel.email || !editingPersonnel.role) {
+      toast.error("Veuillez remplir tous les champs obligatoires");
+      return;
+    }
+
+    updatePersonnelMutation.mutate({
+      id: editingPersonnel.id,
+      firstName: editingPersonnel.firstName,
+      lastName: editingPersonnel.lastName,
+      email: editingPersonnel.email,
+      role: editingPersonnel.role as StaffRole
+    });
+  };
+
+  const handleDeletePersonnel = (id: string) => {
+    deletePersonnelMutation.mutate(id);
+  };
+
+  const handleToggleStatus = (id: string) => {
+    toggleStatusMutation.mutate(id);
+  };
+
+  // Calculer l'état de chargement global
+  const isAnyMutationLoading = 
+    deletePersonnelMutation.isPending || 
+    toggleStatusMutation.isPending || 
+    addPersonnelMutation.isPending || 
+    updatePersonnelMutation.isPending;
+
+  const getRoleLabel = (roleValue: string) => {
+    const role = roles.find(r => r.value === roleValue);
+    return role ? role.label : roleValue;
+  };
+
+  const getRoleColor = (roleValue: string) => {
+    const role = roles.find(r => r.value === roleValue);
+    return role ? role.color : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200";
+  };
+
+  const handleGeneratePassword = () => {
+    const newPassword = generateSecurePassword();
+    setNewPersonnel({ ...newPersonnel, password: newPassword });
+  };
+
+  const openEditDialog = (person: any) => {
+    setEditingPersonnel(person);
+    setIsDialogOpen(true);
+  };
+
+  const openAddDialog = () => {
+    setEditingPersonnel(null);
+    setNewPersonnel({
+      firstName: "",
+      lastName: "",
+      email: "",
+      role: "waiter",
+      password: "MotDePasse123!"
+    });
+    setIsDialogOpen(true);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* En-tête avec statistiques */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Total Personnel</p>
+                <p className="text-2xl font-bold text-primary">{stats?.total}</p>
+              </div>
+              <Users className="w-8 h-8 text-primary/60" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Actifs</p>
+                <p className="text-2xl font-bold text-green-600">{stats?.active}</p>
+              </div>
+              <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                <div className="w-3 h-3 bg-green-600 rounded-full"></div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Managers</p>
+                <p className="text-2xl font-bold text-blue-600">{stats?.byRole.manager || 0}</p>
+              </div>
+              <Shield className="w-8 h-8 text-blue-600/60" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-secondary/5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Serveurs</p>
+                <p className="text-2xl font-bold text-green-600">{stats?.byRole.waiter || 0}</p>
+              </div>
+              <Users className="w-8 h-8 text-green-600/60" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tableau du personnel */}
+      <Card className="border-primary/20 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-primary/5 to-secondary/5 border-b border-primary/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-primary">
+                <Users className="w-5 h-5" />
+                Gestion du Personnel
+              </CardTitle>
+              <CardDescription>
+                Gérez les comptes utilisateurs et les permissions
+              </CardDescription>
+            </div>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button 
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground cursor-pointer"
+                  onClick={openAddDialog}
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Ajouter un personnel
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <UserPlus className="w-5 h-5" />
+                    {editingPersonnel ? "Modifier le personnel" : "Ajouter un personnel"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {editingPersonnel ? "Modifiez les informations du personnel" : "Créez un nouveau compte personnel"}
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  if (editingPersonnel) {
+                    handleEditPersonnel();
+                  } else {
+                    handleAddPersonnel();
+                  }
+                }}>
+                  <div className="grid gap-4 py-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName">Prénom</Label>
+                        <Input
+                          id="firstName"
+                          value={editingPersonnel ? editingPersonnel.firstName : newPersonnel.firstName}
+                          onChange={(e) => editingPersonnel 
+                            ? setEditingPersonnel({...editingPersonnel, firstName: e.target.value})
+                            : setNewPersonnel({...newPersonnel, firstName: e.target.value})
+                          }
+                          className="border-primary/20 focus:border-primary"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName">Nom</Label>
+                        <Input
+                          id="lastName"
+                          value={editingPersonnel ? editingPersonnel.lastName : newPersonnel.lastName}
+                          onChange={(e) => editingPersonnel 
+                            ? setEditingPersonnel({...editingPersonnel, lastName: e.target.value})
+                            : setNewPersonnel({...newPersonnel, lastName: e.target.value})
+                          }
+                          className="border-primary/20 focus:border-primary"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={editingPersonnel ? editingPersonnel.email : newPersonnel.email}
+                        onChange={(e) => editingPersonnel 
+                          ? setEditingPersonnel({...editingPersonnel, email: e.target.value})
+                          : setNewPersonnel({...newPersonnel, email: e.target.value})
+                        }
+                        className="border-primary/20 focus:border-primary"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Rôle</Label>
+                      <Select 
+                        value={editingPersonnel ? editingPersonnel.role : newPersonnel.role}
+                        onValueChange={(value: StaffRole) => editingPersonnel 
+                          ? setEditingPersonnel({...editingPersonnel, role: value})
+                          : setNewPersonnel({...newPersonnel, role: value})
+                        }
+                      >
+                        <SelectTrigger className="border-primary/20 focus:border-primary w-full">
+                          <SelectValue placeholder="Sélectionner un rôle" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {roles.map((role) => (
+                            <SelectItem key={role.value} value={role.value}>
+                              {role.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {!editingPersonnel && (
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Mot de passe par défaut</Label>
+                        <div className="relative">
+                          <Input
+                            id="password"
+                            type={showPassword ? "text" : "password"}
+                            value={newPersonnel.password}
+                            onChange={(e) => setNewPersonnel({...newPersonnel, password: e.target.value})}
+                            className="border-primary/20 focus:border-primary pr-10"
+                            required
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                            onClick={() => setShowPassword(!showPassword)}
+                          >
+                            {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </Button>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={handleGeneratePassword}
+                            className="text-xs"
+                          >
+                            <Key className="w-3 h-3 mr-1" />
+                            Générer
+                          </Button>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            Le mot de passe sera envoyé par email
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <DialogFooter>
+                    <Button 
+                      type="button"
+                      variant="outline" 
+                      onClick={() => {
+                        setIsDialogOpen(false);
+                        setEditingPersonnel(null);
+                        setNewPersonnel({
+                          firstName: "",
+                          lastName: "",
+                          email: "",
+                          role: "waiter" as StaffRole,
+                          password: "MotDePasse123!"
+                        });
+                      }}
+                      disabled={isAnyMutationLoading}
+                    >
+                      Annuler
+                    </Button>
+                    <Button 
+                      type="submit"
+                      disabled={isAnyMutationLoading}
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                    >
+                      {(addPersonnelMutation.isPending || updatePersonnelMutation.isPending) ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : null}
+                      {editingPersonnel ? "Modifier" : "Ajouter"}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          {personnelLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <span className="ml-2 text-muted-foreground">Chargement du personnel...</span>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="font-medium">Nom complet</TableHead>
+                  <TableHead className="font-medium">Email</TableHead>
+                  <TableHead className="font-medium">Rôle</TableHead>
+                  <TableHead className="font-medium">Statut</TableHead>
+                  <TableHead className="font-medium">Date d&apos;ajout</TableHead>
+                  <TableHead className="font-medium text-center">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {personnel?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      Aucun personnel trouvé
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  personnel?.map((person) => (
+                    <TableRow key={person.id} className="hover:bg-muted/20">
+                      <TableCell className="font-medium">
+                        {person.firstName} {person.lastName}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                          <Mail className="w-4 h-4" />
+                          {person.email}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getRoleColor(person.role)}>
+                          {getRoleLabel(person.role)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={person.isActive ? "bg-green-500" : "bg-red-500"}>
+                          {person.isActive ? "Actif" : "Inactif"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {new Date(person.createdAt).toLocaleDateString('fr-FR')}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => openEditDialog(person)}
+                            disabled={isAnyMutationLoading}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleStatus(person.id)}
+                            disabled={isAnyMutationLoading}
+                            className={person.isActive ? "text-orange-600 hover:text-orange-700" : "text-green-600 hover:text-green-700"}
+                          >
+                            {person.isActive ? "Désactiver" : "Activer"}
+                          </Button>
+                         
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="destructive" className='cursor-pointer'>
+                                <Trash2 />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Êtes-vous réellement sûr</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Cette action ne peut pas être annulée. Elle supprimera définitivement votre compte et retirera vos données de nos serveurs.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Annuler</AlertDialogCancel>
+                                <AlertDialogAction className='bg-red-500 text-white cursor-pointer hover:bg-red-600' onClick={() => handleDeletePersonnel(person.id)}>Continuer</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+} 

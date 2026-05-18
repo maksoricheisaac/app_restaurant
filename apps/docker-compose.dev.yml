@@ -1,0 +1,39 @@
+# Development overrides — use with:
+# docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+version: "3.9"
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  redis:
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      target: build
+    command: >
+      sh -c "node_modules/.bin/prisma migrate dev && pnpm start:dev"
+    volumes:
+      - ./backend/src:/app/src:ro
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+
+  frontend:
+    build:
+      target: build
+    command: pnpm dev
+    volumes:
+      - ./frontend/src:/app/src:ro
+    environment:
+      NODE_ENV: development
+    ports:
+      - "4000:4000"
+
+  nginx:
+    ports:
+      - "80:80"

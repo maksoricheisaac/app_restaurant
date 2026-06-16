@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils";
 import { fr } from "date-fns/locale";
 import { 
   CreditCard, 
@@ -38,6 +38,7 @@ interface UnpaidOrder {
   createdAt: string | Date;
   total: number;
   customer?: { name?: string | null } | null;
+  user?:     { name?: string | null } | null;
   table?: { number: number } | null;
   orderItems: UnpaidOrderItem[];
 }
@@ -61,13 +62,10 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
 
   const { data: unpaidOrdersData, isLoading } = useUnpaidOrders();
   const processPaymentMutation = useProcessPayment();
-  
-  const unpaidOrders = unpaidOrdersData || [];
 
-  const unpaidOrdersArray = Array.isArray(unpaidOrders) 
-  ? unpaidOrders 
-  : unpaidOrders.success 
-    ? unpaidOrders.data 
+  // Backend returns a plain array — cast from untyped query result
+  const unpaidOrdersArray: UnpaidOrder[] = Array.isArray(unpaidOrdersData)
+    ? (unpaidOrdersData as UnpaidOrder[])
     : [];
 
   const handlePayment = async () => {
@@ -77,7 +75,8 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
       setProcessingPayment(true);
       await processPaymentMutation.mutateAsync({
         orderId: selectedOrder.id,
-        amount: paymentData.amount,
+        // Prisma Decimal serialises to string in JSON — coerce to JS number
+        amount: Number(paymentData.amount),
         method: paymentData.method,
       });
 
@@ -95,7 +94,8 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
 
   const openPaymentDialog = (order: UnpaidOrder) => {
     setSelectedOrder(order);
-    setPaymentData({ amount: order.total, method: "cash" });
+    // Coerce Decimal string from API to JS number
+    setPaymentData({ amount: Number(order.total) || 0, method: "cash" });
 
     setPaymentDialogOpen(true);
   };
@@ -156,7 +156,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-500" />
                     <span className="text-sm text-gray-600">
-                      {order.customer?.name || "Invité"}
+                      {order.customer?.name ?? order.user?.name ?? 'Invité'}
                     </span>
                   </div>
                   
@@ -172,7 +172,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-500" />
                     <span className="text-sm text-gray-600">
-                      {format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: fr })}
+                      {safeFormat(order.createdAt, "dd/MM/yyyy HH:mm", { locale: fr })}
                     </span>
                   </div>
                 </div>
@@ -185,7 +185,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   <div className="ml-6 space-y-1">
                     {order.orderItems.map((item) => (
                       <div key={item.id} className="flex justify-between text-sm text-gray-600">
-                        <span>{item.quantity}× {item.menuItem.name}</span>
+                        <span>{item.quantity}× {item.menuItem?.name ?? item.name ?? '?'}</span>
                         <span>{formatCurrency(item.price * item.quantity)}</span>
                       </div>
                     ))}
@@ -196,7 +196,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
               <div className="flex flex-col items-end gap-3 ml-6">
                 <div className="text-right">
                   <div className="text-2xl font-bold text-green-600">
-                    {formatCurrency(order.total)}
+                    {formatCurrency(Number(order.total))}
                   </div>
                   <div className="text-sm text-gray-500">
                     {order.orderItems.length} article{order.orderItems.length > 1 ? 's' : ''}
@@ -233,8 +233,8 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   Commande #{selectedOrder.id.slice(-6).toUpperCase()}
                 </h4>
                 <div className="text-sm text-gray-600 space-y-1">
-                  <div>Client: {selectedOrder.customer?.name || "Invité"}</div>
-                  <div>Total: {formatCurrency(selectedOrder.total)}</div>
+                  <div>Client: {selectedOrder.customer?.name ?? selectedOrder.user?.name ?? 'Invité'}</div>
+                  <div>Total: {formatCurrency(Number(selectedOrder.total))}</div>
                 </div>
               </div>
 
@@ -264,14 +264,14 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   </div>
                 </div>
 
-                {paymentData.amount !== null && paymentData.amount > selectedOrder.total && (
+                {paymentData.amount !== null && paymentData.amount > Number(selectedOrder.total) && (
                   <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                     <div className="flex items-center gap-2 text-blue-800">
                       <AlertCircle className="w-4 h-4" />
                       <span className="text-sm font-medium">Monnaie à rendre</span>
                     </div>
                     <div className="text-sm text-blue-700 mt-1">
-                      {formatCurrency((paymentData.amount || 0) - selectedOrder.total)}
+                      {formatCurrency((paymentData.amount || 0) - Number(selectedOrder.total))}
                     </div>
                   </div>
                 )}
@@ -287,7 +287,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                 </Button>
                 <Button
                   onClick={handlePayment}
-                  disabled={processingPayment || paymentData.amount === null || paymentData.amount < selectedOrder.total}
+                  disabled={processingPayment || paymentData.amount === null || paymentData.amount < Number(selectedOrder.total)}
                   className="flex-1 cursor-pointer"
                 >
                   {processingPayment ? "Traitement..." : "Confirmer le paiement"}

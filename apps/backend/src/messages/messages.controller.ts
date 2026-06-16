@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { MessagesService } from './messages.service';
 import { CreateMessageDto, UpdateMessageDto } from './dto/messages.dto';
@@ -16,6 +17,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
 import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
+import { PageQueryDto } from '../common/dto/page-query.dto';
 import type { Tenant } from '@prisma/client';
 
 @Controller('/messages')
@@ -25,8 +27,20 @@ export class MessagesController {
 
   @Get()
   @Roles('owner', 'manager')
-  findAll(@CurrentTenant() tenant: Tenant) {
-    return this.messagesService.findAll(tenant.id);
+  findAll(
+    @CurrentTenant() tenant: Tenant,
+    @Query('period') period?: string,
+    @Query('date') date?: string,
+    @Query('status') status?: string,
+    @Query() { page, limit }: PageQueryDto = {},
+  ) {
+    return this.messagesService.findAll(tenant.id, {
+      period,
+      date,
+      status,
+      page,
+      limit,
+    });
   }
 
   @Get(':id')

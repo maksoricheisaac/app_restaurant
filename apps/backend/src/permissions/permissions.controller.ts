@@ -6,6 +6,7 @@ import {
   Delete,
   Body,
   Param,
+  ParseEnumPipe,
   UseGuards,
 } from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
@@ -19,6 +20,8 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { TenantRole } from '../common/constants/tenant-roles.constant';
 import type { Tenant } from '@prisma/client';
 
 @Controller('/permissions')
@@ -42,23 +45,28 @@ export class PermissionsController {
   @Roles('owner', 'manager')
   updateStaff(
     @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
     @Param('id') id: string,
     @Body() data: UpdateStaffDto,
   ) {
-    return this.permissionsService.updateStaff(tenant.id, id, data);
+    return this.permissionsService.updateStaff(tenant.id, id, data, user.id);
   }
 
   @Delete('staff/:id')
   @Roles('owner')
-  deleteStaff(@CurrentTenant() tenant: Tenant, @Param('id') id: string) {
-    return this.permissionsService.deleteStaff(tenant.id, id);
+  deleteStaff(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+  ) {
+    return this.permissionsService.deleteStaff(tenant.id, id, user.id);
   }
 
   @Get('roles/:role')
   @Roles('owner', 'manager')
   getRolePermissions(
     @CurrentTenant() tenant: Tenant,
-    @Param('role') role: string,
+    @Param('role', new ParseEnumPipe(TenantRole)) role: TenantRole,
   ) {
     return this.permissionsService.getRolePermissions(tenant.id, role);
   }
@@ -67,7 +75,7 @@ export class PermissionsController {
   @Roles('owner')
   updateRolePermissions(
     @CurrentTenant() tenant: Tenant,
-    @Param('role') role: string,
+    @Param('role', new ParseEnumPipe(TenantRole)) role: TenantRole,
     @Body() data: UpdateRolePermissionsDto,
   ) {
     return this.permissionsService.updateRolePermissions(tenant.id, role, data);

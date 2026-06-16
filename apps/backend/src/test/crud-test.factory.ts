@@ -67,23 +67,31 @@ export function assertPrismaCalledWithTenantId(
 
 // ─── Service mock builder ─────────────────────────────────────────────────────
 
-export function mockCrudPrismaModel(model: any, opts: {
-  findResult?: unknown;
-  findManyResult?: unknown[];
-  createResult?: unknown;
-  updateResult?: unknown;
-  deleteResult?: unknown;
-  countResult?: number;
-}) {
+export function mockCrudPrismaModel(
+  model: any,
+  opts: {
+    findResult?: unknown;
+    findManyResult?: unknown[];
+    createResult?: unknown;
+    updateResult?: unknown;
+    deleteResult?: unknown;
+    countResult?: number;
+  },
+) {
   if (opts.findResult !== undefined) {
     model.findFirst?.mockResolvedValue(opts.findResult);
     model.findUnique?.mockResolvedValue(opts.findResult);
   }
-  if (opts.findManyResult !== undefined) model.findMany?.mockResolvedValue(opts.findManyResult);
-  if (opts.createResult !== undefined) model.create?.mockResolvedValue(opts.createResult);
-  if (opts.updateResult !== undefined) model.update?.mockResolvedValue(opts.updateResult);
-  if (opts.deleteResult !== undefined) model.delete?.mockResolvedValue(opts.deleteResult);
-  if (opts.countResult !== undefined) model.count?.mockResolvedValue(opts.countResult);
+  if (opts.findManyResult !== undefined)
+    model.findMany?.mockResolvedValue(opts.findManyResult);
+  if (opts.createResult !== undefined)
+    model.create?.mockResolvedValue(opts.createResult);
+  if (opts.updateResult !== undefined)
+    model.update?.mockResolvedValue(opts.updateResult);
+  if (opts.deleteResult !== undefined)
+    model.delete?.mockResolvedValue(opts.deleteResult);
+  if (opts.countResult !== undefined)
+    model.count?.mockResolvedValue(opts.countResult);
 }
 
 // ─── Standard CRUD suite builder ──────────────────────────────────────────────

@@ -11,6 +11,7 @@ import type { MenuItem } from "@/types/menu";
 
 import { useMenuItems, useMenuCategories } from "@/hooks/api/useMenu";
 import { useCreateMenuItem, useUpdateMenuItem, useDeleteMenuItem } from "@/hooks/api/useMenuMutations";
+import { mediaService } from "@/services/media.service";
 import { MenuHeader } from "@/components/customs/admin/menu/menu-header";
 import { MenuStats } from "@/components/customs/admin/menu/menu-stats";
 import { MenuFilters } from "@/components/customs/admin/menu/menu-filters";
@@ -85,13 +86,11 @@ export default function MenuPage() {
   }, [search, selectedCategory]);
 
   // Gestionnaires d'événements
-  const handleSubmit = async (values: any) => {
+  const handleSubmit = async (values: any, pendingImageFile?: File | null) => {
     if (selectedItem) {
+      // Image already uploaded immediately in the form (edit mode)
       updateMutation.mutate(
-        {
-          id: selectedItem.id,
-          data: values,
-        },
+        { id: selectedItem.id, data: values },
         {
           onSuccess: () => {
             toast.success("Plat mis à jour avec succès");
@@ -105,7 +104,15 @@ export default function MenuPage() {
       );
     } else {
       createMutation.mutate(values, {
-        onSuccess: () => {
+        onSuccess: async (data: any) => {
+          // Upload pending image now that we have the item ID
+          if (pendingImageFile && data?.id) {
+            try {
+              await mediaService.uploadMenuItemImage(data.id, pendingImageFile);
+            } catch {
+              toast.warning("Plat créé, mais l'image n'a pas pu être uploadée.");
+            }
+          }
           toast.success("Plat créé avec succès");
           setIsOpen(false);
           setSelectedItem(null);

@@ -112,7 +112,9 @@ describe('AuthService', () => {
     it('throws UnauthorizedException when email not verified', async () => {
       const unverifiedUser = { ...verifiedUser, emailVerified: false };
 
-      await expect(service.login(unverifiedUser)).rejects.toThrow(UnauthorizedException);
+      await expect(service.login(unverifiedUser)).rejects.toThrow(
+        UnauthorizedException,
+      );
       await expect(service.login(unverifiedUser)).rejects.toThrow(
         'Veuillez vérifier votre adresse email',
       );
@@ -149,13 +151,17 @@ describe('AuthService', () => {
       // findFirst returns null when expiry has passed (Prisma filters it out)
       prisma.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.verifyEmail('expired_token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.verifyEmail('expired_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
 
     it('throws UnauthorizedException for unknown token', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.verifyEmail('unknown_token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.verifyEmail('unknown_token')).rejects.toThrow(
+        UnauthorizedException,
+      );
     });
   });
 
@@ -163,7 +169,12 @@ describe('AuthService', () => {
 
   describe('resendVerificationEmail', () => {
     it('sends a new verification email for unverified user', async () => {
-      const user = { id: 'u1', name: 'Test', email: 'test@test.com', emailVerified: false };
+      const user = {
+        id: 'u1',
+        name: 'Test',
+        email: 'test@test.com',
+        emailVerified: false,
+      };
       prisma.user.findUnique.mockResolvedValue(user);
       prisma.user.update.mockResolvedValue(user);
 
@@ -185,7 +196,10 @@ describe('AuthService', () => {
     });
 
     it('returns same message for already verified user (anti-enumeration)', async () => {
-      prisma.user.findUnique.mockResolvedValue({ id: 'u1', emailVerified: true });
+      prisma.user.findUnique.mockResolvedValue({
+        id: 'u1',
+        emailVerified: true,
+      });
 
       const result = await service.resendVerificationEmail('verified@test.com');
 
@@ -246,7 +260,9 @@ describe('AuthService', () => {
       expect(result.access_token).toBeDefined();
       expect(result.refresh_token).toBeDefined();
       // Old token was deleted (rotation)
-      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({ where: { id: 'rt1' } });
+      expect(prisma.refreshToken.delete).toHaveBeenCalledWith({
+        where: { id: 'rt1' },
+      });
     });
 
     it('throws UnauthorizedException for expired refresh token', async () => {
@@ -289,14 +305,17 @@ describe('AuthService', () => {
           }),
         }),
       );
-      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({
+        where: { userId: 'u1' },
+      });
     });
 
     it('throws BadRequestException for invalid reset token', async () => {
       prisma.user.findFirst.mockResolvedValue(null);
 
-      await expect(service.resetPassword('invalid_token', 'NewPassword@123'))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.resetPassword('invalid_token', 'NewPassword@123'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

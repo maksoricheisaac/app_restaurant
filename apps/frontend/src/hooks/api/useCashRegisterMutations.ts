@@ -8,9 +8,11 @@ export const useProcessPayment = () => {
   return useMutation({
     mutationFn: (data: any) => cashRegisterService.processPayment(data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      // Refresh all cash-register related data after payment
+      queryClient.invalidateQueries({ queryKey: ['unpaid-orders'] });
       queryClient.invalidateQueries({ queryKey: ['transactions'] });
       queryClient.invalidateQueries({ queryKey: ['bilan'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
   });
 };

@@ -1,7 +1,7 @@
 # ADR-005 — Stratégie Redis et Scaling
 
-**Date :** 2026-05-17  
-**Statut :** Accepté (single-instance implémenté, multi-instance documenté)
+**Date :** 2026-05-17 (mis à jour le 2026-06-15)  
+**Statut :** Accepté — implémenté (throttler, Socket.io adapter et idempotence webhooks basculent automatiquement sur Redis quand `REDIS_URL` est défini, sinon fallback in-memory single-instance)
 
 ---
 
@@ -16,77 +16,67 @@ Ces choix sont valides pour une seule instance. Dès que l'app scale horizontale
 
 ## Décision
 
-### Throttler distribué (à implémenter à N instances)
+### Throttler distribué — IMPLÉMENTÉ
 
 ```bash
-pnpm add @nestjs-throttler-storage-redis ioredis
+pnpm add @nest-lab/throttler-storage-redis ioredis
 ```
 
-```typescript
-// app.module.ts
-import { ThrottlerStorageRedisService } from '@nestjs-throttler-storage-redis';
+Voir `apps/backend/src/app.module.ts` : `ThrottlerModule.forRootAsync` instancie
+`ThrottlerStorageRedisService(redisUrl)` quand `REDIS_URL` est défini (et que
+`ioredis` est disponible), sinon utilise le stockage in-memory par défaut.
 
-ThrottlerModule.forRootAsync({
-  imports: [ConfigModule],
-  useFactory: (config: ConfigService) => ({
-    throttlers: [
-      { name: 'short', ttl: 60_000, limit: 30 },
-      { name: 'long', ttl: 3_600_000, limit: 500 },
-    ],
-    storage: new ThrottlerStorageRedisService({
-      host: config.get('REDIS_HOST', 'localhost'),
-      port: config.get('REDIS_PORT', 6379),
-      password: config.get('REDIS_PASSWORD'),
-    }),
-  }),
-  inject: [ConfigService],
-}),
-```
-
-### Socket.io multi-instance (à implémenter à N instances)
+### Socket.io multi-instance — IMPLÉMENTÉ
 
 ```bash
 pnpm add @socket.io/redis-adapter ioredis
 ```
 
-```typescript
-// gateway.module.ts ou events.gateway.ts onModuleInit
-import { createAdapter } from '@socket.io/redis-adapter';
-import { createClient } from 'redis';
-
-const pubClient = createClient({ url: process.env.REDIS_URL });
-const subClient = pubClient.duplicate();
-await Promise.all([pubClient.connect(), subClient.connect()]);
-this.server.adapter(createAdapter(pubClient, subClient));
-```
-
-### Idempotency Stripe distribuée (à implémenter à N instances)
+Voir `apps/backend/src/gateway/redis-io.adapter.ts` (`RedisIoAdapter`), branché
+dans `apps/backend/src/main.ts` via `app.useWebSocketAdapter(...)` :
 
 ```typescript
-// billing.service.ts — remplacer Map en mémoire par Redis SETNX
-async isEventProcessed(eventId: string): Promise<boolean> {
-  const key = `stripe:event:${eventId}`;
-  const result = await this.redis.set(key, '1', 'NX', 'EX', 90000); // 25h
-  return result === null; // null = déjà existant
-}
+const redisIoAdapter = new RedisIoAdapter(app, configService.get('REDIS_URL'));
+redisIoAdapter.connectToRedis();
+app.useWebSocketAdapter(redisIoAdapter);
 ```
 
-### Variables d'environnement à ajouter pour Redis
+Quand `REDIS_URL` est absent ou que la connexion échoue, l'adapter logue un
+avertissement et conserve l'adapter in-memory par défaut (rooms/broadcasts
+limités à l'instance courante).
+
+### Idempotency webhooks distribuée — IMPLÉMENTÉ
+
+Voir `apps/backend/src/common/redis/idempotency.service.ts`
+(`IdempotencyService`), utilisé par `BillingService.handleWebhook` :
+
+```typescript
+const isNewEvent = await this.idempotency.checkAndMark(
+  `billing:webhook:${provider.name}:${event.eventId}`,
+  PROCESSED_EVENT_TTL_SECONDS, // 25h
+);
+if (!isNewEvent) return; // duplicate delivery — already processed
+```
+
+`IdempotencyService` utilise `SET key 1 EX <ttl> NX` via le client Redis
+partagé (`RedisService`, `apps/backend/src/common/redis/redis.service.ts`)
+quand `REDIS_URL` est défini ; sinon (ou en cas d'erreur Redis), bascule sur un
+`Map` en mémoire avec éviction par TTL (comportement single-instance d'origine).
+
+### Variables d'environnement pour Redis
 
 ```env
 REDIS_URL=redis://:password@host:6379
-REDIS_HOST=localhost
-REDIS_PORT=6379
 REDIS_PASSWORD=
 ```
 
-## Limites actuelles
+## État actuel
 
-| Composant | Single-instance | Multi-instance |
+| Composant | Sans `REDIS_URL` | Avec `REDIS_URL` |
 |---|---|---|
-| Throttler | ✓ en mémoire | ✗ à migrer vers Redis |
-| WebSocket rooms | ✓ en mémoire | ✗ à migrer vers Redis adapter |
-| Stripe idempotency | ✓ Map mémoire (perd au restart) | ✗ à migrer vers Redis SETNX |
+| Throttler | ✓ en mémoire (single-instance) | ✓ Redis (multi-instance) |
+| WebSocket rooms (Socket.io) | ✓ en mémoire (single-instance) | ✓ Redis adapter (multi-instance) |
+| Idempotence webhooks paiement | ✓ Map mémoire (perd au restart) | ✓ Redis SETNX+EX (multi-instance) |
 | Sessions | Stateless (JWT) | ✓ OK |
 | DB connections | 1 pool par instance | ✓ OK (Prisma pool per instance) |
 

@@ -1,4 +1,20 @@
-import { IsString, IsNotEmpty, IsOptional, IsEmail, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsEmail,
+  IsBoolean,
+  IsEnum,
+  IsPhoneNumber,
+} from 'class-validator';
+
+export enum MessageStatusValue {
+  new = 'new',
+  read = 'read',
+  replied = 'replied',
+  closed = 'closed',
+  archived = 'archived',
+}
 
 export class CreateMessageDto {
   @IsString()
@@ -7,6 +23,10 @@ export class CreateMessageDto {
 
   @IsEmail()
   email: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 
   @IsOptional()
   @IsString()
@@ -21,6 +41,10 @@ export class UpdateMessageDto {
   @IsOptional()
   @IsBoolean()
   read?: boolean;
+
+  @IsOptional()
+  @IsEnum(MessageStatusValue)
+  status?: MessageStatusValue;
 
   @IsOptional()
   @IsString()

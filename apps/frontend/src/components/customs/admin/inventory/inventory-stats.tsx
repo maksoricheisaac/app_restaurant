@@ -47,7 +47,7 @@ export function InventoryStats({ data, isLoading }: InventoryStatsProps) {
     },
     {
       title: "Valeur du stock",
-      value: `${(data?.totalStockValue || 0).toLocaleString('fr-FR')} FCFA`,
+      value: `${Number(data?.totalStockValue || 0).toLocaleString('fr-FR')} FCFA`,
       description: "Valeur totale de l'inventaire",
       icon: DollarSign,
       color: "text-green-600",

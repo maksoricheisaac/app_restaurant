@@ -19,6 +19,7 @@ function buildService() {
   const prisma = createMockPrisma() as any;
   prisma.message = {
     findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
     findFirst: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -41,13 +42,32 @@ describe('MessagesService', () => {
   describe('findAll', () => {
     it('queries non-deleted messages for tenant', async () => {
       prisma.message.findMany.mockResolvedValue([MSG]);
+      prisma.message.count.mockResolvedValue(1);
 
-      await service.findAll(T);
+      const result = await service.findAll(T);
 
       const call = prisma.message.findMany.mock.calls[0][0];
       expect(call.where.tenantId).toBe(T);
       expect(call.where.deletedAt).toBeNull();
       expect(call.orderBy).toEqual({ createdAt: 'desc' });
+      expect(result.data).toEqual([MSG]);
+      expect(result.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        pages: 1,
+      });
+    });
+
+    it('applies pagination params', async () => {
+      prisma.message.findMany.mockResolvedValue([]);
+      prisma.message.count.mockResolvedValue(45);
+
+      await service.findAll(T, { page: 2, limit: 10 });
+
+      const call = prisma.message.findMany.mock.calls[0][0];
+      expect(call.skip).toBe(10);
+      expect(call.take).toBe(10);
     });
   });
 
@@ -56,7 +76,9 @@ describe('MessagesService', () => {
   describe('findOne', () => {
     it('throws NotFoundException for non-existent message', async () => {
       prisma.message.findFirst.mockResolvedValue(null);
-      await expect(service.findOne(T, 'ghost')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne(T, 'ghost')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('filters by id and tenantId', async () => {
@@ -69,7 +91,9 @@ describe('MessagesService', () => {
 
     it('cannot access message from another tenant', async () => {
       prisma.message.findFirst.mockResolvedValue(null);
-      await expect(service.findOne('other-tenant', 'msg-1')).rejects.toThrow(NotFoundException);
+      await expect(service.findOne('other-tenant', 'msg-1')).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -95,12 +119,17 @@ describe('MessagesService', () => {
   describe('remove', () => {
     it('throws NotFoundException when message not found', async () => {
       prisma.message.findFirst.mockResolvedValue(null);
-      await expect(service.remove(T, 'ghost')).rejects.toThrow(NotFoundException);
+      await expect(service.remove(T, 'ghost')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('soft-deletes message by setting deletedAt', async () => {
       prisma.message.findFirst.mockResolvedValue(MSG);
-      prisma.message.update.mockResolvedValue({ ...MSG, deletedAt: new Date() });
+      prisma.message.update.mockResolvedValue({
+        ...MSG,
+        deletedAt: new Date(),
+      });
 
       await service.remove(T, 'msg-1');
 

@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { downloadPdfBytes, mmToPt } from './utils';
+import { downloadPdfBytes, fetchLogoForPdf, mmToPt, type RestaurantInfo } from './utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import type { CashDailySummary } from '@/types/order';
@@ -11,7 +11,7 @@ const fmt = (n: number) =>
 
 export async function generateDailyCashSummaryPdf(
   summary: CashDailySummary,
-  opts?: { fileName?: string; openInsteadOfDownload?: boolean }
+  opts?: { fileName?: string; openInsteadOfDownload?: boolean; restaurant?: RestaurantInfo }
 ) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -32,47 +32,41 @@ export async function generateDailyCashSummaryPdf(
     danger: rgb(0.8, 0.1, 0.1),
   };
 
+  const restaurant   = opts?.restaurant;
+  const restName     = restaurant?.name ?? 'Votre Restaurant';
+
   let y = height - margin;
 
   // --- HEADER ---
   const logoSize = mmToPt(20);
 
-  // Logo carré
-  page.drawRectangle({
-    x: margin,
-    y: y - logoSize,
-    width: logoSize,
-    height: logoSize,
-    color: colors.accent,
-  });
+  // Logo : réel si disponible, sinon carré coloré
+  let logoEmbedded = false;
+  if (restaurant?.logoUrl) {
+    const logo = await fetchLogoForPdf(pdf, restaurant.logoUrl);
+    if (logo) {
+      const logoW = logoSize * (logo.width / logo.height);
+      pdf.getPage(0).drawImage(logo.image, {
+        x: margin, y: y - logoSize, width: logoW, height: logoSize,
+      });
+      logoEmbedded = true;
+    }
+  }
+  if (!logoEmbedded) {
+    page.drawRectangle({ x: margin, y: y - logoSize, width: logoSize, height: logoSize, color: colors.accent });
+    const initials = restName.slice(0, 2).toUpperCase();
+    page.drawText(initials, { x: margin + mmToPt(3), y: y - mmToPt(13), font: bold, size: 12, color: colors.white });
+  }
 
-  // Texte LOGO dans le carré
-  page.drawText('LOGO', {
-    x: margin + mmToPt(4),
-    y: y - mmToPt(13),
-    font: bold,
-    size: 12,
-    color: colors.white,
-  });
-
-  // Infos Restaurant à droite du logo
+  // Nom + contact à droite du logo
   const appX = margin + logoSize + mmToPt(10);
-  page.drawText('APP RESTAURANT', {
-    x: appX,
-    y: y - mmToPt(5),
-    font: bold,
-    size: 18,
-    color: colors.primary,
-  });
-  page.drawText('Brazzaville, Congo', {
-    x: appX,
-    y: y - mmToPt(13),
-    font: font,
-    size: 10,
-    color: colors.secondary,
-  });
+  page.drawText(restName, { x: appX, y: y - mmToPt(5), font: bold, size: 18, color: colors.primary });
+  const subtitle = [restaurant?.phone, restaurant?.address].filter(Boolean).join('  •  ') || '';
+  if (subtitle) {
+    page.drawText(subtitle, { x: appX, y: y - mmToPt(13), font, size: 9, color: colors.secondary });
+  }
 
-  // Décalage vertical après bloc logo + app
+  // Décalage vertical après bloc logo + nom
   y -= mmToPt(35);
 
   // Document Title aligné à droite

@@ -1,3 +1,5 @@
+'use client';
+
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -30,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ImageUpload from "@/components/image-upload";
 import { toast } from "sonner";
+import { useUploadMenuItemImage } from "@/hooks/api/useMedia";
 
 interface Category {
   id: string;
@@ -60,7 +63,7 @@ interface MenuFormProps {
     available: boolean;
   } | null;
   categories: Category[];
-  onSubmit: (values: MenuItemFormData) => void;
+  onSubmit: (values: MenuItemFormData, pendingImageFile?: File | null) => void;
   isLoading: boolean;
 }
 
@@ -75,7 +78,11 @@ export function MenuForm({
   const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(
     selectedItem?.image || null
   );
-  const [isUploading, setIsUploading] = useState(false);
+  // Stores a file selected in CREATE mode — uploaded after item creation
+  const [pendingImageFile, setPendingImageFile] = useState<File | null>(null);
+
+  const uploadMenuItemImage = useUploadMenuItemImage();
+  const isUploading = uploadMenuItemImage.isPending;
 
   const form = useForm<MenuItemFormData>({
     resolver: zodResolver(menuItemSchema),
@@ -89,7 +96,6 @@ export function MenuForm({
     },
   });
 
-  // Mettre à jour les valeurs du formulaire quand selectedItem change
   useEffect(() => {
     if (selectedItem) {
       form.reset({
@@ -112,9 +118,9 @@ export function MenuForm({
       });
       setUploadedImageUrl(null);
     }
+    setPendingImageFile(null);
   }, [selectedItem, form]);
 
-  // Réinitialiser le formulaire quand il se ferme
   useEffect(() => {
     if (!isOpen) {
       form.reset({
@@ -126,38 +132,35 @@ export function MenuForm({
         available: true,
       });
       setUploadedImageUrl(null);
+      setPendingImageFile(null);
     }
   }, [isOpen, form]);
 
-  // Fonction pour uploader l'image
-  const handleImageUpload = async (file: File) => {
-    setIsUploading(true);
-    try {
-      const response = await fetch(
-        `/api/upload?filename=${file.name}`,
+  const handleImageUpload = (file: File) => {
+    if (selectedItem) {
+      // EDIT mode: upload immediately to NestJS — item ID is known
+      uploadMenuItemImage.mutate(
+        { menuItemId: selectedItem.id, file },
         {
-          method: 'POST',
-          body: file,
+          onSuccess: (data) => {
+            setUploadedImageUrl(data.url);
+            form.setValue('image', data.url);
+            toast.success('Image mise à jour');
+          },
+          onError: () => {
+            toast.error("Erreur lors de l'upload de l'image");
+          },
         }
       );
-
-      if (!response.ok) {
-        throw new Error('Erreur lors de l\'upload');
-      }
-
-      const blob = await response.json();
-      setUploadedImageUrl(blob.url);
-      form.setValue('image', blob.url);
-      toast.success('Image uploadée avec succès');
-    } catch (error) {
-      console.error('Erreur upload:', error);
-      toast.error('Erreur lors de l\'upload de l\'image');
-    } finally {
-      setIsUploading(false);
+    } else {
+      // CREATE mode: defer upload until after item creation (no ID yet)
+      setPendingImageFile(file);
     }
   };
 
-
+  const handleFormSubmit = (values: MenuItemFormData) => {
+    onSubmit(values, pendingImageFile);
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -168,7 +171,7 @@ export function MenuForm({
           </DialogTitle>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)}>
+          <form onSubmit={form.handleSubmit(handleFormSubmit)}>
             <ScrollArea className="h-[60vh] pr-4">
               <div className="space-y-8 px-4">
                 <FormField
@@ -184,7 +187,7 @@ export function MenuForm({
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="description"
@@ -192,8 +195,8 @@ export function MenuForm({
                     <FormItem>
                       <FormLabel>Description</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          {...field} 
+                        <Textarea
+                          {...field}
                           placeholder="Description du plat"
                           className="resize-none"
                           rows={3}
@@ -203,57 +206,54 @@ export function MenuForm({
                     </FormItem>
                   )}
                 />
-              <div className="flex flex-row gap-4 w-full">
-                <FormField
-                  control={form.control}
-                  name="price"
-                  render={({ field }) => (
-                    <FormItem className="w-full flex-1">
-                      <FormLabel>Prix (FCFA)</FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          type="number"
-                          min={0}
-                          step={50}
-                          className="w-full"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
 
-                <FormField
-                  control={form.control}
-                  name="categoryId"
-                  render={({ field }) => (
-                    <FormItem className="w-full flex-1">
-                      <FormLabel>Catégorie</FormLabel>
-                      <Select value={field.value} onValueChange={field.onChange}>
+                <div className="flex flex-row gap-4 w-full">
+                  <FormField
+                    control={form.control}
+                    name="price"
+                    render={({ field }) => (
+                      <FormItem className="w-full flex-1">
+                        <FormLabel>Prix (FCFA)</FormLabel>
                         <FormControl>
-                          <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Sélectionner une catégorie" />
-                          </SelectTrigger>
+                          <Input
+                            {...field}
+                            type="number"
+                            min={0}
+                            step={50}
+                            className="w-full"
+                          />
                         </FormControl>
-                        <SelectContent>
-                          {categories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                
+                  <FormField
+                    control={form.control}
+                    name="categoryId"
+                    render={({ field }) => (
+                      <FormItem className="w-full flex-1">
+                        <FormLabel>Catégorie</FormLabel>
+                        <Select value={field.value} onValueChange={field.onChange}>
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Sélectionner une catégorie" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {categories.map((category) => (
+                              <SelectItem key={category.id} value={category.id}>
+                                {category.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
 
-                
-                
                 <FormField
                   control={form.control}
                   name="image"
@@ -265,27 +265,31 @@ export function MenuForm({
                           {uploadedImageUrl && !isUploading && (
                             <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                               <p className="text-sm text-blue-700">
-                                <strong>Image actuelle :</strong> Une image est déjà associée à ce plat. 
+                                <strong>Image actuelle :</strong> Une image est déjà associée à ce plat.
                                 Vous pouvez la remplacer en glissant une nouvelle image ou en cliquant pour en sélectionner une.
                               </p>
                             </div>
                           )}
-                          <ImageUpload 
+                          {pendingImageFile && !selectedItem && (
+                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                              <p className="text-sm text-amber-700">
+                                <strong>Image sélectionnée :</strong> Elle sera uploadée automatiquement après la création du plat.
+                              </p>
+                            </div>
+                          )}
+                          <ImageUpload
                             onImageUpload={handleImageUpload}
                             onImageRemove={() => {
                               setUploadedImageUrl(null);
+                              setPendingImageFile(null);
                               form.setValue('image', null);
                             }}
                             currentImageUrl={uploadedImageUrl}
+                            isUploading={isUploading}
+                            disabled={isUploading}
                           />
-                          {isUploading && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-500"></div>
-                              Upload en cours...
-                            </div>
-                          )}
                           <p className="text-xs text-muted-foreground">
-                            Formats acceptés : JPG, PNG, GIF. Taille maximale : 5MB.
+                            Formats acceptés : JPEG, PNG, WebP. Taille maximale : 5 Mo.
                           </p>
                         </div>
                       </FormControl>
@@ -293,7 +297,7 @@ export function MenuForm({
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="available"
@@ -316,10 +320,18 @@ export function MenuForm({
                 />
               </div>
             </ScrollArea>
-            
+
             <div className="pt-6 border-t">
-              <Button type="submit" className="w-full" disabled={isLoading || isUploading}>
-                {selectedItem ? "Mettre à jour" : "Créer"}
+              <Button
+                type="submit"
+                className="w-full"
+                disabled={isLoading || isUploading}
+              >
+                {isUploading
+                  ? "Upload image en cours…"
+                  : selectedItem
+                  ? "Mettre à jour"
+                  : "Créer"}
               </Button>
             </div>
           </form>
@@ -327,4 +339,4 @@ export function MenuForm({
       </DialogContent>
     </Dialog>
   );
-} 
+}

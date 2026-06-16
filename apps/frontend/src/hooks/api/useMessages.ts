@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { messagesService } from "@/services/messages.service";
 
-export const useMessages = (params?: { period?: string; date?: string }) => {
+export const useMessages = (params?: { period?: string; date?: string; status?: string }) => {
   return useQuery({
     queryKey: ["messages", params],
     queryFn: () => messagesService.getMessages(params),

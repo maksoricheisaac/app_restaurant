@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Flash Menu — pre-commit secret scan.
+#
+# Enable with:
+#   git config core.hooksPath .githooks
+#
+# Requires gitleaks (https://github.com/gitleaks/gitleaks) on PATH.
+# If gitleaks is not installed, the hook warns but does not block the commit
+# (CI still runs the full scan on every push/PR).
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "⚠️  gitleaks not found on PATH — skipping local secret scan."
+  echo "    Install: https://github.com/gitleaks/gitleaks#installing"
+  echo "    CI will still scan this commit on push."
+  exit 0
+fi
+
+repo_root="$(git rev-parse --show-toplevel)"
+
+if ! gitleaks protect --staged --redact --config "$repo_root/.gitleaks.toml" --source "$repo_root"; then
+  echo ""
+  echo "❌ Potential secret detected in staged changes — commit aborted."
+  echo "   Review the findings above, remove the secret, and re-stage."
+  echo "   If this is a false positive, add an allowlist entry to .gitleaks.toml."
+  exit 1
+fi

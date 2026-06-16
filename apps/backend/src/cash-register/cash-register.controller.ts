@@ -22,7 +22,10 @@ export class CashRegisterController {
     @CurrentUser() user: any,
     @Body() data: ProcessPaymentDto,
   ) {
-    return this.cashRegisterService.processPayment(tenant.id, { ...data, cashierId: user.id });
+    return this.cashRegisterService.processPayment(tenant.id, {
+      ...data,
+      cashierId: user.id,
+    });
   }
 
   @Get('transactions')

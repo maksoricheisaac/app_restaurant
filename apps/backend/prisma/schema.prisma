@@ -15,7 +15,10 @@ model Tenant {
   slug         String       @unique // Utilisé pour {slug}.flashmenu.app
   plan         TenantPlan   @default(free)
   status       TenantStatus @default(active)
-  logo         String?
+  logo             String?
+  logoPathname     String?   // Blob pathname for cleanup on replace/delete
+  bannerUrl        String?   // Public URL (Vercel Blob)
+  bannerPathname   String?   // Internal blob pathname for delete/replace
   primaryColor String   @default("#f97316")
   country      String?
   currency     String   @default("EUR")
@@ -23,15 +26,16 @@ model Tenant {
   cuisineType  String?
   onboardingCompleted Boolean @default(false)
 
-  // Stripe subscription tracking
-  stripeCustomerId      String?   @unique
-  stripeSubscriptionId  String?   @unique
+  // Lemon Squeezy subscription tracking
+  lemonSqueezyCustomerId      String?   @unique
+  lemonSqueezySubscriptionId  String?   @unique
   subscriptionStatus    String?   // active | past_due | canceled | trialing | unpaid
   subscriptionCurrentPeriodEnd DateTime?
   gracePeriodEndsAt     DateTime? // paid grace after payment failure (3 days)
 
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // Soft delete — la suppression physique d'un tenant est interdite
 
   // Relations métier
   memberships         TenantMembership[]
@@ -58,6 +62,7 @@ model Tenant {
   userPermissions     UserPermission[]
 
   @@index([slug])
+  @@index([deletedAt])
 }
 
 model TenantMembership {
@@ -141,14 +146,16 @@ model User {
 }
 
 model RefreshToken {
-  id        String   @id @default(uuid())
-  tokenHash String   @unique
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
+  usedAt    DateTime? // Null = jamais utilisé. Non-null = utilisé → replay si réutilisé
 
   @@index([userId])
+  @@index([userId, usedAt])
 }
 
 model Customer {
@@ -237,18 +244,24 @@ model Reservation {
   userId       String?
   tableId      String?
 
+  deletedAt DateTime? // Soft delete — protège l'historique des réservations
+
   table Table? @relation(fields: [tableId], references: [id])
   user  User?  @relation(fields: [userId], references: [id])
 
   @@index([tenantId])
+  @@index([tenantId, deletedAt])
+  @@index([tenantId, date]) // Filtrage par date (dashboard, liste des réservations)
 }
 
 model MenuCategory {
-  id        String    @id @default(uuid())
-  name      String
-  tenantId  String
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  deletedAt DateTime? // Soft delete
+  id            String    @id @default(uuid())
+  name          String
+  tenantId      String
+  imageUrl      String?   // Public URL (Vercel Blob)
+  imagePathname String?   // Internal blob pathname for delete/replace
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  deletedAt     DateTime? // Soft delete
 
   items MenuItem[]
 
@@ -257,17 +270,18 @@ model MenuCategory {
 }
 
 model MenuItem {
-  id          String       @id @default(uuid())
-  name        String
-  description String?
-  price       Decimal      // Decimal pour éviter les erreurs d'arrondi sur les prix
-  image       String?
-  available   Boolean      @default(true)
-  tenantId    String
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  categoryId  String
-  category    MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  deletedAt   DateTime?    // Soft delete
+  id            String       @id @default(uuid())
+  name          String
+  description   String?
+  price         Decimal      // Decimal pour éviter les erreurs d'arrondi sur les prix
+  image         String?      // Public URL (Vercel Blob) — aliased as imageUrl
+  imagePathname String?      // Internal blob pathname for delete/replace
+  available     Boolean      @default(true)
+  tenantId      String
+  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  categoryId    String
+  category      MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  deletedAt     DateTime?    // Soft delete
 
   orderItems OrderItemsOnOrders[]
   recipes    Recipe[]
@@ -296,6 +310,8 @@ model Order {
   ipAddress       String?
   specialNotes    String?
 
+  deletedAt DateTime? // Soft delete — protège l'historique des commandes (comptabilité)
+
   user           User?                @relation(fields: [userId], references: [id])
   customer       Customer?            @relation(fields: [customerId], references: [id])
   table          Table?               @relation(fields: [tableId], references: [id])
@@ -308,6 +324,7 @@ model Order {
   @@index([tenantId])
   @@index([tenantId, status])    // Filtrage par statut (dashboard, KDS)
   @@index([tenantId, createdAt]) // Comptage mensuel quota + rapports
+  @@index([tenantId, deletedAt]) // Exclusion soft-delete
 }
 
 model OrderItemsOnOrders {
@@ -340,6 +357,7 @@ model Payment {
   cashier User  @relation(fields: [cashierId], references: [id], onDelete: Restrict)
 
   @@index([tenantId])
+  @@index([tenantId, createdAt]) // Filtrage par période (clôture de caisse)
 }
 
 model Ingredient {
@@ -384,14 +402,17 @@ model Message {
 
   customerName String
   email        String
+  phone        String?
   subject      String?
   message      String
-  read         Boolean   @default(false)
-  createdAt    DateTime  @default(now())
-  deletedAt    DateTime? // Soft delete
+  read         Boolean       @default(false)
+  status       MessageStatus @default(new)
+  createdAt    DateTime      @default(now())
+  deletedAt    DateTime?     // Soft delete
 
   @@index([tenantId])
   @@index([tenantId, deletedAt])
+  @@index([tenantId, status])  // perf: filter by status per tenant
 }
 
 model Report {
@@ -632,4 +653,12 @@ enum DayOfWeek {
   FRIDAY
   SATURDAY
   SUNDAY
+}
+
+enum MessageStatus {
+  new
+  read
+  replied
+  closed
+  archived
 }

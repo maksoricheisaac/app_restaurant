@@ -59,7 +59,12 @@ export const UserFactory = {
   },
 
   unverified(overrides: Partial<UserLike> = {}): UserLike {
-    return UserFactory.create({ emailVerified: false, onboardingStep: 1, onboardingCompleted: false, ...overrides });
+    return UserFactory.create({
+      emailVerified: false,
+      onboardingStep: 1,
+      onboardingCompleted: false,
+      ...overrides,
+    });
   },
 
   superAdmin(overrides: Partial<UserLike> = {}): UserLike {
@@ -80,8 +85,8 @@ export interface TenantLike {
   currency: string;
   timezone: string;
   onboardingCompleted: boolean;
-  stripeCustomerId: string | null;
-  stripeSubscriptionId: string | null;
+  lemonSqueezyCustomerId: string | null;
+  lemonSqueezySubscriptionId: string | null;
   subscriptionStatus: string | null;
   gracePeriodEndsAt: Date | null;
   createdAt: Date;
@@ -102,8 +107,8 @@ export const TenantFactory = {
       currency: 'XAF',
       timezone: 'Africa/Brazzaville',
       onboardingCompleted: true,
-      stripeCustomerId: null,
-      stripeSubscriptionId: null,
+      lemonSqueezyCustomerId: null,
+      lemonSqueezySubscriptionId: null,
       subscriptionStatus: null,
       gracePeriodEndsAt: null,
       createdAt: new Date('2026-01-01'),
@@ -115,7 +120,7 @@ export const TenantFactory = {
   pro(overrides: Partial<TenantLike> = {}): TenantLike {
     return TenantFactory.create({
       plan: 'pro',
-      stripeSubscriptionId: `sub_${seq()}`,
+      lemonSqueezySubscriptionId: `${seq()}`,
       subscriptionStatus: 'active',
       ...overrides,
     });

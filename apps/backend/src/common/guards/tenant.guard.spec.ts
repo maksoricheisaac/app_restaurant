@@ -52,7 +52,10 @@ describe('TenantGuard', () => {
     });
 
     it('throws ForbiddenException on protected route with no tenant context', async () => {
-      const { ctx, reflector } = makeCtx({ isPublic: false, user: { id: 'u1', platformRole: 'user' } });
+      const { ctx, reflector } = makeCtx({
+        isPublic: false,
+        user: { id: 'u1', platformRole: 'user' },
+      });
       const guard = new TenantGuard(reflector, prisma as any);
       await expect(guard.canActivate(ctx)).rejects.toThrow(ForbiddenException);
     });
@@ -74,7 +77,7 @@ describe('TenantGuard', () => {
       await guard.canActivate(ctx);
 
       expect(prisma.tenant.findFirst).toHaveBeenCalledWith({
-        where: { id: 'tenant-1' },
+        where: { id: 'tenant-1', deletedAt: null },
       });
       expect(request.tenant).toEqual(tenant);
     });
@@ -92,7 +95,7 @@ describe('TenantGuard', () => {
       await guard.canActivate(ctx);
 
       expect(prisma.tenant.findFirst).toHaveBeenCalledWith({
-        where: { slug: 'le-maquis' },
+        where: { slug: 'le-maquis', deletedAt: null },
       });
       expect(request.tenant).toEqual(tenant);
     });

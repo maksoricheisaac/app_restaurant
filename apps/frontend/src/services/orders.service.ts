@@ -18,6 +18,10 @@ export const ordersService = {
     return api.patch(`/orders/${id}/status`, { status });
   },
 
+  getKitchenOrders: async () => {
+    return api.get('/orders/kitchen');
+  },
+
   getOrderTracking: async (id: string) => {
     return api.get(`/orders/${id}/tracking`);
   },

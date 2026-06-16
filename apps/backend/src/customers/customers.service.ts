@@ -3,6 +3,13 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const NOT_DELETED = { deletedAt: null };
 
+export interface UpsertCustomerInput {
+  tenantId: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+
 @Injectable()
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
@@ -57,10 +64,50 @@ export class CustomersService {
     });
   }
 
-  async create(tenantId: string, data: any) {
-    return this.prisma.customer.create({
-      data: { ...data, tenantId },
+  /**
+   * Upsert a customer from an order or reservation interaction.
+   * Matches on email if provided, then phone, otherwise creates a new record.
+   * This is the ONLY path to create customers — no manual creation endpoint.
+   */
+  async upsertFromInteraction(
+    input: UpsertCustomerInput,
+  ): Promise<string | null> {
+    const { tenantId, name, email, phone } = input;
+    if (!email && !phone && !name) return null;
+
+    // Try to find existing (non-deleted) customer by email or phone
+    const existing = await this.prisma.customer.findFirst({
+      where: {
+        tenantId,
+        deletedAt: null,
+        ...(email ? { email } : phone ? { phone } : {}),
+      },
+      select: { id: true },
     });
+
+    if (existing) {
+      // Update name/phone if we now have more data
+      const updateData: any = {};
+      if (name) updateData.name = name;
+      if (phone) updateData.phone = phone;
+      if (Object.keys(updateData).length) {
+        await this.prisma.customer.update({
+          where: { id: existing.id },
+          data: updateData,
+        });
+      }
+      return existing.id;
+    }
+
+    const customer = await this.prisma.customer.create({
+      data: {
+        tenantId,
+        name: name ?? undefined,
+        email: email ?? undefined,
+        phone: phone ?? undefined,
+      },
+    });
+    return customer.id;
   }
 
   async update(tenantId: string | undefined, id: string, data: any) {

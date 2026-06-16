@@ -19,6 +19,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Order, OrderStatus, OrderType } from "@/types/order";
+import { useTenant } from "@/contexts/TenantContext";
+import { useSettings } from "@/hooks/api/useSettings";
 import QRCode from "qrcode";
 
 interface OrderTicketPreviewProps {
@@ -39,6 +41,8 @@ export function OrderTicketPreview({
 }: OrderTicketPreviewProps) {
   const [paperWidth, setPaperWidth] = useState<"57" | "80">("80");
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
+  const { tenant } = useTenant();
+  const { data: settings } = useSettings();
   
   // Générer le QR code
   useEffect(() => {
@@ -49,7 +53,7 @@ export function OrderTicketPreview({
       total: order.total || 0,
       status: order.status,
       type: order.type,
-      createdAt: new Date(order.createdAt).toISOString(),
+      createdAt: (() => { const d = new Date(order.createdAt); return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString(); })(),
       items: order.orderItems.map((i) => ({ n: i.name, q: i.quantity, p: i.price })),
     };
     
@@ -76,6 +80,14 @@ export function OrderTicketPreview({
         statusLabels: statusLabels as Record<string, string>,
         typeLabels: typeLabels as Record<string, string>,
         fileName: `commande_${order.id}.pdf`,
+        restaurant: tenant ? {
+          name:         tenant.name,
+          logoUrl:      tenant.logo,
+          primaryColor: tenant.primaryColor,
+          phone:        (settings as any)?.phone ?? null,
+          email:        (settings as any)?.email ?? null,
+          address:      (settings as any)?.address ?? null,
+        } : undefined,
       });
       onClose();
     } catch (e) {
@@ -112,10 +124,19 @@ export function OrderTicketPreview({
           {/* En-tête du ticket */}
           <Card className="border-2 border-gray-300 bg-white shadow-lg">
             <CardHeader className="text-center pb-3 pt-6">
-              <CardTitle className="text-2xl font-bold text-black mb-2">
-                APP RESTAURANT
+              {tenant?.logo && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={tenant.logo} alt={tenant.name} className="h-14 w-14 object-contain rounded-xl mx-auto mb-3" />
+              )}
+              <CardTitle className="text-2xl font-bold text-black mb-1">
+                {tenant?.name ?? 'Votre Restaurant'}
               </CardTitle>
-              <p className="text-base text-black font-normal">--- Ticket de Commande ---</p>
+              {((settings as any)?.phone || (settings as any)?.address) && (
+                <p className="text-xs text-gray-500">
+                  {[(settings as any)?.phone, (settings as any)?.address].filter(Boolean).join(' • ')}
+                </p>
+              )}
+              <p className="text-base text-black font-normal mt-1">--- Ticket de Commande ---</p>
             </CardHeader>
             
             <CardContent className="space-y-4 px-6">
@@ -125,10 +146,10 @@ export function OrderTicketPreview({
                   <span className="font-normal">ID:</span> <span className="font-normal">{order.id.slice(-8).toUpperCase()}</span>
                 </div>
                 <div>
-                  <span className="font-normal">Date:</span> <span className="font-normal">{format(new Date(order.createdAt), "dd/MM/yyyy HH:mm", { locale: fr })}</span>
+                  <span className="font-normal">Date:</span> <span className="font-normal">{(() => { const d = new Date(order.createdAt); return isNaN(d.getTime()) ? '—' : format(d, "dd/MM/yyyy HH:mm", { locale: fr }); })()}</span>
                 </div>
                 <div>
-                  <span className="font-normal">Client:</span> <span className="font-normal">{order.user.name || 'Invité'}</span>
+                  <span className="font-normal">Client:</span> <span className="font-normal">{order.user?.name || 'Invité'}</span>
                 </div>
                 <div>
                   <span className="font-normal">Type:</span> <span className="font-normal">{typeLabels[order.type]}</span>

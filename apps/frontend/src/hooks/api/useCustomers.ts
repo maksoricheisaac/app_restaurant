@@ -16,23 +16,17 @@ export const useCustomer = (id: string) => {
   });
 };
 
-export const useCreateCustomer = () => {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: any) => customersService.createCustomer(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customers"] });
-    },
-  });
-};
+// createCustomer removed — customers are auto-generated from orders/reservations
 
 export const useUpdateCustomer = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: any }) => 
+    mutationFn: ({ id, data }: { id: string; data: any }) =>
       customersService.updateCustomer(id, data),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Invalide la liste ET le détail du client modifié
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers", variables.id] });
     },
   });
 };
@@ -41,8 +35,10 @@ export const useDeleteCustomer = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => customersService.deleteCustomer(id),
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ["customers"] });
+      // Supprime le détail du client du cache immédiatement
+      queryClient.removeQueries({ queryKey: ["customers", id] });
     },
   });
 };

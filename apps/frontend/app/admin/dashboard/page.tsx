@@ -18,45 +18,8 @@ import { Permission } from "@/types/permissions";
 import { useDashboardStats, useLatestOrders } from "@/hooks/api/useDashboard";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { SetupBanner } from "@/components/admin/setup-banner";
-
-// Fonction de formatage de la monnaie (copiée depuis OrdersPage)
-const formatCurrency = (amount: number) => {
-  const formatted = new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XAF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-  
-  
-  return formatted.replace(/\//g, ' ');
-}
-
-const statusColors = {
-  pending:   "bg-amber-100   text-amber-700   border-amber-200   dark:bg-amber-950/40  dark:text-amber-300",
-  preparing: "bg-blue-100    text-blue-700    border-blue-200    dark:bg-blue-950/40   dark:text-blue-300",
-  ready:     "bg-indigo-100  text-indigo-700  border-indigo-200  dark:bg-indigo-950/40 dark:text-indigo-300",
-  served:    "bg-green-100   text-green-700   border-green-200   dark:bg-green-950/40  dark:text-green-300",
-  completed: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300",
-  paid:      "bg-green-100   text-green-700   border-green-200   dark:bg-green-950/40  dark:text-green-300",
-  cancelled: "bg-red-100     text-red-700     border-red-200     dark:bg-red-950/40    dark:text-red-300",
-} as const;
-
-const typeLabels = {
-  dine_in: "Sur place",
-  takeaway: "À emporter",
-  delivery: "Livraison",
-} as const;
-
-const statusLabels = {
-  pending: "En attente",
-  preparing: "En préparation",
-  ready: "Prête",
-  served: "Servie",
-  completed: "Terminée",
-  paid: "Payée",
-  cancelled: "Annulée",
-} as const;
+import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
+import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
@@ -69,6 +32,7 @@ export default function AdminDashboard() {
   const [isTicketPreviewOpen, setIsTicketPreviewOpen] = useState(false);
 
   const updateOrderMutation = useUpdateOrderStatus();
+  const formatCurrency = useTenantCurrency();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -127,23 +91,8 @@ export default function AdminDashboard() {
     updateOrderMutation.mutate({ id: orderId, status: "cancelled" });
   };
 
-  // Fonction pour obtenir la couleur du badge selon le statut
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'preparing':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'ready':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'completed':
-        return 'bg-green-100 text-green-800 border-green-200';
-      case 'cancelled':
-        return 'bg-red-100 text-red-800 border-red-200';
-      default:
-        return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
+  const getStatusBadgeColor = (status: string) =>
+    statusColors[status as keyof typeof statusColors] ?? 'bg-gray-100 text-gray-800 border-gray-200';
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_DASHBOARD}>

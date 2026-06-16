@@ -12,7 +12,9 @@ describe('DashboardService', () => {
     service = new DashboardService(prisma as any);
     jest.clearAllMocks();
     prisma.order.count.mockResolvedValue(0);
-    prisma.order.aggregate = jest.fn().mockResolvedValue({ _sum: { total: 0 } });
+    prisma.order.aggregate = jest
+      .fn()
+      .mockResolvedValue({ _sum: { total: 0 } });
     prisma.order.findMany.mockResolvedValue([]);
     prisma.reservation = {
       count: jest.fn().mockResolvedValue(0),
@@ -26,7 +28,9 @@ describe('DashboardService', () => {
   describe('getStats', () => {
     it('returns daily stats with all counters', async () => {
       prisma.order.count.mockResolvedValueOnce(12);
-      prisma.order.aggregate = jest.fn().mockResolvedValue({ _sum: { total: 45000 } });
+      prisma.order.aggregate = jest
+        .fn()
+        .mockResolvedValue({ _sum: { total: 45000 } });
       (prisma.reservation as any).count.mockResolvedValueOnce(3);
       prisma.customer.count.mockResolvedValueOnce(8);
 
@@ -54,7 +58,9 @@ describe('DashboardService', () => {
     });
 
     it('returns 0 revenue when no non-cancelled orders', async () => {
-      prisma.order.aggregate = jest.fn().mockResolvedValue({ _sum: { total: null } });
+      prisma.order.aggregate = jest
+        .fn()
+        .mockResolvedValue({ _sum: { total: null } });
 
       const result = await service.getStats(T, '2026-05-17');
       expect(result.totalRevenue).toBe(0);

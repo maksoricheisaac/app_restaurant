@@ -178,7 +178,7 @@ export default function BillingPage() {
       </div>
 
       <p className="text-center text-xs text-muted-foreground">
-        Paiement sécurisé par Stripe · Annulation à tout moment · Sans engagement
+        Paiement sécurisé · Annulation à tout moment · Sans engagement
       </p>
     </div>
   );

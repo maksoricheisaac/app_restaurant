@@ -1,8 +1,19 @@
-import { InternalServerErrorException } from '@nestjs/common';
+import {
+  ConflictException,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { TenantsService } from './tenants.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const TENANT = { id: 'tenant-1', name: 'Le Maquis', slug: 'le-maquis', plan: 'free', status: 'active' };
+const TENANT = {
+  id: 'tenant-1',
+  name: 'Le Maquis',
+  slug: 'le-maquis',
+  plan: 'free',
+  status: 'active',
+  deletedAt: null,
+};
 
 describe('TenantsService', () => {
   let service: TenantsService;
@@ -20,7 +31,10 @@ describe('TenantsService', () => {
     it('creates tenant with correct data', async () => {
       prisma.tenant.create.mockResolvedValue(TENANT);
 
-      const result = await service.create({ name: 'Le Maquis', slug: 'le-maquis' } as any);
+      const result = await service.create({
+        name: 'Le Maquis',
+        slug: 'le-maquis',
+      } as any);
 
       expect(result).toEqual(TENANT);
       const call = prisma.tenant.create.mock.calls[0][0];
@@ -49,19 +63,57 @@ describe('TenantsService', () => {
     it('wraps DB errors in InternalServerErrorException', async () => {
       prisma.tenant.create.mockRejectedValue(new Error('DB constraint'));
 
-      await expect(service.create({ name: 'T', slug: 's' } as any)).rejects.toThrow(
-        InternalServerErrorException,
-      );
+      await expect(
+        service.create({ name: 'T', slug: 's' } as any),
+      ).rejects.toThrow(InternalServerErrorException);
     });
   });
 
   // ─── findAll ──────────────────────────────────────────────────────────────
 
   describe('findAll', () => {
-    it('returns all tenants without filter', async () => {
+    it('excludes soft-deleted tenants by default', async () => {
       prisma.tenant.findMany.mockResolvedValue([TENANT]);
+      prisma.tenant.count.mockResolvedValue(1);
+
       const result = await service.findAll();
-      expect(result).toEqual([TENANT]);
+
+      expect(result.data).toEqual([TENANT]);
+      expect(result.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        pages: 1,
+      });
+      const call = prisma.tenant.findMany.mock.calls[0][0];
+      expect(call.where.deletedAt).toBeNull();
+    });
+
+    it('includes soft-deleted tenants when includeDeleted=true', async () => {
+      prisma.tenant.findMany.mockResolvedValue([TENANT]);
+      prisma.tenant.count.mockResolvedValue(1);
+
+      await service.findAll(true);
+
+      const call = prisma.tenant.findMany.mock.calls[0][0];
+      expect(call.where.deletedAt).toBeUndefined();
+    });
+
+    it('applies pagination params', async () => {
+      prisma.tenant.findMany.mockResolvedValue([TENANT]);
+      prisma.tenant.count.mockResolvedValue(50);
+
+      const result = await service.findAll(false, 2, 10);
+
+      const call = prisma.tenant.findMany.mock.calls[0][0];
+      expect(call.skip).toBe(10);
+      expect(call.take).toBe(10);
+      expect(result.pagination).toEqual({
+        page: 2,
+        limit: 10,
+        total: 50,
+        pages: 5,
+      });
     });
   });
 
@@ -82,7 +134,7 @@ describe('TenantsService', () => {
   // ─── resolveBySlug ────────────────────────────────────────────────────────
 
   describe('resolveBySlug', () => {
-    it('finds active tenant by slug', async () => {
+    it('finds active, non-deleted tenant by slug', async () => {
       prisma.tenant.findFirst.mockResolvedValue(TENANT);
 
       await service.resolveBySlug('le-maquis');
@@ -90,6 +142,7 @@ describe('TenantsService', () => {
       const call = prisma.tenant.findFirst.mock.calls[0][0];
       expect(call.where.slug).toBe('le-maquis');
       expect(call.where.status).toBe('active');
+      expect(call.where.deletedAt).toBeNull();
     });
 
     it('returns null when slug not found', async () => {
@@ -99,17 +152,74 @@ describe('TenantsService', () => {
     });
   });
 
-  // ─── remove (soft suspend) ────────────────────────────────────────────────
+  // ─── remove (soft delete) ─────────────────────────────────────────────────
 
   describe('remove', () => {
-    it('sets status to suspended instead of hard-deleting', async () => {
-      prisma.tenant.update.mockResolvedValue({ ...TENANT, status: 'suspended' });
+    it('sets deletedAt instead of hard-deleting', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(TENANT);
+      prisma.tenant.update.mockResolvedValue({
+        ...TENANT,
+        deletedAt: new Date(),
+      });
 
       await service.remove('tenant-1');
 
       const call = prisma.tenant.update.mock.calls[0][0];
       expect(call.where.id).toBe('tenant-1');
-      expect(call.data.status).toBe('suspended');
+      expect(call.data.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('throws NotFoundException when tenant does not exist', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(null);
+
+      await expect(service.remove('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ConflictException when tenant is already deleted', async () => {
+      prisma.tenant.findUnique.mockResolvedValue({
+        ...TENANT,
+        deletedAt: new Date(),
+      });
+
+      await expect(service.remove('tenant-1')).rejects.toThrow(
+        ConflictException,
+      );
+    });
+  });
+
+  // ─── restore ──────────────────────────────────────────────────────────────
+
+  describe('restore', () => {
+    it('clears deletedAt for a soft-deleted tenant', async () => {
+      prisma.tenant.findUnique.mockResolvedValue({
+        ...TENANT,
+        deletedAt: new Date(),
+      });
+      prisma.tenant.update.mockResolvedValue(TENANT);
+
+      await service.restore('tenant-1');
+
+      const call = prisma.tenant.update.mock.calls[0][0];
+      expect(call.where.id).toBe('tenant-1');
+      expect(call.data.deletedAt).toBeNull();
+    });
+
+    it('throws NotFoundException when tenant does not exist', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(null);
+
+      await expect(service.restore('missing')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('throws ConflictException when tenant is not deleted', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(TENANT);
+
+      await expect(service.restore('tenant-1')).rejects.toThrow(
+        ConflictException,
+      );
     });
   });
 });

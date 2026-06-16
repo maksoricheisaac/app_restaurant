@@ -1,6 +1,7 @@
 import { AppSidebar } from "@/components/admin_v2/app-sidebar";
 import { Header } from "@/components/admin_v2/header";
 import { Main } from "@/components/admin_v2/main";
+import { AdminSocketWrapper } from "@/components/admin_v2/admin-socket-wrapper";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { headers } from "next/headers";
@@ -40,10 +41,18 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     redirect('/super-admin/dashboard');
   }
 
-  // Utilisateur normal avec onboarding non terminé et sans tenant → inscription
-  if (user.platformRole !== 'super_admin' && !user.onboardingCompleted && !user.tenantId) {
+  // Utilisateur normal avec onboarding explicitement non terminé et sans tenant → reprendre l'onboarding
+  // Vérification stricte (=== false) pour ne pas rediriger quand le champ est absent/undefined
+  if (
+    user.platformRole !== 'super_admin' &&
+    user.onboardingCompleted === false &&
+    !user.tenantId
+  ) {
     redirect('/auth/register');
   }
+
+  // Cas edge : onboarding marqué terminé mais tenantId manquant dans le profil
+  // (peut arriver après migration ou erreur de sync) → laisser passer avec tenantId header
 
   // Onboarding terminé mais pas de restaurant assigné (Multi-Manager / Franchise en attente d'invitation)
   if (
@@ -63,9 +72,9 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
       });
       if (countsResponse) {
         counts = {
-          pendingOrders: countsResponse.orders ?? 0,
-          unreadMessages: 0,
-          pendingReservations: countsResponse.reservations ?? 0,
+          pendingOrders: countsResponse.pendingOrders ?? 0,
+          unreadMessages: countsResponse.unreadMessages ?? 0,
+          pendingReservations: countsResponse.pendingReservations ?? 0,
           orders: countsResponse.orders ?? 0,
           reservations: countsResponse.reservations ?? 0,
         };
@@ -75,7 +84,10 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
     }
   }
 
+  const effectiveTenantId = tenantId ?? user.tenantId ?? undefined;
+
   return (
+    <AdminSocketWrapper tenantId={effectiveTenantId}>
     <SidebarProvider defaultOpen={false}>
       <AdminNotificationProvider>
         <AppSidebar counts={counts} user={user} />
@@ -99,5 +111,6 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
         </div>
       </AdminNotificationProvider>
     </SidebarProvider>
+    </AdminSocketWrapper>
   );
 }

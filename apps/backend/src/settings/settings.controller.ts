@@ -54,7 +54,8 @@ export class SettingsController {
   @Roles('owner', 'manager')
   updateOpeningHours(
     @CurrentTenant() tenant: Tenant,
-    @Body(new ParseArrayPipe({ items: OpeningHourDto })) hours: OpeningHourDto[],
+    @Body(new ParseArrayPipe({ items: OpeningHourDto }))
+    hours: OpeningHourDto[],
   ) {
     return this.settingsService.updateOpeningHours(tenant.id, hours);
   }

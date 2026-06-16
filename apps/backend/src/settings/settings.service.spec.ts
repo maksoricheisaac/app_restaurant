@@ -64,7 +64,10 @@ describe('SettingsService', () => {
 
   describe('update', () => {
     it('updates settings for the correct tenant', async () => {
-      prisma.restaurantSettings.update.mockResolvedValue({ ...SETTINGS, name: 'Nouveau Nom' });
+      prisma.restaurantSettings.update.mockResolvedValue({
+        ...SETTINGS,
+        name: 'Nouveau Nom',
+      });
 
       await service.update(T, { name: 'Nouveau Nom' } as any);
 
@@ -78,7 +81,15 @@ describe('SettingsService', () => {
 
   describe('findOpeningHours', () => {
     it('returns opening hours for the tenant', async () => {
-      const hours = [{ tenantId: T, dayOfWeek: 'MONDAY', openTime: '09:00', closeTime: '22:00', isClosed: false }];
+      const hours = [
+        {
+          tenantId: T,
+          dayOfWeek: 'MONDAY',
+          openTime: '09:00',
+          closeTime: '22:00',
+          isClosed: false,
+        },
+      ];
       prisma.openingHours.findMany.mockResolvedValue(hours);
 
       const result = await service.findOpeningHours(T);

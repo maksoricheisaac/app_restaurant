@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
-import * as request from 'supertest';
+import request from 'supertest';
+import cookieParser from 'cookie-parser';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/prisma/prisma.service';
 import { MailService } from '../src/mail/mail.service';
@@ -15,9 +16,15 @@ import { MailService } from '../src/mail/mail.service';
  */
 
 const makePrismaMock = () => ({
-  user: { findUnique: jest.fn(), findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+  user: {
+    findUnique: jest.fn(),
+    findFirst: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+  },
   tenant: { findUnique: jest.fn(), findFirst: jest.fn() },
   tenantMembership: { findUnique: jest.fn() },
+  table: { findUnique: jest.fn().mockResolvedValue(null) },
   refreshToken: {
     findMany: jest.fn().mockResolvedValue([]),
     findUnique: jest.fn(),
@@ -51,7 +58,17 @@ describe('Flash Menu E2E', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.use(cookieParser());
+    app.setGlobalPrefix('/api/v1');
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: { enableImplicitConversion: true },
+        stopAtFirstError: true,
+      }),
+    );
     await app.init();
   });
 
@@ -73,9 +90,7 @@ describe('Flash Menu E2E', () => {
     });
 
     it('GET /api/v1/health/live always returns 200', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/health/live')
-        .expect(200);
+      await request(app.getHttpServer()).get('/api/v1/health/live').expect(200);
     });
 
     it('GET /api/v1/health/ready returns 200 when DB reachable', async () => {
@@ -97,11 +112,12 @@ describe('Flash Menu E2E', () => {
         .expect(401);
     });
 
-    it('POST /api/v1/auth/login — 400 when email missing', async () => {
-      await request(app.getHttpServer())
+    it('POST /api/v1/auth/login — 4xx when email missing', async () => {
+      // Passport LocalAuthGuard runs before ValidationPipe — missing email → 401
+      const res = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
-        .send({ password: 'Password@1' })
-        .expect(400);
+        .send({ password: 'Password@1' });
+      expect([400, 401]).toContain(res.status);
     });
 
     it('GET /api/v1/auth/profile — 401 without token', async () => {
@@ -150,7 +166,7 @@ describe('Flash Menu E2E', () => {
   describe('Protected routes require auth', () => {
     const routes = [
       { method: 'get', path: '/api/v1/orders' },
-      { method: 'get', path: '/api/v1/menu' },
+      { method: 'post', path: '/api/v1/menu' }, // GET /menu est @Public() — POST est protégé
       { method: 'get', path: '/api/v1/tables' },
       { method: 'get', path: '/api/v1/plans/usage' },
     ];
@@ -173,14 +189,24 @@ describe('Flash Menu E2E', () => {
 
       await request(app.getHttpServer())
         .post('/api/v1/onboarding/initiate')
-        .send({ firstName: 'Alice', lastName: 'D', email: 'exists@test.com', password: 'Password@1' })
+        .send({
+          firstName: 'Alice',
+          lastName: 'D',
+          email: 'exists@test.com',
+          password: 'Password@1',
+        })
         .expect(409);
     });
 
     it('POST /api/v1/onboarding/initiate — 400 for weak password', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/onboarding/initiate')
-        .send({ firstName: 'Alice', lastName: 'D', email: 'alice@test.com', password: 'weak' })
+        .send({
+          firstName: 'Alice',
+          lastName: 'D',
+          email: 'alice@test.com',
+          password: 'weak',
+        })
         .expect(400);
     });
   });

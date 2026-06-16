@@ -11,7 +11,8 @@ export function proxy(request: NextRequest) {
   const isProtected = PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
   if (isProtected) {
     const session = request.cookies.get('session')?.value;
-    if (!session) {
+    const token = request.cookies.get('token')?.value;
+    if (!session && !token) {
       const loginUrl = new URL('/auth/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
@@ -40,6 +41,9 @@ export function proxy(request: NextRequest) {
     request: { headers: requestHeaders },
   });
 }
+
+// Default export requis par Next.js pour reconnaître ce fichier comme middleware
+export default proxy;
 
 export const config = {
   matcher: ['/admin/:path*', '/super-admin/:path*'],

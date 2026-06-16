@@ -19,7 +19,7 @@ export interface User {
 interface AuthContextType {
   user: User | null;
   setUser: (user: User | null) => void;
-  login: (email: string, password: string) => Promise<User | null>;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
   signOut: () => void;
   isLoading: boolean;
@@ -37,18 +37,42 @@ async function apiFetch(path: string, init?: RequestInit) {
  * Sets session + tenant cookies as httpOnly via the /api/session Next.js route.
  * document.cookie cannot set httpOnly — only a server-side Set-Cookie header can.
  * Fire-and-forget: the proxy redirect is a UX optimization, not a security gate.
+ *
+ * Also persists tenantId to localStorage so the client-side api-client can read it
+ * synchronously on the next request (no async round-trip needed).
  */
-async function setSessionCookies(tenantId?: string | null): Promise<void> {
+async function setSessionCookies(tenantId?: string | null, tenantSlug?: string | null): Promise<void> {
+  // Sync localStorage immediately so the next client-side API call has the value
+  if (typeof window !== 'undefined') {
+    if (tenantId) {
+      localStorage.setItem('tenantId', tenantId);
+    } else {
+      localStorage.removeItem('tenantId');
+    }
+    if (tenantSlug) {
+      localStorage.setItem('tenantSlug', tenantSlug);
+    } else {
+      localStorage.removeItem('tenantSlug');
+    }
+  }
+
   try {
     await fetch('/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId: tenantId ?? undefined }),
+      body: JSON.stringify({
+        tenantId: tenantId ?? undefined,
+        tenantSlug: tenantSlug ?? undefined,
+      }),
     });
   } catch { /* non-blocking */ }
 }
 
 async function clearSessionCookies(): Promise<void> {
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem('tenantId');
+    localStorage.removeItem('tenantSlug');
+  }
   try {
     await fetch('/api/session', { method: 'DELETE' });
   } catch { /* non-blocking */ }
@@ -79,8 +103,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const profile = await res.json();
           setUserState(profile);
-          // Synchronise les cookies httpOnly via /api/session
-          await setSessionCookies(profile?.tenantId);
+          // Synchronise les cookies httpOnly + localStorage via /api/session
+          await setSessionCookies(profile?.tenantId, null);
         } else {
           await clearSessionCookies();
           setUserState(null);
@@ -96,15 +120,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setUser = (u: User | null) => {
     setUserState(u);
-    // Fire-and-forget — cookie update is non-blocking
+    // Sync httpOnly cookies + localStorage — fire-and-forget
     if (u) {
-      void setSessionCookies(u.tenantId);
+      void setSessionCookies(u.tenantId, null);
     } else {
       void clearSessionCookies();
     }
   };
 
-  const login = async (email: string, password: string): Promise<User | null> => {
+  const login = async (email: string, password: string): Promise<User> => {
     setIsLoading(true);
     try {
       const response = await apiFetch('/auth/login', {
@@ -112,16 +136,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      if (response.ok) {
-        const data = await response.json();
-        const loggedUser: User = data.user;
-        setUserState(loggedUser);
-        await setSessionCookies(loggedUser?.tenantId);
-        return loggedUser;
+
+      if (!response.ok) {
+        // Lire le vrai message d'erreur du backend pour l'afficher à l'utilisateur
+        const err = await response.json().catch(() => ({}));
+        const message = err?.message || 'Identifiants invalides';
+        throw new Error(typeof message === 'string' ? message : message[0]);
       }
-      return null;
-    } catch {
-      return null;
+
+      const data = await response.json();
+      const loggedUser: User = data.user;
+      setUserState(loggedUser);
+      await setSessionCookies(loggedUser?.tenantId, null);
+      return loggedUser;
     } finally {
       setIsLoading(false);
     }

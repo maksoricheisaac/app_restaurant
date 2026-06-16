@@ -1,4 +1,8 @@
-import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+} from '@nestjs/common';
 import { PublicOrderService } from './public-orders.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
@@ -6,17 +10,29 @@ const mockEventsService = { emitToTenant: jest.fn() };
 const mockPlanLimitService = {
   assertMonthlyOrderLimit: jest.fn().mockResolvedValue(undefined),
 };
+// Always passes in tests (mirrors dev-mode behaviour)
+const mockMenuSessionService = { verify: jest.fn().mockReturnValue(true) };
 
 describe('PublicOrderService', () => {
   let service: PublicOrderService;
   let prisma: MockPrisma;
 
   const tenant = { id: 'tenant-1', name: 'Le Maquis' };
-  const menuItem = { id: 'item-1', name: 'Poulet braisé', price: 2500, image: null };
+  const menuItem = {
+    id: 'item-1',
+    name: 'Poulet braisé',
+    price: 2500,
+    image: null,
+  };
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new PublicOrderService(prisma as any, mockEventsService as any, mockPlanLimitService as any);
+    service = new PublicOrderService(
+      prisma as any,
+      mockEventsService as any,
+      mockPlanLimitService as any,
+      mockMenuSessionService as any,
+    );
     jest.clearAllMocks();
     mockPlanLimitService.assertMonthlyOrderLimit.mockResolvedValue(undefined);
   });
@@ -24,20 +40,26 @@ describe('PublicOrderService', () => {
   // ─── Plan limit enforcement ──────────────────────────────────────────────
 
   it('calls assertMonthlyOrderLimit before creating the order', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     prisma.menuItem.findMany.mockResolvedValue([menuItem]);
-    prisma.order.create.mockResolvedValue({ id: 'order-1', status: 'pending', total: 5000 });
+    prisma.order.create.mockResolvedValue({
+      id: 'order-1',
+      status: 'pending',
+      total: 5000,
+    });
 
     await service.createOrder('le-maquis', {
       type: 'dine_in',
       items: [{ menuItemId: 'item-1', quantity: 2 }],
     } as any);
 
-    expect(mockPlanLimitService.assertMonthlyOrderLimit).toHaveBeenCalledWith('tenant-1');
+    expect(mockPlanLimitService.assertMonthlyOrderLimit).toHaveBeenCalledWith(
+      'tenant-1',
+    );
   });
 
   it('does NOT create the order when monthly limit is exceeded', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     mockPlanLimitService.assertMonthlyOrderLimit.mockRejectedValue(
       new ForbiddenException('Quota mensuel atteint'),
     );
@@ -53,7 +75,7 @@ describe('PublicOrderService', () => {
   });
 
   it('quota check happens before menuItem DB lookup (fail fast)', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     mockPlanLimitService.assertMonthlyOrderLimit.mockRejectedValue(
       new ForbiddenException('Quota dépassé'),
     );
@@ -71,7 +93,7 @@ describe('PublicOrderService', () => {
   // ─── Tenant resolution ────────────────────────────────────────────────────
 
   it('throws NotFoundException for unknown slug', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(null);
+    prisma.tenant.findFirst.mockResolvedValue(null);
 
     await expect(
       service.createOrder('unknown', {
@@ -86,9 +108,13 @@ describe('PublicOrderService', () => {
   // ─── Price integrity ──────────────────────────────────────────────────────
 
   it('uses DB price, rejects any client-supplied price value', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     prisma.menuItem.findMany.mockResolvedValue([menuItem]); // DB price: 2500
-    prisma.order.create.mockResolvedValue({ id: 'o1', status: 'pending', total: 5000 });
+    prisma.order.create.mockResolvedValue({
+      id: 'o1',
+      status: 'pending',
+      total: 5000,
+    });
 
     await service.createOrder('le-maquis', {
       type: 'dine_in',
@@ -101,9 +127,13 @@ describe('PublicOrderService', () => {
   });
 
   it('queries menuItems with tenant isolation (tenantId filter)', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     prisma.menuItem.findMany.mockResolvedValue([menuItem]);
-    prisma.order.create.mockResolvedValue({ id: 'o1', status: 'pending', total: 2500 });
+    prisma.order.create.mockResolvedValue({
+      id: 'o1',
+      status: 'pending',
+      total: 2500,
+    });
 
     await service.createOrder('le-maquis', {
       type: 'dine_in',
@@ -115,7 +145,7 @@ describe('PublicOrderService', () => {
   });
 
   it('throws BadRequestException when menuItem is from another tenant', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     prisma.menuItem.findMany.mockResolvedValue([]); // 0 results = item not in this tenant
 
     await expect(
@@ -127,15 +157,23 @@ describe('PublicOrderService', () => {
   });
 
   it('emits new-order WebSocket event after creation', async () => {
-    prisma.tenant.findUnique.mockResolvedValue(tenant);
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
     prisma.menuItem.findMany.mockResolvedValue([menuItem]);
-    prisma.order.create.mockResolvedValue({ id: 'o1', status: 'pending', total: 2500 });
+    prisma.order.create.mockResolvedValue({
+      id: 'o1',
+      status: 'pending',
+      total: 2500,
+    });
 
     await service.createOrder('le-maquis', {
       type: 'dine_in',
       items: [{ menuItemId: 'item-1', quantity: 1 }],
     } as any);
 
-    expect(mockEventsService.emitToTenant).toHaveBeenCalledWith('tenant-1', 'new-order', expect.any(Object));
+    expect(mockEventsService.emitToTenant).toHaveBeenCalledWith(
+      'tenant-1',
+      'new-order',
+      expect.any(Object),
+    );
   });
 });

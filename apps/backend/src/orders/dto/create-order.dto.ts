@@ -63,6 +63,19 @@ export class CreateOrderDto {
   @IsString()
   customerId?: string;
 
+  // Customer identity for auto-upsert (used when customerId is not known yet)
+  @IsOptional()
+  @IsString()
+  customerName?: string;
+
+  @IsOptional()
+  @IsString()
+  customerEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  customerPhone?: string;
+
   @IsOptional()
   @IsString()
   deliveryZoneId?: string;

@@ -12,8 +12,7 @@ import { UserNav } from './user-nav';
 const NAV_LINKS = [
   { label: 'Accueil',         href: '/' },
   { label: 'Fonctionnalités', href: '/#features' },
-  { label: 'Tarifs',          href: '/#pricing' },
-  { label: 'À propos',        href: '/about' },
+  { label: 'Tarifs',          href: '/pricing' },
   { label: 'Contact',         href: '/contact' },
 ] as const;
 

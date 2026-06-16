@@ -207,7 +207,7 @@ export function IngredientTable({
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>{ingredient.price.toLocaleString('fr-FR')} FCFA</TableCell>
+                          <TableCell>{Number(ingredient.price).toLocaleString('fr-FR')} FCFA</TableCell>
                           <TableCell>{ingredient.supplier || "-"}</TableCell>
                           <TableCell>
                             <Badge variant={stockStatus.variant}>

@@ -3,9 +3,21 @@ import { InventoryService } from './inventory.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
 const T = 'tenant-1';
-const ING = { id: 'ing-1', name: 'Poulet', unit: 'kg', stock: 10, tenantId: T, deletedAt: null };
+const ING = {
+  id: 'ing-1',
+  name: 'Poulet',
+  unit: 'kg',
+  stock: 10,
+  tenantId: T,
+  deletedAt: null,
+};
 const MENU_ITEM = { id: 'item-1', name: 'Yassa', tenantId: T, deletedAt: null };
-const RECIPE = { id: 'rec-1', menuItemId: 'item-1', ingredientId: 'ing-1', quantity: 0.5 };
+const RECIPE = {
+  id: 'rec-1',
+  menuItemId: 'item-1',
+  ingredientId: 'ing-1',
+  quantity: 0.5,
+};
 
 describe('InventoryService', () => {
   let service: InventoryService;
@@ -21,7 +33,9 @@ describe('InventoryService', () => {
 
   describe('findAllIngredients', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findAllIngredients(undefined)).rejects.toThrow(ForbiddenException);
+      await expect(service.findAllIngredients(undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('filters by tenantId and excludes soft-deleted', async () => {
@@ -33,6 +47,15 @@ describe('InventoryService', () => {
       expect(call.where.tenantId).toBe(T);
       expect(call.where.deletedAt).toBeNull();
     });
+
+    it('bounds the result set with a take limit', async () => {
+      prisma.ingredient.findMany.mockResolvedValue([ING]);
+
+      await service.findAllIngredients(T);
+
+      const call = prisma.ingredient.findMany.mock.calls[0][0];
+      expect(call.take).toBeGreaterThan(0);
+    });
   });
 
   // ─── createIngredient ─────────────────────────────────────────────────────
@@ -41,7 +64,11 @@ describe('InventoryService', () => {
     it('creates ingredient with tenantId', async () => {
       prisma.ingredient.create.mockResolvedValue(ING);
 
-      await service.createIngredient(T, { name: 'Poulet', unit: 'kg', stock: 0 } as any);
+      await service.createIngredient(T, {
+        name: 'Poulet',
+        unit: 'kg',
+        stock: 0,
+      } as any);
 
       const call = prisma.ingredient.create.mock.calls[0][0];
       expect(call.data.tenantId).toBe(T);
@@ -75,12 +102,17 @@ describe('InventoryService', () => {
   describe('removeIngredient', () => {
     it('throws NotFoundException when ingredient not found', async () => {
       prisma.ingredient.findFirst.mockResolvedValue(null);
-      await expect(service.removeIngredient(T, 'ghost')).rejects.toThrow(NotFoundException);
+      await expect(service.removeIngredient(T, 'ghost')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('soft-deletes by setting deletedAt', async () => {
       prisma.ingredient.findFirst.mockResolvedValue(ING);
-      prisma.ingredient.update.mockResolvedValue({ ...ING, deletedAt: new Date() });
+      prisma.ingredient.update.mockResolvedValue({
+        ...ING,
+        deletedAt: new Date(),
+      });
 
       await service.removeIngredient(T, 'ing-1');
 
@@ -92,7 +124,12 @@ describe('InventoryService', () => {
   // ─── addStockMovement (transaction) ──────────────────────────────────────
 
   describe('addStockMovement', () => {
-    const dto = { ingredientId: 'ing-1', type: 'IN', quantity: 5, description: 'Réception' };
+    const dto = {
+      ingredientId: 'ing-1',
+      type: 'IN',
+      quantity: 5,
+      description: 'Réception',
+    };
 
     it('runs stock update in a transaction', async () => {
       prisma.$transaction.mockImplementation(async (fn: any) => fn(prisma));
@@ -108,7 +145,9 @@ describe('InventoryService', () => {
       let incrementValue: number | undefined;
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
-          stockMovement: { create: jest.fn().mockResolvedValue({ id: 'mov-1' }) },
+          stockMovement: {
+            create: jest.fn().mockResolvedValue({ id: 'mov-1' }),
+          },
           ingredient: {
             update: jest.fn().mockImplementation((args: any) => {
               incrementValue = args.data.stock.increment;
@@ -119,7 +158,11 @@ describe('InventoryService', () => {
         return fn(tx);
       });
 
-      await service.addStockMovement(T, { ...dto, type: 'IN', quantity: 5 } as any);
+      await service.addStockMovement(T, {
+        ...dto,
+        type: 'IN',
+        quantity: 5,
+      } as any);
       expect(incrementValue).toBe(5);
     });
 
@@ -127,7 +170,9 @@ describe('InventoryService', () => {
       let incrementValue: number | undefined;
       prisma.$transaction.mockImplementation(async (fn: any) => {
         const tx = {
-          stockMovement: { create: jest.fn().mockResolvedValue({ id: 'mov-1' }) },
+          stockMovement: {
+            create: jest.fn().mockResolvedValue({ id: 'mov-1' }),
+          },
           ingredient: {
             update: jest.fn().mockImplementation((args: any) => {
               incrementValue = args.data.stock.increment;
@@ -138,7 +183,11 @@ describe('InventoryService', () => {
         return fn(tx);
       });
 
-      await service.addStockMovement(T, { ...dto, type: 'OUT', quantity: 3 } as any);
+      await service.addStockMovement(T, {
+        ...dto,
+        type: 'OUT',
+        quantity: 3,
+      } as any);
       expect(incrementValue).toBe(-3);
     });
   });
@@ -150,7 +199,11 @@ describe('InventoryService', () => {
       prisma.menuItem.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.createRecipe(T, { menuItemId: 'ghost', ingredientId: 'ing-1', quantity: 0.5 }),
+        service.createRecipe(T, {
+          menuItemId: 'ghost',
+          ingredientId: 'ing-1',
+          quantity: 0.5,
+        }),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -158,7 +211,11 @@ describe('InventoryService', () => {
       prisma.menuItem.findFirst.mockResolvedValue(MENU_ITEM);
       prisma.recipe.create.mockResolvedValue(RECIPE);
 
-      await service.createRecipe(T, { menuItemId: 'item-1', ingredientId: 'ing-1', quantity: 0.5 });
+      await service.createRecipe(T, {
+        menuItemId: 'item-1',
+        ingredientId: 'ing-1',
+        quantity: 0.5,
+      });
 
       const findCall = prisma.menuItem.findFirst.mock.calls[0][0];
       expect(findCall.where.tenantId).toBe(T);
@@ -182,13 +239,15 @@ describe('InventoryService', () => {
 
   describe('getDashboard', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.getDashboard(undefined)).rejects.toThrow(ForbiddenException);
+      await expect(service.getDashboard(undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('returns inventory summary with low stock count', async () => {
-      prisma.ingredient.count
-        .mockResolvedValueOnce(20)  // total
-        .mockResolvedValueOnce(3);  // low stock
+      prisma.ingredient.count.mockResolvedValueOnce(20); // total count
+      // lowStockCount utilise $queryRaw pour comparer stock <= COALESCE(minStock, 10)
+      prisma.$queryRaw.mockResolvedValueOnce([{ count: BigInt(3) }]);
       prisma.stockMovement.count.mockResolvedValue(50);
       prisma.stockMovement.findMany.mockResolvedValue([]);
 
@@ -201,6 +260,7 @@ describe('InventoryService', () => {
 
     it('filters ingredient counts by tenantId', async () => {
       prisma.ingredient.count.mockResolvedValue(0);
+      prisma.$queryRaw.mockResolvedValueOnce([{ count: BigInt(0) }]);
       prisma.stockMovement.count.mockResolvedValue(0);
       prisma.stockMovement.findMany.mockResolvedValue([]);
 
@@ -208,6 +268,53 @@ describe('InventoryService', () => {
 
       const call = prisma.ingredient.count.mock.calls[0][0];
       expect(call.where.tenantId).toBe(T);
+    });
+  });
+
+  // ─── findMovements ────────────────────────────────────────────────────────
+
+  describe('findMovements', () => {
+    it('returns paginated movements for tenant', async () => {
+      const movement = { id: 'mov-1', tenantId: T, type: 'IN', quantity: 5 };
+      prisma.stockMovement.findMany.mockResolvedValue([movement]);
+      prisma.stockMovement.count.mockResolvedValue(1);
+
+      const result = await service.findMovements(T, {} as any);
+
+      const call = prisma.stockMovement.findMany.mock.calls[0][0];
+      expect(call.where.tenantId).toBe(T);
+      expect(result.data).toEqual([movement]);
+      expect(result.pagination).toEqual({
+        page: 1,
+        limit: 20,
+        total: 1,
+        pages: 1,
+      });
+    });
+
+    it('applies pagination params', async () => {
+      prisma.stockMovement.findMany.mockResolvedValue([]);
+      prisma.stockMovement.count.mockResolvedValue(45);
+
+      await service.findMovements(T, { page: 2, limit: 10 } as any);
+
+      const call = prisma.stockMovement.findMany.mock.calls[0][0];
+      expect(call.skip).toBe(10);
+      expect(call.take).toBe(10);
+    });
+
+    it('filters by ingredientId and type when provided', async () => {
+      prisma.stockMovement.findMany.mockResolvedValue([]);
+      prisma.stockMovement.count.mockResolvedValue(0);
+
+      await service.findMovements(T, {
+        ingredientId: 'ing-1',
+        type: 'OUT',
+      } as any);
+
+      const call = prisma.stockMovement.findMany.mock.calls[0][0];
+      expect(call.where.ingredientId).toBe('ing-1');
+      expect(call.where.type).toBe('OUT');
     });
   });
 

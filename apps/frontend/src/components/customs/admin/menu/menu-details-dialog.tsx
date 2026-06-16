@@ -33,14 +33,17 @@ export function MenuDetailsDialog({
     }).format(price);
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return '—';
+    const d = date instanceof Date ? date : new Date(date as string);
+    if (isNaN(d.getTime())) return '—';
     return new Intl.DateTimeFormat('fr-FR', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-    }).format(date);
+    }).format(d);
   };
 
   if (!item) return null;

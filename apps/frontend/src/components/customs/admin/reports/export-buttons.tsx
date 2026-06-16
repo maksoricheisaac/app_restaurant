@@ -3,6 +3,8 @@
 import { Button } from "@/components/ui/button";
 import { FileText, FileSpreadsheet } from "lucide-react";
 import { generateSalesReportPdf } from "@/lib/pdf/report";
+import { useTenant } from "@/contexts/TenantContext";
+import { useSettings } from "@/hooks/api/useSettings";
 import { toast } from "sonner";
 
 interface ExportData {
@@ -25,10 +27,20 @@ interface ExportButtonsProps {
 }
 
 export function ExportButtons({ data, chartData, formatPrice }: ExportButtonsProps) {
+  const { tenant } = useTenant();
+  const { data: settings } = useSettings();
+
   const exportToPDF = async () => {
     try {
       toast.loading('Génération du PDF en cours...');
-      await generateSalesReportPdf(data, chartData, formatPrice);
+      await generateSalesReportPdf(data, chartData, formatPrice, tenant ? {
+        name:         tenant.name,
+        logoUrl:      tenant.logo,
+        primaryColor: tenant.primaryColor,
+        phone:        (settings as any)?.phone ?? null,
+        email:        (settings as any)?.email ?? null,
+        address:      (settings as any)?.address ?? null,
+      } : undefined);
       toast.dismiss();
       toast.success('Rapport PDF généré avec succès !');
     } catch (e) {
@@ -63,10 +75,13 @@ export function ExportButtons({ data, chartData, formatPrice }: ExportButtonsPro
     
     // ===== SECTION 1: INFORMATIONS GÉNÉRALES =====
     csvContent += '=== RAPPORT DE VENTES ===\n';
-    csvContent += `Généré le,${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR')}\n`;
+    const _now   = new Date();
+    const _start = new Date(data.period.start);
+    const _end   = new Date(data.period.end);
+    csvContent += `Généré le,${_now.toLocaleDateString('fr-FR')} à ${_now.toLocaleTimeString('fr-FR')}\n`;
     csvContent += `Type de période,${periodLabels[data.period.type] || data.period.type}\n`;
-    csvContent += `Du,${new Date(data.period.start).toLocaleDateString('fr-FR')}\n`;
-    csvContent += `Au,${new Date(data.period.end).toLocaleDateString('fr-FR')}\n`;
+    csvContent += `Du,${isNaN(_start.getTime()) ? '—' : _start.toLocaleDateString('fr-FR')}\n`;
+    csvContent += `Au,${isNaN(_end.getTime())   ? '—' : _end.toLocaleDateString('fr-FR')}\n`;
     csvContent += '\n';
 
     // ===== SECTION 2: MÉTRIQUES CLÉS =====

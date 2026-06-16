@@ -1,4 +1,5 @@
 import { IsOptional, IsEnum, IsDateString, IsString } from 'class-validator';
+import { PageQueryDto } from '../../common/dto/page-query.dto';
 
 export enum TransactionType {
   SALE = 'sale',
@@ -6,7 +7,7 @@ export enum TransactionType {
   ADJUSTMENT = 'adjustment',
 }
 
-export class TransactionFiltersDto {
+export class TransactionFiltersDto extends PageQueryDto {
   @IsOptional()
   @IsDateString()
   dateFrom?: string;

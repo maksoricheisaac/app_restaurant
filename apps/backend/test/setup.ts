@@ -1,35 +1,63 @@
 /**
  * E2E test global setup.
  *
- * Validates required environment variables before running E2E tests.
- * E2E tests require a real (isolated) PostgreSQL database.
+ * Applique les migrations Prisma et seed de test sur la TEST_DATABASE_URL.
+ * Exécuté une seule fois avant tous les tests E2E.
  *
- * Usage:
- *   TEST_DATABASE_URL="postgresql://..." pnpm test:e2e
- *
- * For CI, spin up a Postgres service and set TEST_DATABASE_URL.
- * The test DB is reset between runs via `prisma migrate reset --force`.
+ * Usage :
+ *   pnpm test:e2e:prepare   — migration + seed uniquement
+ *   pnpm test:e2e           — prepare + jest (recommandé)
+ *   pnpm test:e2e:reset     — reset total DB de test
  */
+import { execSync } from 'child_process';
+import * as path from 'path';
+
 export default async function globalSetup() {
   const testDb = process.env.TEST_DATABASE_URL;
 
   if (!testDb) {
     console.warn(
       '\n[E2E] TEST_DATABASE_URL is not set.\n' +
-      '      E2E tests require an isolated PostgreSQL database.\n' +
-      '      Set TEST_DATABASE_URL and run: pnpm test:e2e\n',
+        '      E2E tests require an isolated PostgreSQL database.\n' +
+        '      Add TEST_DATABASE_URL to .env and run: pnpm test:e2e\n',
     );
-    // Allow E2E tests to be skipped gracefully in environments without a DB
     process.env.SKIP_E2E = '1';
     return;
   }
 
-  // Override DATABASE_URL for all E2E tests
+  // Override DATABASE_URL pour tous les tests E2E
   process.env.DATABASE_URL = testDb;
-  process.env.JWT_SECRET = process.env.TEST_JWT_SECRET ?? 'e2e-test-secret-at-least-32-characters';
+  process.env.JWT_SECRET =
+    process.env.TEST_JWT_SECRET ?? 'e2e-test-secret-at-least-32-characters!!';
   process.env.FRONTEND_URL = 'http://localhost:4000';
   process.env.NODE_ENV = 'test';
 
-  console.log('[E2E] Test environment ready.');
-  console.log(`[E2E] Database: ${testDb.replace(/:([^@]+)@/, ':***@')}`);
+  const rootDir = path.resolve(__dirname, '..');
+  const env = { ...process.env, DATABASE_URL: testDb };
+
+  console.log('\n[E2E] Preparing test database...');
+  console.log(`[E2E] DB: ${testDb.replace(/:([^@]+)@/, ':***@')}`);
+
+  try {
+    // 1. Appliquer les migrations (idempotent — ne recrée pas si déjà à jour)
+    console.log('[E2E] Running migrations...');
+    execSync('npx prisma migrate deploy', {
+      cwd: rootDir,
+      env,
+      stdio: 'inherit',
+    });
+
+    // 2. Seeder les données de test
+    console.log('[E2E] Seeding test data...');
+    execSync('npx ts-node --project tsconfig.json prisma/seed-test.ts', {
+      cwd: rootDir,
+      env,
+      stdio: 'inherit',
+    });
+
+    console.log('[E2E] Test database ready.\n');
+  } catch (err) {
+    console.error('[E2E] Failed to prepare test database:', err);
+    throw err;
+  }
 }

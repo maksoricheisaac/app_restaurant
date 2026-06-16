@@ -25,7 +25,11 @@ export class CategoriesService {
     });
   }
 
-  async update(tenantId: string | undefined, id: string, data: CreateCategoryDto) {
+  async update(
+    tenantId: string | undefined,
+    id: string,
+    data: CreateCategoryDto,
+  ) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
     return this.prisma.menuCategory.update({
       where: { id, tenantId },

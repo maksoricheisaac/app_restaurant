@@ -2,19 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ChefHat, Clock, CheckCircle2, Loader2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useOrders } from "@/hooks/api/useOrders";
+import { useKitchenOrders } from "@/hooks/api/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { useSocketEvent } from "@/hooks/useSocketEvent";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
 import { Permission } from "@/types/permissions";
 import { Order, OrderStatus } from "@/types/order";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
+import { cn, safeFormatDistanceToNow } from "@/lib/utils";
 
 const STATUS_CONFIG = {
   pending: {
@@ -56,7 +55,7 @@ function OrderCard({ order, onAction }: { order: Order; onAction: (id: string, s
           </div>
           <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">
             <Clock className="h-3 w-3" />
-            {formatDistanceToNow(new Date(order.createdAt), { addSuffix: true, locale: fr })}
+            {safeFormatDistanceToNow(order.createdAt, { addSuffix: true, locale: fr })}
           </div>
         </div>
         <div className={cn("h-3 w-3 rounded-full animate-pulse mt-1", config?.dot)} />
@@ -120,27 +119,29 @@ export default function KitchenPage() {
     };
   }, []);
 
-  const { data: pendingData } = useOrders({ status: "pending" as OrderStatus, limit: 50 });
-  const { data: preparingData } = useOrders({ status: "preparing" as OrderStatus, limit: 50 });
+  const { data: kitchenData } = useKitchenOrders();
 
-  const pendingOrders = (pendingData?.data ?? []) as Order[];
-  const preparingOrders = (preparingData?.data ?? []) as Order[];
+  const allKitchenOrders = (kitchenData as Order[] | undefined) ?? [];
+  const pendingOrders = allKitchenOrders.filter((o) => o.status === "pending");
+  const preparingOrders = allKitchenOrders.filter((o) => o.status === "preparing");
+
+  const invalidateKitchen = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["kitchen-orders"] });
+  }, [queryClient]);
 
   const handleNewOrder = useCallback(() => {
     audioRef.current?.play().catch(() => {});
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
-  }, [queryClient]);
+    invalidateKitchen();
+  }, [invalidateKitchen]);
 
   useSocketEvent("new-order", handleNewOrder);
-  useSocketEvent("order-status-updated", useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["orders"] });
-  }, [queryClient]));
+  useSocketEvent("order-status-updated", invalidateKitchen);
 
   function handleAction(id: string, status: OrderStatus) {
     updateStatus.mutate({ id, status }, {
       onSuccess: () => {
         toast.success(status === "ready" ? "Commande prête !" : "Préparation lancée");
-        queryClient.invalidateQueries({ queryKey: ["orders"] });
+        invalidateKitchen();
       },
     });
   }

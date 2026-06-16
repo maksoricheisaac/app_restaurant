@@ -33,8 +33,13 @@ export class BillingController {
     @CurrentTenant() tenant: Tenant,
     @Body('plan') plan: 'pro' | 'enterprise',
   ) {
-    const returnUrl = this.config.get('FRONTEND_URL') ?? 'http://localhost:3001';
-    return this.billingService.createCheckoutSession(tenant.id, plan ?? 'pro', returnUrl);
+    const returnUrl =
+      this.config.get('FRONTEND_URL') ?? 'http://localhost:4000';
+    return this.billingService.createCheckoutSession(
+      tenant.id,
+      plan ?? 'pro',
+      returnUrl,
+    );
   }
 
   @UseGuards(AuthGuard, TenantGuard, RolesGuard)
@@ -49,9 +54,12 @@ export class BillingController {
   @Post('webhook')
   async handleWebhook(
     @Req() req: Request & { rawBody?: Buffer },
-    @Headers('stripe-signature') sig: string,
+    @Headers('x-signature') sig: string,
   ) {
-    await this.billingService.handleWebhook((req as any).rawBody as Buffer, sig);
+    await this.billingService.handleWebhook(
+      (req as any).rawBody as Buffer,
+      sig,
+    );
     return { received: true };
   }
 }

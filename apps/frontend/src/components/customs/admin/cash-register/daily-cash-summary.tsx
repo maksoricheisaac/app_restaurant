@@ -8,6 +8,8 @@ import { Calendar, Printer } from "lucide-react";
 import { useBilan } from "@/hooks/api/useCashRegister";
 import { generateDailyCashSummaryPdf } from "@/lib/pdf/daily-cash-summary";
 import type { CashDailySummary as CashDailySummaryType } from "@/types/order";
+import { useTenant } from "@/contexts/TenantContext";
+import { useSettings } from "@/hooks/api/useSettings";
 
 interface DailyCashSummaryProps {
   selectedDate: Date;
@@ -23,12 +25,14 @@ function formatCurrency(amount: number) {
 export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummaryProps) {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CashDailySummaryType | null>(null);
+  const { tenant } = useTenant();
+  const { data: settings } = useSettings();
 
   const { data: bilanResponse, isLoading } = useBilan(selectedDate.toISOString().split("T")[0]);
 
   useEffect(() => {
     if (bilanResponse) {
-      setSummary(bilanResponse);
+      setSummary(bilanResponse as CashDailySummaryType);
     }
   }, [bilanResponse]);
 
@@ -50,7 +54,15 @@ export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummar
   const onPrint = async () => {
     if (!summary) return;
     try {
-      await generateDailyCashSummaryPdf(summary);
+      await generateDailyCashSummaryPdf(summary, {
+        restaurant: tenant ? {
+          name:         tenant.name,
+          logoUrl:      tenant.logo,
+          primaryColor: tenant.primaryColor,
+          phone:        (settings as any)?.phone ?? null,
+          address:      (settings as any)?.address ?? null,
+        } : undefined,
+      });
     } catch (e) {
       console.error("Erreur génération PDF bilan:", e);
     }

@@ -21,7 +21,11 @@ import { Request, Response } from 'express';
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
   private readonly logger = new Logger('HTTP');
-  private readonly SKIP_PATHS = new Set(['/api/v1/health', '/api/v1/health/live', '/api/v1/health/ready']);
+  private readonly SKIP_PATHS = new Set([
+    '/api/v1/health',
+    '/api/v1/health/live',
+    '/api/v1/health/ready',
+  ]);
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<Request>();

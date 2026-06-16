@@ -4,10 +4,12 @@ const mockJwtService = {
   verify: jest.fn(),
 };
 
-function makeReq(overrides: {
-  authHeader?: string;
-  cookie?: string;
-} = {}) {
+function makeReq(
+  overrides: {
+    authHeader?: string;
+    cookie?: string;
+  } = {},
+) {
   return {
     headers: {
       ...(overrides.authHeader ? { authorization: overrides.authHeader } : {}),
@@ -30,17 +32,35 @@ describe('AuthMiddleware', () => {
 
   it('extracts token from Authorization: Bearer header', async () => {
     const req = makeReq({ authHeader: 'Bearer valid.token.here' });
-    mockJwtService.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com', role: 'owner', platformRole: 'user', tenantId: 't1' });
+    mockJwtService.verify.mockReturnValue({
+      sub: 'u1',
+      email: 'a@b.com',
+      role: 'owner',
+      platformRole: 'user',
+      tenantId: 't1',
+    });
 
     await middleware.use(req, res, next);
 
     expect(mockJwtService.verify).toHaveBeenCalledWith('valid.token.here');
-    expect(req.user).toEqual({ id: 'u1', email: 'a@b.com', role: 'owner', platformRole: 'user', tenantId: 't1' });
+    expect(req.user).toEqual({
+      id: 'u1',
+      email: 'a@b.com',
+      role: 'owner',
+      platformRole: 'user',
+      tenantId: 't1',
+    });
   });
 
   it('extracts token from cookie when no Authorization header', async () => {
     const req = makeReq({ cookie: 'cookie.token.here' });
-    mockJwtService.verify.mockReturnValue({ sub: 'u2', email: 'b@c.com', role: 'manager', platformRole: 'user', tenantId: 't2' });
+    mockJwtService.verify.mockReturnValue({
+      sub: 'u2',
+      email: 'b@c.com',
+      role: 'manager',
+      platformRole: 'user',
+      tenantId: 't2',
+    });
 
     await middleware.use(req, res, next);
 
@@ -49,8 +69,17 @@ describe('AuthMiddleware', () => {
   });
 
   it('prefers Authorization header over cookie', async () => {
-    const req = makeReq({ authHeader: 'Bearer header.token', cookie: 'cookie.token' });
-    mockJwtService.verify.mockReturnValue({ sub: 'u3', email: 'c@d.com', role: 'owner', platformRole: 'user', tenantId: null });
+    const req = makeReq({
+      authHeader: 'Bearer header.token',
+      cookie: 'cookie.token',
+    });
+    mockJwtService.verify.mockReturnValue({
+      sub: 'u3',
+      email: 'c@d.com',
+      role: 'owner',
+      platformRole: 'user',
+      tenantId: null,
+    });
 
     await middleware.use(req, res, next);
 
@@ -69,7 +98,9 @@ describe('AuthMiddleware', () => {
 
   it('does not throw and does not set req.user for invalid token', async () => {
     const req = makeReq({ authHeader: 'Bearer invalid.token' });
-    mockJwtService.verify.mockImplementation(() => { throw new Error('Invalid token'); });
+    mockJwtService.verify.mockImplementation(() => {
+      throw new Error('Invalid token');
+    });
 
     await expect(middleware.use(req, res, next)).resolves.toBeUndefined();
     expect(req.user).toBeUndefined();
@@ -77,7 +108,9 @@ describe('AuthMiddleware', () => {
 
   it('does not throw for expired token', async () => {
     const req = makeReq({ cookie: 'expired.token' });
-    mockJwtService.verify.mockImplementation(() => { throw new Error('TokenExpiredError'); });
+    mockJwtService.verify.mockImplementation(() => {
+      throw new Error('TokenExpiredError');
+    });
 
     await expect(middleware.use(req, res, next)).resolves.toBeUndefined();
     expect(req.user).toBeUndefined();
@@ -87,7 +120,9 @@ describe('AuthMiddleware', () => {
 
   it('always calls next() — even with invalid token', async () => {
     const req = makeReq({ authHeader: 'Bearer bad' });
-    mockJwtService.verify.mockImplementation(() => { throw new Error(); });
+    mockJwtService.verify.mockImplementation(() => {
+      throw new Error();
+    });
 
     await middleware.use(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
@@ -101,7 +136,13 @@ describe('AuthMiddleware', () => {
 
   it('always calls next() — even with valid token', async () => {
     const req = makeReq({ cookie: 'good.token' });
-    mockJwtService.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com', role: 'owner', platformRole: 'user', tenantId: null });
+    mockJwtService.verify.mockReturnValue({
+      sub: 'u1',
+      email: 'a@b.com',
+      role: 'owner',
+      platformRole: 'user',
+      tenantId: null,
+    });
 
     await middleware.use(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);

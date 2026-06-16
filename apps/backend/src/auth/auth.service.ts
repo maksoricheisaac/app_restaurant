@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  BadRequestException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
@@ -81,33 +85,68 @@ export class AuthService {
       select: { id: true },
     });
     if (existing.length >= MAX_REFRESH_TOKENS_PER_USER) {
-      const toDelete = existing.slice(0, existing.length - MAX_REFRESH_TOKENS_PER_USER + 1);
+      const toDelete = existing.slice(
+        0,
+        existing.length - MAX_REFRESH_TOKENS_PER_USER + 1,
+      );
       await this.prisma.refreshToken.deleteMany({
         where: { id: { in: toDelete.map((t) => t.id) } },
       });
     }
 
     const rawToken = crypto.randomBytes(40).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRES_DAYS);
 
-    await this.prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
+    await this.prisma.refreshToken.create({
+      data: { userId, tokenHash, expiresAt },
+    });
     return rawToken;
   }
 
   async refreshAccessToken(rawToken: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
 
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: { user: { include: { memberships: { include: { tenant: true } } } } },
+      include: {
+        user: { include: { memberships: { include: { tenant: true } } } },
+      },
     });
 
     if (!stored || stored.expiresAt < new Date()) {
-      if (stored) await this.prisma.refreshToken.delete({ where: { id: stored.id } });
+      if (stored)
+        await this.prisma.refreshToken.delete({ where: { id: stored.id } });
       throw new UnauthorizedException('Refresh token invalide ou expiré');
     }
+
+    // ── Reuse detection ──────────────────────────────────────────────────────
+    // Si usedAt est déjà défini, ce token a DÉJÀ été consommé.
+    // Cela indique une possible attaque replay : un attaquant a obtenu un
+    // refresh token et tente de l'utiliser après qu'il ait été rotaté.
+    // Réponse défensive : révoquer TOUTES les sessions de cet utilisateur.
+    // eslint-disable-next-line eqeqeq -- loose equality couvre null ET undefined (mock vs DB)
+    if (stored.usedAt != null) {
+      await this.prisma.refreshToken.deleteMany({
+        where: { userId: stored.userId },
+      });
+      throw new UnauthorizedException(
+        'Session compromise détectée. Veuillez vous reconnecter.',
+      );
+    }
+
+    // Marquer comme utilisé avant de continuer (protection contre les race conditions)
+    await this.prisma.refreshToken.update({
+      where: { id: stored.id },
+      data: { usedAt: new Date() },
+    });
 
     // Rotate: delete old token, issue new one
     await this.prisma.refreshToken.delete({ where: { id: stored.id } });
@@ -127,20 +166,28 @@ export class AuthService {
   }
 
   async revokeRefreshToken(rawToken: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-    await this.prisma.refreshToken.deleteMany({ where: { tokenHash } }).catch(() => null);
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
+    await this.prisma.refreshToken
+      .deleteMany({ where: { tokenHash } })
+      .catch(() => null);
   }
 
   async verifyEmail(token: string) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
     const user = await this.prisma.user.findFirst({
       where: {
-        emailVerificationToken: token,
+        emailVerificationToken: tokenHash,
         emailVerificationExpiry: { gt: new Date() },
       },
     });
 
     if (!user) {
-      throw new UnauthorizedException('Lien de vérification invalide ou expiré');
+      throw new UnauthorizedException(
+        'Lien de vérification invalide ou expiré',
+      );
     }
 
     await this.prisma.user.update({
@@ -183,16 +230,30 @@ export class AuthService {
     });
     if (!user) return null;
     const { memberships, ...rest } = user;
-    return { ...rest, role: memberships?.[0]?.role ?? null };
+    return {
+      ...rest,
+      // Mirror the login response: fall back to membership tenantId when the
+      // User.tenantId column is null (e.g. multi-manager / franchise accounts
+      // whose primary tenant link lives only in TenantMembership).
+      tenantId: rest.tenantId ?? memberships?.[0]?.tenantId ?? null,
+      role: memberships?.[0]?.role ?? null,
+    };
   }
 
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always return success to prevent user enumeration
-    if (!user) return { message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' };
+    if (!user)
+      return {
+        message:
+          'Si cet email existe, un lien de réinitialisation a été envoyé.',
+      };
 
     const rawToken = crypto.randomBytes(32).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
     await this.prisma.user.update({
@@ -200,15 +261,25 @@ export class AuthService {
       data: { passwordResetToken: tokenHash, passwordResetExpiry: expiry },
     });
 
-    const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:3001';
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4000';
     const resetUrl = `${frontendUrl}/auth/reset-password?token=${rawToken}`;
-    await this.mailService.sendPasswordReset({ to: email, name: user.name, resetUrl });
+    await this.mailService.sendPasswordReset({
+      to: email,
+      name: user.name,
+      resetUrl,
+    });
 
-    return { message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' };
+    return {
+      message: 'Si cet email existe, un lien de réinitialisation a été envoyé.',
+    };
   }
 
   async resetPassword(rawToken: string, newPassword: string) {
-    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
 
     const user = await this.prisma.user.findFirst({
       where: {
@@ -218,7 +289,9 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new BadRequestException('Lien de réinitialisation invalide ou expiré.');
+      throw new BadRequestException(
+        'Lien de réinitialisation invalide ou expiré.',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -240,24 +313,36 @@ export class AuthService {
   async resendVerificationEmail(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always same response to prevent user enumeration.
-    const msg = { message: "Si cet email existe et n'est pas encore vérifié, un lien a été envoyé." };
+    const msg = {
+      message:
+        "Si cet email existe et n'est pas encore vérifié, un lien a été envoyé.",
+    };
     if (!user || user.emailVerified) return msg;
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(rawToken)
+      .digest('hex');
     const verificationExpiry = new Date();
     verificationExpiry.setHours(verificationExpiry.getHours() + 24);
 
     await this.prisma.user.update({
       where: { id: user.id },
       data: {
-        emailVerificationToken: verificationToken,
+        emailVerificationToken: tokenHash,
         emailVerificationExpiry: verificationExpiry,
       },
     });
 
-    const frontendUrl = this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4000';
-    const verifyUrl = `${frontendUrl}/auth/verify-email?token=${verificationToken}`;
-    await this.mailService.sendEmailVerification({ to: email, name: user.name, verifyUrl });
+    const frontendUrl =
+      this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4000';
+    const verifyUrl = `${frontendUrl}/auth/verify-email?token=${rawToken}`;
+    await this.mailService.sendEmailVerification({
+      to: email,
+      name: user.name,
+      verifyUrl,
+    });
 
     return msg;
   }
@@ -265,27 +350,49 @@ export class AuthService {
   async getAllUsers() {
     return this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
-      select: { id: true, email: true, name: true, platformRole: true, status: true, createdAt: true, image: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        platformRole: true,
+        status: true,
+        createdAt: true,
+        image: true,
+      },
     });
   }
 
   async updateUserPlatformRole(userId: string, platformRole: string) {
     const valid = ['user', 'support', 'super_admin'];
-    if (!valid.includes(platformRole)) throw new BadRequestException('Rôle invalide');
+    if (!valid.includes(platformRole))
+      throw new BadRequestException('Rôle invalide');
     return this.prisma.user.update({
       where: { id: userId },
       data: { platformRole: platformRole as any },
-      select: { id: true, email: true, name: true, platformRole: true, status: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        platformRole: true,
+        status: true,
+      },
     });
   }
 
   async updateUserStatus(userId: string, status: string) {
     const valid = ['active', 'inactive'];
-    if (!valid.includes(status)) throw new BadRequestException('Statut invalide');
+    if (!valid.includes(status))
+      throw new BadRequestException('Statut invalide');
     return this.prisma.user.update({
       where: { id: userId },
       data: { status: status as any },
-      select: { id: true, email: true, name: true, platformRole: true, status: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        platformRole: true,
+        status: true,
+      },
     });
   }
 }

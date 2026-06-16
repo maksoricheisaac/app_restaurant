@@ -33,12 +33,19 @@ export class MenuController {
     @Query() query: PaginationQueryDto,
     @Query('availableOnly') availableOnly: string,
   ) {
-    return this.menuService.findAll(tenant?.id, query, availableOnly === 'true');
+    return this.menuService.findAll(
+      tenant?.id,
+      query,
+      availableOnly === 'true',
+    );
   }
 
   @Public()
   @Get(':id')
-  findOne(@CurrentTenant() tenant: Tenant | undefined, @Param('id') id: string) {
+  findOne(
+    @CurrentTenant() tenant: Tenant | undefined,
+    @Param('id') id: string,
+  ) {
     return this.menuService.findOne(tenant?.id, id);
   }
 

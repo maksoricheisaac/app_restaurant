@@ -119,7 +119,7 @@ export function ReservationsTable({
                       <TableCell>{reservation.time || 'Non spécifiée'}</TableCell>
                       <TableCell>{reservation.guests || 'Non spécifié'}</TableCell>
                       <TableCell>
-                        {reservation.table ? `Table ${reservation.table.number}` : 'Non assignée'}
+                        {reservation.table ? `Table ${reservation.table.number ?? '?'}` : 'Non assignée'}
                       </TableCell>
                       <TableCell>
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusStyle(reservation.status)}`}>

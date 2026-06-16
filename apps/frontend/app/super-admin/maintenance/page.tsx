@@ -8,48 +8,18 @@ import {
   RefreshCw,
   AlertTriangle,
   CheckCircle2,
-  Clock,
   Activity,
   Cpu,
   HardDrive,
   Wifi,
   Terminal,
   Trash2,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
-import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const SERVICES = [
-  { id: 'api',      label: 'API Backend',       status: 'ok',      latency: '12ms',  icon: Zap },
-  { id: 'db',       label: 'Base de données',    status: 'ok',      latency: '4ms',   icon: Database },
-  { id: 'cdn',      label: 'CDN / Fichiers',     status: 'ok',      latency: '28ms',  icon: HardDrive },
-  { id: 'email',    label: 'Service Email',      status: 'warning', latency: '340ms', icon: Wifi },
-  { id: 'payments', label: 'Paiements (Stripe)', status: 'ok',      latency: '95ms',  icon: Activity },
-  { id: 'ws',       label: 'WebSockets',         status: 'ok',      latency: '8ms',   icon: Cpu },
-];
-
-const EVENTS = [
-  { time: '10:24', type: 'info',    msg: 'Déploiement v2.4.1 terminé avec succès' },
-  { time: '09:15', type: 'warning', msg: 'Latence email élevée détectée (SMTP)' },
-  { time: '08:00', type: 'info',    msg: 'Sauvegarde automatique DB complétée' },
-  { time: '07:42', type: 'info',    msg: 'Cache Redis purgé — 1.2 GB libérés' },
-  { time: 'Hier',  type: 'error',   msg: 'Pic de charge — auto-scaling déclenché' },
-];
-
-const STATUS_STYLE: Record<string, { dot: string; badge: string; label: string }> = {
-  ok:      { dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-100', label: 'Opérationnel' },
-  warning: { dot: 'bg-amber-500',   badge: 'bg-amber-50 text-amber-700 border-amber-100',       label: 'Dégradé' },
-  error:   { dot: 'bg-red-500',     badge: 'bg-red-50 text-red-700 border-red-100',             label: 'En panne' },
-};
-
-const EVENT_STYLE: Record<string, string> = {
-  info:    'text-blue-600 bg-blue-50',
-  warning: 'text-amber-600 bg-amber-50',
-  error:   'text-red-600 bg-red-50',
-};
 
 export default function MaintenancePage() {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
@@ -62,75 +32,65 @@ export default function MaintenancePage() {
     toast.success(`${label} effectué avec succès.`);
   };
 
-  const allOk = SERVICES.every((s) => s.status === 'ok');
-
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900">Maintenance</h2>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h2 className="text-2xl font-bold tracking-tight">Maintenance</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
             Surveillance du système et actions de maintenance.
           </p>
-        </div>
-        <div className={cn(
-          'flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-semibold',
-          allOk
-            ? 'bg-emerald-50 text-emerald-700'
-            : 'bg-amber-50 text-amber-700'
-        )}>
-          {allOk
-            ? <><CheckCircle2 className="h-4 w-4" /> Tous les systèmes opérationnels</>
-            : <><AlertTriangle className="h-4 w-4" /> Incidents en cours</>
-          }
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Services status — 2/3 */}
+        {/* État des services — placeholder en attendant l'API health */}
         <div className="lg:col-span-2 space-y-3">
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">État des services</p>
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            {SERVICES.map((svc, i) => {
-              const Icon = svc.icon;
-              const cfg = STATUS_STYLE[svc.status];
-              return (
-                <div
-                  key={svc.id}
-                  className={cn(
-                    'flex items-center justify-between px-5 py-3.5',
-                    i < SERVICES.length - 1 && 'border-b border-slate-50'
-                  )}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-1.5 rounded-lg bg-slate-50">
-                      <Icon className="h-4 w-4 text-slate-500" />
-                    </div>
-                    <span className="text-sm font-medium text-slate-800">{svc.label}</span>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            État des services
+          </p>
+          <div className="rounded-xl border border-border bg-card">
+            <div className="flex flex-col items-center justify-center py-14 gap-3 text-center px-6">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Activity className="h-6 w-6 text-muted-foreground/40" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-foreground">
+                  Monitoring bientôt disponible
+                </p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Les statuts et latences en temps réel seront disponibles via
+                  l'endpoint <span className="font-mono">/health</span> de l'API.
+                </p>
+              </div>
+              <div className="flex flex-wrap justify-center gap-4 pt-1 text-[11px] text-muted-foreground">
+                {[
+                  { icon: Zap,      label: 'API Backend' },
+                  { icon: Database, label: 'Base de données' },
+                  { icon: HardDrive,label: 'CDN / Fichiers' },
+                  { icon: Wifi,     label: 'Service Email' },
+                  { icon: Activity, label: 'Paiements' },
+                  { icon: Cpu,      label: 'WebSockets' },
+                ].map(({ icon: Icon, label }) => (
+                  <div key={label} className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground/60" />
+                    <span>{label}</span>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400 font-mono">{svc.latency}</span>
-                    <span className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold border',
-                      cfg.badge
-                    )}>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', cfg.dot)} />
-                      {cfg.label}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Quick actions */}
-          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider pt-2">Actions rapides</p>
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-2">
+            Actions rapides
+          </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
-              { id: 'cache',  label: 'Vider le cache',     icon: Trash2,     color: 'text-red-500' },
-              { id: 'db',     label: 'Sauvegarder la DB',  icon: Database,   color: 'text-blue-500' },
-              { id: 'reload', label: 'Redémarrer les workers', icon: RefreshCw, color: 'text-violet-500' },
+              { id: 'cache',  label: 'Vider le cache',        icon: Trash2,   color: 'text-red-500' },
+              { id: 'db',     label: 'Sauvegarder la DB',     icon: Database, color: 'text-blue-500' },
+              { id: 'reload', label: 'Redémarrer les workers', icon: RefreshCw,color: 'text-violet-500' },
             ].map((a) => {
               const Icon = a.icon;
               return (
@@ -138,15 +98,15 @@ export default function MaintenancePage() {
                   key={a.id}
                   onClick={() => handleAction(a.id, a.label)}
                   disabled={loading !== null}
-                  className="bg-white border border-slate-100 rounded-xl p-4 text-left hover:border-slate-300 hover:shadow-sm transition-all group disabled:opacity-60"
+                  className="bg-card border border-border rounded-xl p-4 text-left hover:border-border/60 hover:shadow-sm transition-all group disabled:opacity-60"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     {loading === a.id
-                      ? <RefreshCw className="h-4 w-4 animate-spin text-slate-400" />
+                      ? <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
                       : <Icon className={cn('h-4 w-4', a.color)} />
                     }
                   </div>
-                  <p className="text-sm font-semibold text-slate-700 group-hover:text-slate-900">{a.label}</p>
+                  <p className="text-sm font-semibold text-foreground">{a.label}</p>
                 </button>
               );
             })}
@@ -156,18 +116,21 @@ export default function MaintenancePage() {
         {/* Right column */}
         <div className="space-y-4">
           {/* Maintenance mode toggle */}
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5">
+          <div className="rounded-xl border border-border bg-card shadow-xs p-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className={cn(
                   'p-2 rounded-lg',
-                  maintenanceMode ? 'bg-amber-50' : 'bg-slate-50'
+                  maintenanceMode ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-muted'
                 )}>
-                  <ShieldCheck className={cn('h-5 w-5', maintenanceMode ? 'text-amber-600' : 'text-slate-500')} />
+                  <ShieldCheck className={cn(
+                    'h-5 w-5',
+                    maintenanceMode ? 'text-amber-600' : 'text-muted-foreground'
+                  )} />
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900 text-sm">Mode maintenance</p>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <p className="font-semibold text-foreground text-sm">Mode maintenance</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {maintenanceMode
                       ? 'La plateforme est inaccessible aux clients.'
                       : 'La plateforme est en ligne.'}
@@ -185,28 +148,24 @@ export default function MaintenancePage() {
               />
             </div>
             {maintenanceMode && (
-              <div className="mt-3 rounded-lg bg-amber-50 border border-amber-100 px-3 py-2 text-xs text-amber-700 font-medium">
+              <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
                 ⚠️ Les restaurants ne peuvent plus recevoir de commandes.
               </div>
             )}
           </div>
 
-          {/* Journal */}
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-50">
-              <Terminal className="h-4 w-4 text-slate-400" />
-              <p className="text-sm font-semibold text-slate-700">Journal système</p>
+          {/* Journal — placeholder */}
+          <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
+              <Terminal className="h-4 w-4 text-muted-foreground" />
+              <p className="text-sm font-semibold text-foreground">Journal système</p>
             </div>
-            <div className="divide-y divide-slate-50">
-              {EVENTS.map((e, i) => (
-                <div key={i} className="px-4 py-2.5 flex items-start gap-3">
-                  <span className="text-[10px] text-slate-400 font-mono mt-0.5 w-8 flex-shrink-0">{e.time}</span>
-                  <span className={cn('rounded px-1.5 py-0.5 text-[10px] font-bold uppercase flex-shrink-0', EVENT_STYLE[e.type])}>
-                    {e.type}
-                  </span>
-                  <p className="text-xs text-slate-600 leading-relaxed">{e.msg}</p>
-                </div>
-              ))}
+            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center px-4">
+              <Clock className="h-6 w-6 text-muted-foreground/30" />
+              <p className="text-xs text-muted-foreground">
+                Le journal d'événements sera disponible via
+                l'endpoint <span className="font-mono">/admin/logs</span>.
+              </p>
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { mmToPt, wrapText, downloadPdfBytes } from './utils';
+import { mmToPt, wrapText, fetchLogoForPdf, downloadPdfBytes, type RestaurantInfo } from './utils';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
@@ -34,8 +34,17 @@ function methodLabel(method: string) {
   }
 }
 
-export async function generateReceiptPdf(payment: PaymentLike, opts?: { fileName?: string; openInsteadOfDownload?: boolean }) {
+export async function generateReceiptPdf(
+  payment: PaymentLike,
+  opts?: { fileName?: string; openInsteadOfDownload?: boolean; restaurant?: RestaurantInfo },
+) {
   if (!payment?.order?.orderItems?.length) throw new Error('Aucun article dans la commande.');
+
+  const restaurant   = opts?.restaurant;
+  const restName     = restaurant?.name ?? 'Votre Restaurant';
+  const restPhone    = restaurant?.phone;
+  const restEmail    = restaurant?.email;
+  const restAddress  = restaurant?.address;
 
   const widthMm = 80;
   const marginMm = 8;
@@ -54,9 +63,13 @@ export async function generateReceiptPdf(payment: PaymentLike, opts?: { fileName
 
   const amount = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n)).replace(/\u00A0/g, ' ');
 
+  const logoSizeMm = 16;
+  const contactLines = [restPhone, restEmail, restAddress].filter(Boolean).length;
+
   // Pre-calc height
   let h = marginPt;
-  h += lh(sizeTitle) * 2 + mmToPt(2); // header
+  if (restaurant?.logoUrl) h += mmToPt(logoSizeMm) + mmToPt(2); // logo
+  h += lh(sizeTitle) * 2 + mmToPt(2) + contactLines * lh(sizeSmall); // header
   h += lh(sizeSmall) * 3 + mmToPt(4); // order info
   h += mmToPt(2); // rule
   h += lh(sizeBody); // items title
@@ -88,10 +101,20 @@ export async function generateReceiptPdf(payment: PaymentLike, opts?: { fileName
   };
   const rule = () => page.drawLine({ start: { x: marginPt, y }, end: { x: widthPt - marginPt, y }, thickness: 0.5, color: rgb(0.8,0.8,0.8) });
 
-  // Header
-  center('RESTAURANT MBOKA TECH', sizeTitle, true);
-  center('Votre restaurant de confiance', sizeSmall, false);
-  const created = new Date(payment.createdAt);
+  // ── Header ──────────────────────────────────────────────────────────────
+  if (restaurant?.logoUrl) {
+    const logo = await fetchLogoForPdf(pdfDoc, restaurant.logoUrl);
+    if (logo) {
+      const logoSizePt = mmToPt(logoSizeMm);
+      const logoW = logoSizePt * (logo.width / logo.height);
+      const logoX = (widthPt - logoW) / 2;
+      page.drawImage(logo.image, { x: logoX, y: y - logoSizePt, width: logoW, height: logoSizePt });
+      move(logoSizePt + mmToPt(2));
+    }
+  }
+  center(restName, sizeTitle, true);
+  const _rawCreated = new Date(payment.createdAt);
+  const created = isNaN(_rawCreated.getTime()) ? new Date() : _rawCreated;
   center(format(created, "dd/MM/yyyy 'à' HH:mm", { locale: fr }), sizeSmall, false);
   move(mmToPt(2));
 
@@ -145,9 +168,11 @@ export async function generateReceiptPdf(payment: PaymentLike, opts?: { fileName
 
   // Footer
   move(mmToPt(4));
-  center('Merci pour votre visite !', sizeSmall);
+  center('Merci pour votre visite !', sizeSmall, true);
   center('Nous espérons vous revoir bientôt', sizeSmall);
-  center('Tél: +237 XXX XXX XXX | Email: contact@mbokatech.com', sizeSmall);
+  if (restPhone)   center(`Tél: ${restPhone}`, sizeSmall);
+  if (restEmail)   center(`Email: ${restEmail}`, sizeSmall);
+  if (restAddress) center(restAddress, sizeSmall);
 
   const bytes = await pdfDoc.save();
   const fileName = opts?.fileName ?? `recu_${payment.order.id.slice(-6).toUpperCase()}_${format(new Date(), 'yyyyMMdd_HHmmss')}.pdf`;

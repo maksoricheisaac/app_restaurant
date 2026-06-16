@@ -15,7 +15,10 @@ export class HealthController {
   @Get('live')
   @HttpCode(200)
   live() {
-    return { status: 'ok', uptime: Math.floor((Date.now() - this.startTime) / 1000) };
+    return {
+      status: 'ok',
+      uptime: Math.floor((Date.now() - this.startTime) / 1000),
+    };
   }
 
   /** Kubernetes readiness probe — is the service ready to accept traffic? */

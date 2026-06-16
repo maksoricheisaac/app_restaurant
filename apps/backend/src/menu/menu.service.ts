@@ -1,6 +1,7 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanLimitService } from '../plans/plans.service';
+import { BlobService } from '../blob/blob.service';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
@@ -12,6 +13,7 @@ export class MenuService {
   constructor(
     private prisma: PrismaService,
     private planLimitService: PlanLimitService,
+    private blobService: BlobService,
   ) {}
 
   async findAll(
@@ -20,31 +22,42 @@ export class MenuService {
     availableOnly = false,
   ) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
-    const { page = 1, limit = 10, search } = query;
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      sort = 'name',
+      order = 'asc',
+      categoryId,
+    } = query;
     const take = Math.min(limit, 100);
     const skip = (page - 1) * take;
 
-    const where = {
+    const where: any = {
       tenantId,
       ...NOT_DELETED,
-      ...(availableOnly ? { available: true } : {}),
+      ...(availableOnly || query.availableOnly === 'true' ? { available: true } : {}),
+      ...(categoryId ? { categoryId } : {}),
       ...(search
         ? {
             OR: [
               { name: { contains: search, mode: 'insensitive' as const } },
-              {
-                description: { contains: search, mode: 'insensitive' as const },
-              },
+              { description: { contains: search, mode: 'insensitive' as const } },
             ],
           }
         : {}),
     };
 
+    const orderBy: any =
+      sort === 'category'
+        ? { category: { name: order as 'asc' | 'desc' } }
+        : { [sort]: order as 'asc' | 'desc' };
+
     const [data, total] = await Promise.all([
       this.prisma.menuItem.findMany({
         where,
         include: { category: true },
-        orderBy: { name: 'asc' },
+        orderBy,
         skip,
         take,
       }),
@@ -77,7 +90,11 @@ export class MenuService {
     });
   }
 
-  async update(tenantId: string | undefined, id: string, data: UpdateMenuItemDto) {
+  async update(
+    tenantId: string | undefined,
+    id: string,
+    data: UpdateMenuItemDto,
+  ) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
     return this.prisma.menuItem.update({
       where: { id, tenantId },
@@ -87,10 +104,23 @@ export class MenuService {
 
   async remove(tenantId: string | undefined, id: string) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
-    return this.prisma.menuItem.update({
+
+    const item = await this.prisma.menuItem.findFirst({
+      where: { id, tenantId, ...NOT_DELETED },
+      select: { imagePathname: true },
+    });
+
+    const result = await this.prisma.menuItem.update({
       where: { id, tenantId },
       data: { deletedAt: new Date() },
     });
+
+    // Best-effort blob cleanup — does not block the soft-delete
+    if (item?.imagePathname) {
+      await this.blobService.deleteImage(item.imagePathname);
+    }
+
+    return result;
   }
 
   async findPublicMenu(tenantId: string) {

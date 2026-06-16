@@ -7,7 +7,20 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
 import { PlanLimitService } from '../plans/plans.service';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString, IsUUID, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { MenuSessionService } from './menu-session.service';
+import { stripHtml } from '../common/utils/sanitize';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PublicOrderItemDto {
@@ -16,8 +29,14 @@ export class PublicOrderItemDto {
 }
 
 export class PublicCreateOrderDto {
-  @IsEnum(['dine_in', 'takeaway', 'delivery']) type: 'dine_in' | 'takeaway' | 'delivery';
-  @IsArray() @ValidateNested({ each: true }) @Type(() => PublicOrderItemDto) items: PublicOrderItemDto[];
+  @IsEnum(['dine_in', 'takeaway', 'delivery']) type:
+    | 'dine_in'
+    | 'takeaway'
+    | 'delivery';
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PublicOrderItemDto)
+  items: PublicOrderItemDto[];
   @IsOptional() @IsUUID() tableId?: string;
   @IsOptional() @IsString() @MaxLength(500) specialNotes?: string;
   @IsOptional() @IsString() @MaxLength(100) customerName?: string;
@@ -36,24 +55,36 @@ export class PublicOrderService {
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService,
     private readonly planLimitService: PlanLimitService,
+    private readonly menuSession: MenuSessionService,
   ) {}
 
-  async createOrder(slug: string, dto: PublicCreateOrderDto): Promise<PublicOrderResult> {
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { slug },
+  async createOrder(
+    slug: string,
+    dto: PublicCreateOrderDto,
+    sessionToken?: string,
+  ): Promise<PublicOrderResult> {
+    // Validate the menu session token — rejects requests from pure scrapers/bots
+    if (!this.menuSession.verify(slug, sessionToken)) {
+      throw new ForbiddenException(
+        'Session de menu invalide ou expirée. Veuillez recharger la page.',
+      );
+    }
+
+    const tenant = await this.prisma.tenant.findFirst({
+      where: { slug, deletedAt: null },
       select: { id: true, name: true },
     });
 
     if (!tenant) throw new NotFoundException('Restaurant introuvable');
 
-    // Enforce monthly order quota before accepting any public order.
     await this.planLimitService.assertMonthlyOrderLimit(tenant.id);
 
     if (!dto.items || dto.items.length === 0) {
-      throw new BadRequestException('La commande doit contenir au moins un article');
+      throw new BadRequestException(
+        'La commande doit contenir au moins un article',
+      );
     }
 
-    // Re-fetch prices from DB — never trust any client-supplied price values.
     const menuItemIds = dto.items.map((i) => i.menuItemId);
     const menuItems = await this.prisma.menuItem.findMany({
       where: { id: { in: menuItemIds }, tenantId: tenant.id, available: true },
@@ -61,7 +92,9 @@ export class PublicOrderService {
     });
 
     if (menuItems.length !== menuItemIds.length) {
-      throw new BadRequestException('Un ou plusieurs articles sont indisponibles');
+      throw new BadRequestException(
+        'Un ou plusieurs articles sont indisponibles',
+      );
     }
 
     const menuItemMap = new Map(menuItems.map((m) => [m.id, m]));
@@ -78,13 +111,17 @@ export class PublicOrderService {
       };
     });
 
+    // Sanitize free-text fields to prevent stored-XSS in the admin dashboard
+    const sanitizedNotes = stripHtml(dto.specialNotes);
+    const sanitizedName  = stripHtml(dto.customerName);
+
     const order = await this.prisma.order.create({
       data: {
         tenantId: tenant.id,
         type: dto.type,
         status: 'pending',
         total,
-        specialNotes: dto.specialNotes,
+        specialNotes: sanitizedNotes,
         tableId: dto.tableId ?? null,
         orderItems: { create: orderItemsData },
       },

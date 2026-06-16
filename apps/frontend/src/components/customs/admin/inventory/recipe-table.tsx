@@ -136,16 +136,16 @@ export function RecipeTable({ onAdd, onEdit, onDelete }: RecipeTableProps) {
                 </TableHeader>
                 <TableBody>
                   {filteredRecipes.map((recipe) => {
-                    const totalCost = recipe.quantity * recipe.ingredient.price;
+                    const totalCost = recipe.quantity * Number(recipe.ingredient?.price ?? 0);
                     return (
                       <TableRow key={recipe.id}>
                         <TableCell className="font-medium">
-                          {recipe.ingredient.name}
+                          {recipe.ingredient?.name ?? '—'}
                         </TableCell>
                         <TableCell>{recipe.quantity}</TableCell>
-                        <TableCell>{recipe.ingredient.unit}</TableCell>
+                        <TableCell>{recipe.ingredient?.unit ?? '—'}</TableCell>
                         <TableCell>
-                          {recipe.ingredient.price.toLocaleString('fr-FR')} FCFA
+                          {Number(recipe.ingredient?.price ?? 0).toLocaleString('fr-FR')} FCFA
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">

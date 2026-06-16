@@ -4,11 +4,13 @@ import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils";
 import { fr } from "date-fns/locale";
 import { Download, Printer } from "lucide-react";
 import { generateReceiptPdf } from "@/lib/pdf/receipt";
 import type { PaymentLike } from "@/lib/pdf/receipt";
+import { useTenant } from "@/contexts/TenantContext";
+import { useSettings } from "@/hooks/api/useSettings";
 
 interface ReceiptGeneratorProps {
   payment: PaymentLike;
@@ -17,10 +19,21 @@ interface ReceiptGeneratorProps {
 
 export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
+  const { tenant } = useTenant();
+  const { data: settings } = useSettings();
+
+  const restaurantInfo = tenant ? {
+    name:         tenant.name,
+    logoUrl:      tenant.logo,
+    primaryColor: tenant.primaryColor,
+    phone:        (settings as any)?.phone ?? null,
+    email:        (settings as any)?.email ?? null,
+    address:      (settings as any)?.address ?? null,
+  } : undefined;
 
   const generatePDF = async () => {
     try {
-      await generateReceiptPdf(payment);
+      await generateReceiptPdf(payment, { restaurant: restaurantInfo });
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
     }
@@ -28,7 +41,7 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
 
   const printReceipt = async () => {
     try {
-      await generateReceiptPdf(payment, { openInsteadOfDownload: true });
+      await generateReceiptPdf(payment, { openInsteadOfDownload: true, restaurant: restaurantInfo });
     } catch (error) {
       console.error("Erreur lors de l'ouverture du PDF pour impression:", error);
     }
@@ -66,14 +79,20 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
         <CardContent className="p-6">
           {/* En-tête */}
           <div className="text-center border-b-2 border-gray-300 pb-4 mb-4">
+            {tenant?.logo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={tenant.logo} alt={tenant?.name} className="h-12 w-12 object-contain rounded-lg mx-auto mb-2" />
+            )}
             <h1 className="text-xl font-bold text-gray-900 mb-1">
-              RESTAURANT MBOKA TECH
+              {tenant?.name ?? 'Votre Restaurant'}
             </h1>
-            <p className="text-sm text-gray-600 mb-2">
-              Votre restaurant de confiance
-            </p>
+            {((settings as any)?.phone || (settings as any)?.email) && (
+              <p className="text-xs text-gray-500 mb-1">
+                {[(settings as any)?.phone, (settings as any)?.email].filter(Boolean).join(' • ')}
+              </p>
+            )}
             <p className="text-xs text-gray-500">
-              {format(new Date(payment.createdAt), "dd/MM/yyyy 'à' HH:mm", { locale: fr })}
+              {safeFormat(payment.createdAt, "dd/MM/yyyy 'à' HH:mm", { locale: fr })}
             </p>
           </div>
 
@@ -103,7 +122,7 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
             {payment.order.orderItems.map((item) => (
               <div key={item.id} className="flex justify-between text-sm mb-1">
                 <span>{item.quantity}× {item.menuItem?.name || ""}</span>
-                <span>{formatCurrency(item.price * item.quantity)}</span>
+                <span>{formatCurrency(Number(item.price) * item.quantity)}</span>
               </div>
             ))}
           </div>
@@ -112,7 +131,7 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
           <div className="border-t-2 border-gray-300 pt-4 mb-4">
             <div className="flex justify-between font-bold text-lg">
               <span>TOTAL</span>
-              <span>{formatCurrency(payment.amount)}</span>
+              <span>{formatCurrency(Number(payment.amount))}</span>
             </div>
           </div>
 
@@ -130,17 +149,17 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
             )}
             <div className="flex justify-between mb-1">
               <span>Caissier:</span>
-              <span>{payment.cashier.name}</span>
+              <span>{payment.cashier?.name ?? '—'}</span>
             </div>
           </div>
 
           {/* Pied de page */}
-          <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-4">
-            <p>Merci pour votre visite !</p>
+          <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-4 space-y-0.5">
+            <p className="font-semibold">Merci pour votre visite !</p>
             <p>Nous espérons vous revoir bientôt</p>
-            <p className="mt-2">
-              Tél: +237 XXX XXX XXX | Email: contact@mbokatech.com
-            </p>
+            {(settings as any)?.phone && <p>Tél : {(settings as any).phone}</p>}
+            {(settings as any)?.email && <p>Email : {(settings as any).email}</p>}
+            {(settings as any)?.address && <p>{(settings as any).address}</p>}
           </div>
         </CardContent>
       </Card>

@@ -1,10 +1,15 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 import { OrderType } from './dto/create-order.dto';
 
 const mockEventsService = { emitToTenant: jest.fn(), emitToRoom: jest.fn() };
-const mockPlanLimitService = { assertMonthlyOrderLimit: jest.fn().mockResolvedValue(undefined) };
+const mockPlanLimitService = {
+  assertMonthlyOrderLimit: jest.fn().mockResolvedValue(undefined),
+};
+const mockCustomersService = {
+  upsertFromInteraction: jest.fn().mockResolvedValue(null),
+};
 
 describe('OrdersService — price injection prevention', () => {
   let service: OrdersService;
@@ -12,7 +17,12 @@ describe('OrdersService — price injection prevention', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new OrdersService(prisma as any, mockEventsService as any, mockPlanLimitService as any);
+    service = new OrdersService(
+      prisma as any,
+      mockEventsService as any,
+      mockPlanLimitService as any,
+      mockCustomersService as any,
+    );
     jest.clearAllMocks();
     mockPlanLimitService.assertMonthlyOrderLimit.mockResolvedValue(undefined);
   });
@@ -35,7 +45,12 @@ describe('OrdersService — price injection prevention', () => {
       prisma.menuItem.findMany.mockResolvedValue([
         { id: 'menu-1', name: 'Yassa poulet', price: 2500, image: null },
       ]);
-      prisma.order.create.mockResolvedValue({ id: 'order-1', total: 5000, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 5000,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', baseOrderData as any);
 
@@ -50,7 +65,12 @@ describe('OrdersService — price injection prevention', () => {
       prisma.menuItem.findMany.mockResolvedValue([
         { id: 'menu-1', name: 'Yassa poulet', price: 2500, image: null },
       ]);
-      prisma.order.create.mockResolvedValue({ id: 'order-1', total: 5000, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 5000,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', baseOrderData as any);
 
@@ -63,15 +83,21 @@ describe('OrdersService — price injection prevention', () => {
       // DB returns empty — the item doesn't exist in this tenant
       prisma.menuItem.findMany.mockResolvedValue([]);
 
-      await expect(service.create('tenant-1', baseOrderData as any))
-        .rejects.toThrow(BadRequestException);
+      await expect(
+        service.create('tenant-1', baseOrderData as any),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('queries menuItems with tenantId isolation', async () => {
       prisma.menuItem.findMany.mockResolvedValue([
         { id: 'menu-1', name: 'Yassa poulet', price: 2500, image: null },
       ]);
-      prisma.order.create.mockResolvedValue({ id: 'order-1', total: 5000, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 5000,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', baseOrderData as any);
 
@@ -92,7 +118,12 @@ describe('OrdersService — price injection prevention', () => {
         ],
       };
 
-      prisma.order.create.mockResolvedValue({ id: 'order-1', total: 1500, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 1500,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', customItemOrder as any);
 
@@ -114,7 +145,12 @@ describe('OrdersService — price injection prevention', () => {
       prisma.menuItem.findMany.mockResolvedValue([
         { id: 'menu-1', name: 'DB item', price: 3000, image: null },
       ]);
-      prisma.order.create.mockResolvedValue({ id: 'o1', total: 4600, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'o1',
+        total: 4600,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', mixedOrder as any);
 
@@ -122,7 +158,7 @@ describe('OrdersService — price injection prevention', () => {
       const items = createCall.data.orderItems.create;
 
       expect(items[0].price).toBe(3000); // DB price
-      expect(items[1].price).toBe(800);  // staff price (no menuItemId)
+      expect(items[1].price).toBe(800); // staff price (no menuItemId)
       expect(createCall.data.total).toBe(3000 + 1600); // 3000×1 + 800×2
     });
   });
@@ -132,14 +168,23 @@ describe('OrdersService — price injection prevention', () => {
       prisma.menuItem.findMany.mockResolvedValue([
         { id: 'menu-1', name: 'Item', price: 1000, image: null },
       ]);
-      prisma.order.create.mockResolvedValue({ id: 'o1', total: 1000, orderItems: [], table: null });
+      prisma.order.create.mockResolvedValue({
+        id: 'o1',
+        total: 1000,
+        orderItems: [],
+        table: null,
+      });
 
       await service.create('tenant-1', {
         type: OrderType.DINE_IN,
-        items: [{ menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 }],
+        items: [
+          { menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 },
+        ],
       } as any);
 
-      expect(mockPlanLimitService.assertMonthlyOrderLimit).toHaveBeenCalledWith('tenant-1');
+      expect(mockPlanLimitService.assertMonthlyOrderLimit).toHaveBeenCalledWith(
+        'tenant-1',
+      );
     });
 
     it('does not create order if monthly limit exceeded', async () => {
@@ -147,12 +192,120 @@ describe('OrdersService — price injection prevention', () => {
         new Error('Quota dépassé'),
       );
 
-      await expect(service.create('tenant-1', {
-        type: OrderType.DINE_IN,
-        items: [{ menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 }],
-      } as any)).rejects.toThrow('Quota dépassé');
+      await expect(
+        service.create('tenant-1', {
+          type: OrderType.DINE_IN,
+          items: [
+            { menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 },
+          ],
+        } as any),
+      ).rejects.toThrow('Quota dépassé');
 
       expect(prisma.order.create).not.toHaveBeenCalled();
     });
+  });
+});
+
+// ─── updateStatus — state machine ────────────────────────────────────────────
+
+describe('OrdersService — updateStatus state machine', () => {
+  let service: OrdersService;
+  let prisma: MockPrisma;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new OrdersService(
+      prisma as any,
+      mockEventsService as any,
+      mockPlanLimitService as any,
+      mockCustomersService as any,
+    );
+    jest.clearAllMocks();
+  });
+
+  const setCurrentStatus = (status: string) => {
+    prisma.order.findFirst.mockResolvedValue({ status });
+    prisma.order.update.mockResolvedValue({ id: 'o1', status });
+  };
+
+  it('allows pending → preparing', async () => {
+    setCurrentStatus('pending');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'preparing' } as any),
+    ).resolves.toBeDefined();
+  });
+
+  it('allows pending → cancelled', async () => {
+    setCurrentStatus('pending');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'cancelled' } as any),
+    ).resolves.toBeDefined();
+  });
+
+  it('allows preparing → ready', async () => {
+    setCurrentStatus('preparing');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'ready' } as any),
+    ).resolves.toBeDefined();
+  });
+
+  it('blocks pending → served (invalid transition)', async () => {
+    setCurrentStatus('pending');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'served' } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('blocks served → preparing (terminal state)', async () => {
+    setCurrentStatus('served');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'preparing' } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('blocks cancelled → pending (terminal state)', async () => {
+    setCurrentStatus('cancelled');
+    await expect(
+      service.updateStatus('tenant-1', 'o1', { status: 'pending' } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('throws NotFoundException when order not found', async () => {
+    prisma.order.findFirst.mockResolvedValue(null);
+    await expect(
+      service.updateStatus('tenant-1', 'nonexistent', {
+        status: 'preparing',
+      } as any),
+    ).rejects.toThrow(NotFoundException);
+  });
+});
+
+// ─── remove — soft-delete ─────────────────────────────────────────────────────
+
+describe('OrdersService — remove (soft-delete)', () => {
+  let service: OrdersService;
+  let prisma: MockPrisma;
+
+  beforeEach(() => {
+    prisma = createMockPrisma();
+    service = new OrdersService(
+      prisma as any,
+      mockEventsService as any,
+      mockPlanLimitService as any,
+      mockCustomersService as any,
+    );
+    jest.clearAllMocks();
+  });
+
+  it('soft-deletes order (sets deletedAt, does NOT call prisma.order.delete)', async () => {
+    prisma.order.update.mockResolvedValue({ id: 'o1', deletedAt: new Date() });
+
+    await service.remove('tenant-1', 'o1');
+
+    expect(prisma.order.delete).not.toHaveBeenCalled();
+    const call = prisma.order.update.mock.calls[0][0];
+    expect(call.data.deletedAt).toBeInstanceOf(Date);
+    expect(call.where.tenantId).toBe('tenant-1');
+    expect(call.where.id).toBe('o1');
   });
 });

@@ -1,26 +1,37 @@
 "use client";
 
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { Phone, Mail, MapPin, Globe, UtensilsCrossed, AlignLeft } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { useSettings, useUpdateSettings } from "@/hooks/api/useSettings";
 import { GeneralSettingsSchema } from "@/schemas/admin-schemas";
-import { useEffect } from "react";
+import { RestaurantInfoCard } from "./restaurant-info-card";
+
+type FormValues = z.infer<typeof GeneralSettingsSchema>;
 
 export function GeneralSettingsForm() {
-  const form = useForm<z.infer<typeof GeneralSettingsSchema>>({
+  const form = useForm<FormValues>({
     resolver: zodResolver(GeneralSettingsSchema),
     defaultValues: {
-      name: "",
+      name:            "",
+      description:     "",
+      phone:           "",
+      email:           "",
+      address:         "",
+      website:         "",
       deliveryEnabled: false,
       takeawayEnabled: false,
-      dineInEnabled: false,
+      dineInEnabled:   false,
     },
   });
 
@@ -29,94 +40,229 @@ export function GeneralSettingsForm() {
 
   useEffect(() => {
     if (settingsData) {
-      form.reset(settingsData);
+      form.reset({
+        name:            (settingsData as any).name            ?? "",
+        description:     (settingsData as any).description     ?? "",
+        phone:           (settingsData as any).phone           ?? "",
+        email:           (settingsData as any).email           ?? "",
+        address:         (settingsData as any).address         ?? "",
+        website:         (settingsData as any).website         ?? "",
+        deliveryEnabled: (settingsData as any).deliveryEnabled ?? false,
+        takeawayEnabled: (settingsData as any).takeawayEnabled ?? false,
+        dineInEnabled:   (settingsData as any).dineInEnabled   ?? false,
+      });
     }
   }, [settingsData, form]);
 
-  const onSubmit = async (data: z.infer<typeof GeneralSettingsSchema>) => {
+  async function onSubmit(data: FormValues) {
     try {
       await updateMutation.mutateAsync(data);
       toast.success("Paramètres mis à jour");
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la mise à jour");
     }
-  };
+  }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Paramètres Généraux</CardTitle>
-        <CardDescription>Gérez les informations de base de votre restaurant.</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nom du restaurant</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Le nom de votre restaurant" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <div className="space-y-6">
 
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">Services disponibles</h3>
-              <FormField
-                control={form.control}
-                name="dineInEnabled"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Service sur place</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="takeawayEnabled"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Vente à emporter</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="deliveryEnabled"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">Livraison</FormLabel>
-                    </div>
-                    <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-            </div>
+      {/* Lien menu public */}
+      <RestaurantInfoCard />
 
-            <Button type="submit" disabled={form.formState.isSubmitting}>
-              {form.formState.isSubmitting ? "Sauvegarde..." : "Sauvegarder les modifications"}
-            </Button>
-          </form>
-        </Form>
-      </CardContent>
-    </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Informations du restaurant</CardTitle>
+          <CardDescription>
+            Ces informations s'affichent dans le footer de votre menu client.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+              {/* ── Identité ─────────────────────────────────────────── */}
+              <div className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <UtensilsCrossed className="h-4 w-4 text-orange-500" />
+                        Nom du restaurant
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="Ex : Le Gourmet Africain" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <AlignLeft className="h-4 w-4 text-orange-500" />
+                        Description
+                      </FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Décrivez votre restaurant en quelques phrases (style de cuisine, ambiance, spécialités…)"
+                          className="resize-none"
+                          rows={3}
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormDescription className="text-xs">
+                        Affiché dans le hero et le footer du menu client.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Separator />
+
+              {/* ── Contacts ─────────────────────────────────────────── */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-slate-700">Coordonnées de contact</h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <Phone className="h-3.5 w-3.5 text-orange-500" />
+                          Téléphone
+                        </FormLabel>
+                        <FormControl>
+                          <Input placeholder="+242 06 000 00 00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex items-center gap-2">
+                          <Mail className="h-3.5 w-3.5 text-orange-500" />
+                          Email de contact
+                        </FormLabel>
+                        <FormControl>
+                          <Input type="email" placeholder="contact@monresto.com" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <MapPin className="h-3.5 w-3.5 text-orange-500" />
+                        Adresse
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="Quartier, Avenue, Ville, Pays" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="website"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="flex items-center gap-2">
+                        <Globe className="h-3.5 w-3.5 text-orange-500" />
+                        Site web
+                      </FormLabel>
+                      <FormControl>
+                        <Input placeholder="https://www.monresto.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Separator />
+
+              {/* ── Services ─────────────────────────────────────────── */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold text-slate-700">Services disponibles</h3>
+
+                <FormField
+                  control={form.control}
+                  name="dineInEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-xl border bg-slate-50/50 px-4 py-3">
+                      <div>
+                        <FormLabel className="text-sm font-medium cursor-pointer">Sur place</FormLabel>
+                        <p className="text-xs text-muted-foreground mt-0.5">Commandes en salle / dine-in</p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="takeawayEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-xl border bg-slate-50/50 px-4 py-3">
+                      <div>
+                        <FormLabel className="text-sm font-medium cursor-pointer">À emporter</FormLabel>
+                        <p className="text-xs text-muted-foreground mt-0.5">Commandes à emporter</p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="deliveryEnabled"
+                  render={({ field }) => (
+                    <FormItem className="flex items-center justify-between rounded-xl border bg-slate-50/50 px-4 py-3">
+                      <div>
+                        <FormLabel className="text-sm font-medium cursor-pointer">Livraison</FormLabel>
+                        <p className="text-xs text-muted-foreground mt-0.5">Livraison à domicile</p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <Button type="submit" className="w-full sm:w-auto" disabled={isLoading || form.formState.isSubmitting}>
+                {form.formState.isSubmitting ? "Sauvegarde en cours…" : "Sauvegarder les modifications"}
+              </Button>
+
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

@@ -6,11 +6,31 @@
  */
 
 const PRISMA_MODELS = [
-  'user', 'tenant', 'tenantMembership', 'menuItem', 'menuCategory',
-  'table', 'order', 'orderItemsOnOrders', 'refreshToken', 'featureFlag',
-  'customer', 'reservation', 'ingredient', 'recipe', 'stockMovement',
-  'payment', 'transaction', 'deliveryZone', 'openingHours', 'exceptionalClosure',
-  'restaurantSettings', 'message', 'report', 'rolePermission', 'userPermission',
+  'user',
+  'tenant',
+  'tenantMembership',
+  'menuItem',
+  'menuCategory',
+  'table',
+  'order',
+  'orderItemsOnOrders',
+  'refreshToken',
+  'featureFlag',
+  'customer',
+  'reservation',
+  'ingredient',
+  'recipe',
+  'stockMovement',
+  'payment',
+  'transaction',
+  'deliveryZone',
+  'openingHours',
+  'exceptionalClosure',
+  'restaurantSettings',
+  'message',
+  'report',
+  'rolePermission',
+  'userPermission',
   'domain',
 ] as const;
 
@@ -50,13 +70,17 @@ function mockModel(): PrismaModelMock {
     delete: jest.fn(),
     deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
     count: jest.fn().mockResolvedValue(0),
-    aggregate: jest.fn().mockResolvedValue({ _sum: { total: null }, _count: { _all: 0 } }),
+    aggregate: jest
+      .fn()
+      .mockResolvedValue({ _sum: { total: null }, _count: { _all: 0 } }),
     groupBy: jest.fn().mockResolvedValue([]),
   };
 }
 
 export function createMockPrisma(): MockPrisma {
-  const models = Object.fromEntries(PRISMA_MODELS.map((name) => [name, mockModel()]));
+  const models = Object.fromEntries(
+    PRISMA_MODELS.map((name) => [name, mockModel()]),
+  );
   return {
     ...models,
     $queryRaw: jest.fn().mockResolvedValue([{ 1: 1 }]),

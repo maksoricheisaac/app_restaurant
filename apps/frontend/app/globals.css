@@ -295,6 +295,26 @@
   .text-balance {
     text-wrap: balance;
   }
+
+  /* ── iOS safe area ─────────────────────────────────────────────────── */
+  /* Use on sticky bottom bars / floating buttons to clear the home indicator */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .pb-safe-4 {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  .pb-safe-6 {
+    padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
+  }
+  /* scrollbar-none already provided by browsers but explicit for Tailwind v4 */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* ─── Keyframes ───────────────────────────────────────────────────── */

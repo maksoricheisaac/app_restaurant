@@ -1,7 +1,8 @@
 import api from '@/lib/api-client';
+import type { MessageStatus } from '@/types/message';
 
 export const messagesService = {
-  getMessages: async (params?: { period?: string; date?: string }) => {
+  getMessages: async (params?: { period?: string; date?: string; status?: string }) => {
     return api.get('/messages', { params });
   },
 
@@ -9,7 +10,7 @@ export const messagesService = {
     return api.get(`/messages/${id}`);
   },
 
-  updateMessage: async (id: string, messageData: any) => {
+  updateMessage: async (id: string, messageData: { status?: MessageStatus; read?: boolean; subject?: string }) => {
     return api.patch(`/messages/${id}`, messageData);
   },
 

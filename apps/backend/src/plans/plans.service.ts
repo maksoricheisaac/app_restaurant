@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  ForbiddenException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { getLimitsForPlan, PlanFeatures, UNLIMITED } from './plans.config';
 
@@ -71,14 +67,15 @@ export class PlanLimitService {
     const limits = getLimitsForPlan(plan);
     if (limits.maxStaffMembers >= UNLIMITED) return;
 
-    // Count active memberships (excluding owners who don't count toward staff quota)
+    // Owners are excluded from the staff quota — they always exist and are not
+    // "invited" staff members. Only manager/waiter/head_chef/chef/cashier count.
     const count = await this.prisma.tenantMembership.count({
-      where: { tenantId },
+      where: { tenantId, role: { not: 'owner' } },
     });
 
     if (count >= limits.maxStaffMembers) {
       throw new ForbiddenException(
-        `Votre plan ${plan.toUpperCase()} est limité à ${limits.maxStaffMembers} membres d'équipe. Passez à un plan supérieur pour en inviter davantage.`,
+        `Votre plan ${plan.toUpperCase()} est limité à ${limits.maxStaffMembers} membres d'équipe (hors propriétaire). Passez à un plan supérieur pour en inviter davantage.`,
       );
     }
   }
@@ -91,6 +88,7 @@ export class PlanLimitService {
     const count = await this.prisma.order.count({
       where: {
         tenantId,
+        deletedAt: null,
         createdAt: { gte: this.startOfCurrentMonth() },
       },
     });
@@ -102,7 +100,10 @@ export class PlanLimitService {
     }
   }
 
-  async assertFeatureAccess(tenantId: string, feature: keyof PlanFeatures): Promise<void> {
+  async assertFeatureAccess(
+    tenantId: string,
+    feature: keyof PlanFeatures,
+  ): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
     const limits = getLimitsForPlan(plan);
 
@@ -122,9 +123,15 @@ export class PlanLimitService {
     const [menuItems, tables, staff, monthlyOrders] = await Promise.all([
       this.prisma.menuItem.count({ where: { tenantId, deletedAt: null } }),
       this.prisma.table.count({ where: { tenantId, deletedAt: null } }),
-      this.prisma.tenantMembership.count({ where: { tenantId } }),
+      this.prisma.tenantMembership.count({
+        where: { tenantId, role: { not: 'owner' } },
+      }),
       this.prisma.order.count({
-        where: { tenantId, createdAt: { gte: this.startOfCurrentMonth() } },
+        where: {
+          tenantId,
+          deletedAt: null,
+          createdAt: { gte: this.startOfCurrentMonth() },
+        },
       }),
     ]);
 
@@ -136,7 +143,10 @@ export class PlanLimitService {
         menuItems: { current: menuItems, max: fmt(limits.maxMenuItems) },
         tables: { current: tables, max: fmt(limits.maxTables) },
         staff: { current: staff, max: fmt(limits.maxStaffMembers) },
-        monthlyOrders: { current: monthlyOrders, max: fmt(limits.maxMonthlyOrders) },
+        monthlyOrders: {
+          current: monthlyOrders,
+          max: fmt(limits.maxMonthlyOrders),
+        },
       },
       features: limits.features,
     };

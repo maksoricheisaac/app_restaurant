@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Pagination } from "@/components/ui/pagination";
-import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { safeFormat } from "@/lib/utils";
 import { 
   Filter, 
   Download,
@@ -251,10 +251,10 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
                     <TableRow key={transaction.id}>
                       <TableCell>
                         <div className="text-sm">
-                          {format(new Date(transaction.createdAt), "dd/MM/yyyy", { locale: fr })}
+                          {safeFormat(transaction.createdAt, "dd/MM/yyyy", { locale: fr })}
                         </div>
                         <div className="text-xs text-gray-500">
-                          {format(new Date(transaction.createdAt), "HH:mm", { locale: fr })}
+                          {safeFormat(transaction.createdAt, "HH:mm", { locale: fr })}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -282,7 +282,7 @@ export function TransactionsTable({ formatCurrency }: TransactionsTableProps) {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <User className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm">{transaction.cashier.name}</span>
+                          <span className="text-sm">{transaction.cashier?.name ?? '—'}</span>
                         </div>
                       </TableCell>
                       <TableCell>

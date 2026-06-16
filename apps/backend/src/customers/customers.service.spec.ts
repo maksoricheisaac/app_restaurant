@@ -3,7 +3,13 @@ import { CustomersService } from './customers.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
 const T = 'tenant-1';
-const CUSTOMER = { id: 'cust-1', name: 'Alice', email: 'alice@test.com', tenantId: T, deletedAt: null };
+const CUSTOMER = {
+  id: 'cust-1',
+  name: 'Alice',
+  email: 'alice@test.com',
+  tenantId: T,
+  deletedAt: null,
+};
 
 describe('CustomersService', () => {
   let service: CustomersService;
@@ -19,7 +25,9 @@ describe('CustomersService', () => {
 
   describe('findAll', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findAll(undefined, {})).rejects.toThrow(ForbiddenException);
+      await expect(service.findAll(undefined, {})).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('returns paginated result with tenant isolation', async () => {

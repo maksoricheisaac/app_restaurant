@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { safeLocaleDateString } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Search, Filter, TrendingUp, TrendingDown, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -234,7 +235,7 @@ export function StockMovementTable({
                   {movements.map((movement) => (
                     <TableRow key={movement.id}>
                       <TableCell>
-                        {new Date(movement.createdAt).toLocaleDateString('fr-FR', {
+                        {safeLocaleDateString(movement.createdAt, 'fr-FR', {
                           day: '2-digit',
                           month: '2-digit',
                           year: 'numeric',
@@ -249,12 +250,12 @@ export function StockMovementTable({
                         </div>
                       </TableCell>
                       <TableCell className="font-medium">
-                        {movement.ingredient.name}
+                        {movement.ingredient?.name ?? '—'}
                       </TableCell>
                       <TableCell>
                         <span className={movement.type === "OUT" ? "text-red-600" : movement.type === "IN" ? "text-green-600" : ""}>
                           {movement.type === "OUT" ? "-" : movement.type === "IN" ? "+" : ""}
-                          {movement.quantity} {movement.ingredient.unit}
+                          {movement.quantity} {movement.ingredient?.unit ?? ''}
                         </span>
                       </TableCell>
                       <TableCell>

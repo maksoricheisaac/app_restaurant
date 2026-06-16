@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { downloadPdfBytes } from './utils';
+import { downloadPdfBytes, fetchLogoForPdf, type RestaurantInfo } from './utils';
 
 export interface ReportData {
   revenue: number;
@@ -15,9 +15,10 @@ export interface ReportData {
 }
 
 export async function generateSalesReportPdf(
-  data: ReportData, 
-  chartData: Array<{ date: string; revenue: number; orders: number }>, 
-  formatPrice: (n: number) => string
+  data: ReportData,
+  chartData: Array<{ date: string; revenue: number; orders: number }>,
+  formatPrice: (n: number) => string,
+  restaurant?: RestaurantInfo,
 ) {
   const pdf = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
@@ -27,8 +28,20 @@ export async function generateSalesReportPdf(
   let { width, height } = page.getSize();
   let y = height - 40;
 
-  // Couleurs
-  const primaryColor = rgb(0.95, 0.45, 0.13); // Orange #F27221
+  const restName = restaurant?.name ?? 'Votre Restaurant';
+
+  // Couleur primaire du restaurant (hex → rgb) avec fallback orange
+  function hexToRgb(hex: string | null | undefined) {
+    if (!hex) return rgb(0.95, 0.45, 0.13);
+    const h = hex.replace('#', '');
+    const r = parseInt(h.slice(0, 2), 16) / 255;
+    const g = parseInt(h.slice(2, 4), 16) / 255;
+    const b = parseInt(h.slice(4, 6), 16) / 255;
+    if (isNaN(r) || isNaN(g) || isNaN(b)) return rgb(0.95, 0.45, 0.13);
+    return rgb(r, g, b);
+  }
+
+  const primaryColor = hexToRgb(restaurant?.primaryColor);
   const darkColor = rgb(0.2, 0.2, 0.2);
   const lightGray = rgb(0.95, 0.95, 0.95);
   const mediumGray = rgb(0.7, 0.7, 0.7);
@@ -60,16 +73,29 @@ export async function generateSalesReportPdf(
   };
 
   // ===== EN-TÊTE STYLISÉ =====
-  // Bandeau orange
   rect(0, height - 80, width, 80, primaryColor);
-  
-  // Titre principal
-  text('RAPPORT DE VENTES', 50, height - 45, 24, true, rgb(1, 1, 1));
-  text('Analyse des performances', 50, height - 65, 12, false, rgb(1, 1, 1));
-  
+
+  // Logo dans le bandeau (si disponible)
+  if (restaurant?.logoUrl) {
+    const logo = await fetchLogoForPdf(pdf, restaurant.logoUrl);
+    if (logo) {
+      const logoH = 44;
+      const logoW = logoH * (logo.width / logo.height);
+      pdf.getPage(0).drawImage(logo.image, { x: 50, y: height - 62, width: logoW, height: logoH });
+      text('RAPPORT DE VENTES', 50 + logoW + 12, height - 45, 22, true, rgb(1, 1, 1));
+      text(restName, 50 + logoW + 12, height - 65, 11, false, rgb(1, 0.9, 0.8));
+    } else {
+      text('RAPPORT DE VENTES', 50, height - 45, 24, true, rgb(1, 1, 1));
+      text(restName, 50, height - 65, 12, false, rgb(1, 0.9, 0.8));
+    }
+  } else {
+    text('RAPPORT DE VENTES', 50, height - 45, 24, true, rgb(1, 1, 1));
+    text(restName, 50, height - 65, 12, false, rgb(1, 0.9, 0.8));
+  }
+
   // Date de génération
   const now = new Date();
-  text(`Généré le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR')}`, 
+  text(`Généré le ${now.toLocaleDateString('fr-FR')} à ${now.toLocaleTimeString('fr-FR')}`,
     width - 220, height - 55, 9, false, rgb(1, 1, 1));
 
   y = height - 100;

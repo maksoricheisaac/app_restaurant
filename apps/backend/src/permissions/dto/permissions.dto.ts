@@ -5,7 +5,10 @@ import {
   IsEmail,
   IsArray,
   IsEnum,
+  IsIn,
 } from 'class-validator';
+import { UserStatus } from '@prisma/client';
+import { ASSIGNABLE_TENANT_ROLES } from '../../common/constants/tenant-roles.constant';
 
 export class CreateStaffDto {
   @IsString()
@@ -19,8 +22,9 @@ export class CreateStaffDto {
   @IsNotEmpty()
   password: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsIn(ASSIGNABLE_TENANT_ROLES, {
+    message: `role must be one of: ${ASSIGNABLE_TENANT_ROLES.join(', ')}`,
+  })
   role: string;
 
   @IsOptional()
@@ -42,12 +46,14 @@ export class UpdateStaffDto {
   phone?: string;
 
   @IsOptional()
-  @IsString()
+  @IsIn(ASSIGNABLE_TENANT_ROLES, {
+    message: `role must be one of: ${ASSIGNABLE_TENANT_ROLES.join(', ')}`,
+  })
   role?: string;
 
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsEnum(UserStatus)
+  status?: UserStatus;
 }
 
 export class UpdateRolePermissionsDto {

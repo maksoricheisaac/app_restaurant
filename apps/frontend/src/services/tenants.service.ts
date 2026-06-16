@@ -5,8 +5,10 @@ export const tenantsService = {
     return api.get('/tenants');
   },
 
-  getTenantById: async (id: string) => {
-    return api.get(`/tenants/${id}`);
+  // Uses /tenants/me (TenantGuard) instead of /tenants/:id (super_admin only).
+  // Requires x-tenant-id header, which api-client sets from localStorage automatically.
+  getTenantById: async (_id: string) => {
+    return api.get('/tenants/me');
   },
 
   resolveTenantBySlug: async (slug: string) => {

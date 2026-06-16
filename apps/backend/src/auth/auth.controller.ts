@@ -1,10 +1,26 @@
-import { Controller, Post, Get, Patch, Body, Query, Param, UseGuards, Request, Res, UnauthorizedException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  Query,
+  Param,
+  UseGuards,
+  Request,
+  Res,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AuthService } from './auth.service';
-import { ForgotPasswordDto, ResetPasswordDto, ResendVerificationDto } from './dto/forgot-password.dto';
+import {
+  ForgotPasswordDto,
+  ResetPasswordDto,
+  ResendVerificationDto,
+} from './dto/forgot-password.dto';
 import { UpdateUserRoleDto, UpdateUserStatusDto } from './dto/update-user.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
@@ -15,7 +31,10 @@ import { COOKIE_OPTS_BASE } from '../common/constants/cookie.constants';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
-  @Throttle({ short: { limit: 5, ttl: 60_000 }, long: { limit: 20, ttl: 60_000 * 60 } })
+  @Throttle({
+    short: { limit: 5, ttl: 60_000 },
+    long: { limit: 20, ttl: 60_000 * 60 },
+  })
   @UseGuards(LocalAuthGuard)
   @Post('login')
   async login(
@@ -40,7 +59,10 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ short: { limit: 10, ttl: 60_000 }, long: { limit: 50, ttl: 60_000 * 60 } })
+  @Throttle({
+    short: { limit: 10, ttl: 60_000 },
+    long: { limit: 50, ttl: 60_000 * 60 },
+  })
   @Post('refresh')
   async refresh(
     @Request() req,
@@ -93,20 +115,30 @@ export class AuthController {
   }
 
   @Public()
-  @Throttle({ short: { limit: 3, ttl: 60_000 }, long: { limit: 10, ttl: 60_000 * 60 } })
+  @Throttle({
+    short: { limit: 3, ttl: 60_000 },
+    long: { limit: 10, ttl: 60_000 * 60 },
+  })
   @Post('resend-verification')
   resendVerification(@Body() dto: ResendVerificationDto) {
     return this.authService.resendVerificationEmail(dto.email);
   }
 
   @Public()
-  @Throttle({ short: { limit: 3, ttl: 60_000 }, long: { limit: 10, ttl: 60_000 * 60 } })
+  @Throttle({
+    short: { limit: 3, ttl: 60_000 },
+    long: { limit: 10, ttl: 60_000 * 60 },
+  })
   @Post('forgot-password')
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
   @Public()
+  @Throttle({
+    short: { limit: 5, ttl: 60_000 },
+    long: { limit: 10, ttl: 60_000 * 60 },
+  })
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);

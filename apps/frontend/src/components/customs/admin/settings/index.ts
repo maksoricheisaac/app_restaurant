@@ -4,3 +4,5 @@ export { AdminZoneWarning } from './admin-zone-warning';
 export { SettingsTabs } from './settings-tabs';
 export { PersonnelManagement } from './personnel-management';
 export { PermissionsManagement } from './permissions-management';
+export { RestaurantInfoCard } from './restaurant-info-card';
+export { BrandingForm } from './branding-form';

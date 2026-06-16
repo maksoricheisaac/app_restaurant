@@ -18,14 +18,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.pexels.com",
       },
+      // Vercel Blob storage — wildcard covers all store IDs (present and future)
       {
         protocol: "https",
-        hostname: "3iyaq4eawanziz7j.public.blob.vercel-storage.com",
+        hostname: "*.public.blob.vercel-storage.com",
       },
-      {
-        protocol: "https",
-        hostname: "krtpu6f8pdiezfyz.public.blob.vercel-storage.com"
-      }
     ],
   },
   experimental: {

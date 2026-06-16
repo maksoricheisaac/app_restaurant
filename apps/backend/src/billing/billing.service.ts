@@ -1,196 +1,197 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Stripe from 'stripe';
 import { PrismaService } from '../prisma/prisma.service';
+import { PaymentProviderFactory } from '../payments/payment-provider.factory';
+import { NormalizedPaymentEvent } from '../payments/interfaces/payment-provider.interface';
+import { IdempotencyService } from '../common/redis/idempotency.service';
 
 const GRACE_PERIOD_DAYS = 3;
 
-// In-memory idempotency store — prevents duplicate processing of Stripe retries.
-// Stores (eventId → timestamp) pairs; evicted after 25 hours.
-// For multi-instance deployments, replace with Redis (SETNX + TTL).
-const PROCESSED_EVENT_TTL_MS = 25 * 60 * 60 * 1000; // 25h
+// Webhook idempotency window — providers retry failed deliveries for up to 25h.
+// Backed by Redis (multi-instance) with an in-memory fallback (single instance).
+const PROCESSED_EVENT_TTL_SECONDS = 25 * 60 * 60; // 25h
 
 @Injectable()
 export class BillingService {
-  private stripe: InstanceType<typeof Stripe> | null = null;
   private readonly logger = new Logger(BillingService.name);
-  private readonly processedEvents = new Map<string, number>();
 
   constructor(
-    private config: ConfigService,
-    private prisma: PrismaService,
-  ) {
-    const key = this.config.get<string>('STRIPE_SECRET_KEY');
-    if (key && !key.includes('REMPLACER') && !key.includes('REPLACE')) {
-      this.stripe = new Stripe(key, { apiVersion: '2026-04-22.dahlia' });
-    } else {
-      this.logger.warn('Stripe not configured — billing features disabled');
-    }
-  }
+    private readonly prisma: PrismaService,
+    private readonly paymentProviders: PaymentProviderFactory,
+    private readonly idempotency: IdempotencyService,
+  ) {}
 
   // ─── Checkout ─────────────────────────────────────────────────────────────
 
-  async createCheckoutSession(tenantId: string, plan: 'pro' | 'enterprise', returnUrl: string) {
-    if (!this.stripe) throw new BadRequestException('Stripe non configuré');
-
-    const priceId = plan === 'enterprise'
-      ? this.config.get('STRIPE_ENTERPRISE_PRICE_ID')
-      : this.config.get('STRIPE_PRO_PRICE_ID');
-
-    if (!priceId) throw new BadRequestException(`Price ID for plan "${plan}" not configured`);
+  async createCheckoutSession(
+    tenantId: string,
+    plan: 'pro' | 'enterprise',
+    returnUrl: string,
+  ) {
+    const provider = this.paymentProviders.getProvider();
+    if (!provider.isConfigured()) {
+      throw new BadRequestException(
+        `Le fournisseur de paiement "${provider.name}" n'est pas configuré`,
+      );
+    }
 
     const tenant = await this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, name: true, slug: true, stripeCustomerId: true },
+      select: { id: true, name: true },
     });
+    if (!tenant) throw new BadRequestException('Tenant not found');
 
-    const session = await this.stripe.checkout.sessions.create({
-      mode: 'subscription',
-      customer: tenant?.stripeCustomerId ?? undefined,
-      line_items: [{ price: priceId, quantity: 1 }],
-      metadata: { tenantId, plan },
-      success_url: `${returnUrl}/admin/billing?success=1`,
-      cancel_url: `${returnUrl}/admin/billing?canceled=1`,
-      client_reference_id: tenantId,
+    return provider.createCheckoutSession({
+      tenantId,
+      tenantName: tenant.name,
+      plan,
+      returnUrl,
     });
-
-    return { url: session.url };
   }
 
   // ─── Webhook handler ──────────────────────────────────────────────────────
 
   async handleWebhook(payload: Buffer, signature: string) {
-    if (!this.stripe) return;
+    const provider = this.paymentProviders.getProvider();
 
-    const secret = this.config.get<string>('STRIPE_WEBHOOK_SECRET') ?? '';
-    // Use the same type pattern as the original code — nodenext module resolution
-    // resolves `Stripe` as `StripeConstructor`, not the namespace with sub-types.
-    let event: ReturnType<InstanceType<typeof Stripe>['webhooks']['constructEvent']>;
-
-    try {
-      event = this.stripe.webhooks.constructEvent(payload, signature, secret);
-    } catch (err) {
-      this.logger.error('Webhook signature validation failed', err);
+    if (!provider.verifyWebhookSignature(payload, signature)) {
+      this.logger.error('Webhook signature validation failed');
       throw new BadRequestException('Invalid webhook signature');
     }
 
-    this.logger.log(`Stripe event received: ${event.type} (id=${event.id})`);
+    const event = provider.parseWebhookEvent(payload);
 
-    // Idempotency check — Stripe may retry events; skip already-processed events.
-    if (this.processedEvents.has(event.id)) {
-      this.logger.warn(`Stripe event ${event.id} already processed — skipping duplicate`);
+    this.logger.log(
+      `${provider.name} event: ${event.providerEventName} (id=${event.eventId})`,
+    );
+
+    // Idempotency check — providers retry failed webhooks; skip already-processed IDs.
+    const isNewEvent = await this.idempotency.checkAndMark(
+      `billing:webhook:${provider.name}:${event.eventId}`,
+      PROCESSED_EVENT_TTL_SECONDS,
+    );
+    if (!isNewEvent) {
+      this.logger.warn(
+        `Event ${event.eventId} already processed — skipping duplicate`,
+      );
       return;
     }
-    this.processedEvents.set(event.id, Date.now());
-    // Evict stale entries to prevent unbounded memory growth
-    this.evictStaleProcessedEvents();
 
     switch (event.type) {
-      case 'checkout.session.completed':
-        await this.handleCheckoutCompleted(event.data.object as any);
+      case 'subscription_created':
+        await this.handleSubscriptionCreated(event);
         break;
-
-      case 'customer.subscription.updated':
-        await this.handleSubscriptionUpdated(event.data.object as any);
+      case 'subscription_updated':
+        await this.handleSubscriptionUpdated(event);
         break;
-
-      case 'customer.subscription.deleted':
-        await this.handleSubscriptionDeleted(event.data.object as any);
+      case 'subscription_cancelled':
+        await this.handleSubscriptionCancelled(event);
         break;
-
-      case 'invoice.payment_succeeded':
-        await this.handlePaymentSucceeded(event.data.object as any);
+      case 'payment_succeeded':
+        await this.handlePaymentSucceeded(event);
         break;
-
-      case 'invoice.payment_failed':
-        await this.handlePaymentFailed(event.data.object as any);
+      case 'payment_failed':
+        await this.handlePaymentFailed(event);
         break;
-
       default:
-        this.logger.debug(`Unhandled Stripe event: ${event.type}`);
+        this.logger.debug(
+          `Unhandled ${provider.name} event: ${event.providerEventName}`,
+        );
     }
   }
 
   // ─── Event handlers ───────────────────────────────────────────────────────
 
-  private async handleCheckoutCompleted(session: any) {
-    const tenantId = session.metadata?.tenantId ?? session.client_reference_id;
-    const plan = session.metadata?.plan ?? 'pro';
-    const customerId = session.customer as string | null;
-    const subscriptionId = session.subscription as string | null;
+  private async handleSubscriptionCreated(event: NormalizedPaymentEvent) {
+    const { tenantId, plan = 'pro' } = event;
 
-    if (!tenantId) return;
+    if (!tenantId) {
+      this.logger.warn(
+        '[Billing] subscription_created: no tenant_id in custom_data',
+      );
+      return;
+    }
 
     await this.prisma.tenant.update({
       where: { id: tenantId },
       data: {
         plan: plan as any,
         status: 'active',
-        stripeCustomerId: customerId ?? undefined,
-        stripeSubscriptionId: subscriptionId ?? undefined,
-        subscriptionStatus: 'active',
+        lemonSqueezyCustomerId: event.customerId ?? null,
+        lemonSqueezySubscriptionId: event.subscriptionId ?? null,
+        subscriptionStatus: event.status ?? 'active',
+        subscriptionCurrentPeriodEnd: event.currentPeriodEnd ?? null,
         gracePeriodEndsAt: null,
       },
     });
 
-    this.logger.log(`[Billing] Checkout completed: tenant=${tenantId} plan=${plan}`);
+    this.logger.log(
+      `[Billing] Subscription created: tenant=${tenantId} plan=${plan} sub=${event.subscriptionId}`,
+    );
   }
 
-  private async handleSubscriptionUpdated(sub: any) {
+  private async handleSubscriptionUpdated(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { stripeSubscriptionId: sub.id },
+      where: { lemonSqueezySubscriptionId: event.subscriptionId },
       select: { id: true },
     });
-    if (!tenant) return;
+    // Fallback to custom_data in case of race on first subscription event
+    const tenantId = tenant?.id ?? event.tenantId;
+    if (!tenantId) return;
 
-    const plan = (sub.metadata?.plan ?? 'pro') as any;
-    const periodEnd = new Date((sub.current_period_end ?? 0) * 1000);
+    const plan: any = (event.plan ?? 'pro') as any;
+    const status = event.status ?? 'active';
 
     await this.prisma.tenant.update({
-      where: { id: tenant.id },
+      where: { id: tenantId },
       data: {
         plan,
-        subscriptionStatus: sub.status,
-        subscriptionCurrentPeriodEnd: periodEnd,
-        // Clear grace period if subscription is now active
-        ...(sub.status === 'active' ? { gracePeriodEndsAt: null, status: 'active' } : {}),
+        subscriptionStatus: status,
+        subscriptionCurrentPeriodEnd: event.currentPeriodEnd ?? null,
+        ...(status === 'active'
+          ? { gracePeriodEndsAt: null, status: 'active' }
+          : {}),
       },
     });
 
-    this.logger.log(`[Billing] Subscription updated: tenant=${tenant.id} status=${sub.status} plan=${plan}`);
+    this.logger.log(
+      `[Billing] Subscription updated: tenant=${tenantId} status=${status}`,
+    );
   }
 
-  private async handleSubscriptionDeleted(sub: any) {
+  private async handleSubscriptionCancelled(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { stripeSubscriptionId: sub.id },
+      where: { lemonSqueezySubscriptionId: event.subscriptionId },
       select: { id: true },
     });
-    if (!tenant) return;
+    const tenantId = tenant?.id ?? event.tenantId;
+    if (!tenantId) return;
 
     await this.prisma.tenant.update({
-      where: { id: tenant.id },
+      where: { id: tenantId },
       data: {
         plan: 'free',
         status: 'active',
         subscriptionStatus: 'canceled',
-        stripeSubscriptionId: null,
+        lemonSqueezySubscriptionId: null,
         gracePeriodEndsAt: null,
       },
     });
 
-    this.logger.log(`[Billing] Subscription cancelled: tenant=${tenant.id} → downgraded to free`);
+    this.logger.log(
+      `[Billing] Subscription cancelled/expired: tenant=${tenantId} → downgraded to free`,
+    );
   }
 
-  private async handlePaymentSucceeded(invoice: any) {
-    if (!invoice.subscription) return;
+  private async handlePaymentSucceeded(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { stripeSubscriptionId: invoice.subscription as string },
+      where: { lemonSqueezySubscriptionId: event.subscriptionId },
       select: { id: true },
     });
-    if (!tenant) return;
+    const tenantId = tenant?.id ?? event.tenantId;
+    if (!tenantId) return;
 
     await this.prisma.tenant.update({
-      where: { id: tenant.id },
+      where: { id: tenantId },
       data: {
         status: 'active',
         subscriptionStatus: 'active',
@@ -198,52 +199,47 @@ export class BillingService {
       },
     });
 
-    this.logger.log(`[Billing] Payment succeeded: tenant=${tenant.id} — reactivated`);
+    this.logger.log(
+      `[Billing] Payment succeeded: tenant=${tenantId} — reactivated`,
+    );
   }
 
-  private async handlePaymentFailed(invoice: any) {
-    if (!invoice.subscription) return;
+  private async handlePaymentFailed(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { stripeSubscriptionId: invoice.subscription as string },
-      select: { id: true, gracePeriodEndsAt: true },
+      where: { lemonSqueezySubscriptionId: event.subscriptionId },
+      select: { id: true, subscriptionStatus: true },
     });
-    if (!tenant) return;
+    const tenantId = tenant?.id ?? event.tenantId;
+    if (!tenantId) return;
 
     const gracePeriodEndsAt = new Date();
     gracePeriodEndsAt.setDate(gracePeriodEndsAt.getDate() + GRACE_PERIOD_DAYS);
 
-    const attemptCount = (invoice as any).attempt_count ?? 1;
-
-    if (attemptCount >= 3) {
-      // After 3 failed attempts: suspend the account
+    if (tenant?.subscriptionStatus === 'past_due') {
+      // Already past_due from a previous failure: suspend the account
       await this.prisma.tenant.update({
-        where: { id: tenant.id },
+        where: { id: tenantId },
         data: {
           status: 'suspended',
           subscriptionStatus: 'past_due',
           gracePeriodEndsAt,
         },
       });
-      this.logger.warn(`[Billing] Payment failed ×${attemptCount}: tenant=${tenant.id} → SUSPENDED (grace until ${gracePeriodEndsAt.toISOString()})`);
+      this.logger.warn(
+        `[Billing] Repeated payment failure: tenant=${tenantId} → SUSPENDED (grace until ${gracePeriodEndsAt.toISOString()})`,
+      );
     } else {
-      // First/second failure: set grace period but keep active
+      // First failure: set grace period, keep active
       await this.prisma.tenant.update({
-        where: { id: tenant.id },
+        where: { id: tenantId },
         data: {
           subscriptionStatus: 'past_due',
           gracePeriodEndsAt,
         },
       });
-      this.logger.warn(`[Billing] Payment failed ×${attemptCount}: tenant=${tenant.id} → grace period set`);
-    }
-  }
-
-  // ─── Internal helpers ─────────────────────────────────────────────────────
-
-  private evictStaleProcessedEvents(): void {
-    const cutoff = Date.now() - PROCESSED_EVENT_TTL_MS;
-    for (const [id, ts] of this.processedEvents) {
-      if (ts < cutoff) this.processedEvents.delete(id);
+      this.logger.warn(
+        `[Billing] Payment failed: tenant=${tenantId} → grace period set`,
+      );
     }
   }
 
@@ -262,7 +258,9 @@ export class BillingService {
     });
 
     const now = new Date();
-    const inGracePeriod = tenant?.gracePeriodEndsAt ? tenant.gracePeriodEndsAt > now : false;
+    const inGracePeriod = tenant?.gracePeriodEndsAt
+      ? tenant.gracePeriodEndsAt > now
+      : false;
 
     return {
       plan: tenant?.plan ?? 'free',

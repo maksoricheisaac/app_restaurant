@@ -1,4 +1,40 @@
-import { PDFDocument, PDFFont, StandardFonts } from 'pdf-lib';
+import { PDFDocument, PDFFont, PDFImage, StandardFonts } from 'pdf-lib';
+
+// ─── Shared restaurant branding passed to every PDF generator ─────────────────
+export interface RestaurantInfo {
+  name:         string;
+  logoUrl?:     string | null;
+  phone?:       string | null;
+  email?:       string | null;
+  address?:     string | null;
+  primaryColor?: string | null; // hex e.g. "#f97316"
+}
+
+/**
+ * Fetches a public image URL and embeds it in the PDF document.
+ * Supports PNG and JPEG. Returns null silently on any failure so PDF still
+ * renders without the logo rather than crashing.
+ */
+export async function fetchLogoForPdf(
+  pdfDoc: PDFDocument,
+  url: string,
+): Promise<{ image: PDFImage; width: number; height: number } | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    const ct = res.headers.get('content-type') ?? '';
+    const isPng = ct.includes('png') || url.toLowerCase().includes('.png');
+    const image = isPng
+      ? await pdfDoc.embedPng(bytes)
+      : await pdfDoc.embedJpg(bytes);
+    const { width, height } = image.size();
+    return { image, width, height };
+  } catch {
+    return null;
+  }
+}
 
 // Unit conversion
 export const mmToPt = (mm: number) => mm * 2.8346456693; // 1 mm = 2.8346456693 pt

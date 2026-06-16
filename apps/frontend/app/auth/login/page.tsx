@@ -35,20 +35,18 @@ function LoginForm() {
     try {
       const loggedUser = await login(values.email, values.password);
 
-      if (!loggedUser) {
-        toast.error('Identifiants invalides');
-        return;
-      }
-
       toast.success('Connexion réussie !');
 
       if (loggedUser.platformRole === 'super_admin') {
         router.push('/super-admin/dashboard');
+      } else if (!loggedUser.onboardingCompleted && !loggedUser.tenantId) {
+        router.push('/auth/register');
       } else {
-        router.push(isOnboarding ? '/admin/onboarding' : '/admin/dashboard');
+        router.push('/admin/dashboard');
       }
-    } catch {
-      toast.error('Une erreur est survenue lors de la connexion');
+    } catch (err: any) {
+      // Afficher le vrai message renvoyé par le backend (email non vérifié, compte suspendu, etc.)
+      toast.error(err?.message || 'Identifiants invalides');
     } finally {
       setIsLoading(false);
     }

@@ -79,10 +79,10 @@ export function LowStockAlerts() {
               <div className="flex items-center gap-3">
                 <AlertTriangle className="h-4 w-4 text-red-500" />
                 <div>
-                  <p className="font-medium text-sm">{ingredient.name}</p>
+                  <p className="font-medium text-sm">{ingredient?.name ?? '—'}</p>
                   <p className="text-xs text-muted-foreground">
-                    Stock: {ingredient.stock} {ingredient.unit}
-                    {ingredient.minStock && (
+                    Stock: {ingredient?.stock ?? '?'} {ingredient?.unit ?? ''}
+                    {ingredient?.minStock != null && (
                       <span> (min: {ingredient.minStock})</span>
                     )}
                   </p>

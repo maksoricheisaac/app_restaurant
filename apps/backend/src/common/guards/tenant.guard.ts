@@ -29,19 +29,21 @@ export class TenantGuard implements CanActivate {
 
     if (!tenantId && !tenantSlug) {
       if (isPublic) return true;
-      
+
       // Si c'est un super_admin avec une session valide, on peut laisser passer
       // (Le AuthMiddleware a déjà injecté request.user si le token était présent)
       if (request.user?.platformRole === 'super_admin') {
         return true;
       }
-      
+
       throw new ForbiddenException('Tenant identification missing');
     }
 
     // 2. Vérification de l'existence du Tenant
     const tenant = await this.prisma.tenant.findFirst({
-      where: tenantId ? { id: tenantId } : { slug: tenantSlug },
+      where: tenantId
+        ? { id: tenantId, deletedAt: null }
+        : { slug: tenantSlug, deletedAt: null },
     });
 
     if (!tenant) {

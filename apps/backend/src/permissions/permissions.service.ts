@@ -2,11 +2,17 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanLimitService } from '../plans/plans.service';
 import * as bcrypt from 'bcrypt';
-import { CreateStaffDto, UpdateStaffDto, UpdateRolePermissionsDto } from './dto/permissions.dto';
+import {
+  CreateStaffDto,
+  UpdateStaffDto,
+  UpdateRolePermissionsDto,
+} from './dto/permissions.dto';
+import { TenantRole } from '../common/constants/tenant-roles.constant';
 
 @Injectable()
 export class PermissionsService {
@@ -45,7 +51,8 @@ export class PermissionsService {
       const membership = await this.prisma.tenantMembership.findUnique({
         where: { userId_tenantId: { userId: existing.id, tenantId } },
       });
-      if (membership) throw new ConflictException('User already in this tenant');
+      if (membership)
+        throw new ConflictException('User already in this tenant');
 
       return this.prisma.tenantMembership.create({
         data: { tenantId, userId: existing.id, role: data.role },
@@ -71,11 +78,28 @@ export class PermissionsService {
     });
   }
 
-  async updateStaff(tenantId: string, membershipId: string, data: UpdateStaffDto) {
+  async updateStaff(
+    tenantId: string,
+    membershipId: string,
+    data: UpdateStaffDto,
+    currentUserId: string,
+  ) {
     const membership = await this.prisma.tenantMembership.findFirst({
       where: { id: membershipId, tenantId },
     });
     if (!membership) throw new NotFoundException('Staff member not found');
+
+    if (membership.userId === currentUserId) {
+      throw new ForbiddenException(
+        'You cannot modify your own membership through this endpoint',
+      );
+    }
+
+    if (membership.role === TenantRole.OWNER) {
+      throw new ForbiddenException(
+        'The tenant owner role can only change via the ownership transfer flow',
+      );
+    }
 
     const { role, ...userFields } = data;
 
@@ -96,16 +120,36 @@ export class PermissionsService {
     return this.prisma.tenantMembership.findFirst({
       where: { id: membershipId },
       include: {
-        user: { select: { id: true, name: true, email: true, phone: true, status: true } },
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            status: true,
+          },
+        },
       },
     });
   }
 
-  async deleteStaff(tenantId: string, membershipId: string) {
+  async deleteStaff(tenantId: string, membershipId: string, currentUserId: string) {
     const membership = await this.prisma.tenantMembership.findFirst({
       where: { id: membershipId, tenantId },
     });
     if (!membership) throw new NotFoundException('Staff member not found');
+
+    if (membership.userId === currentUserId) {
+      throw new ForbiddenException(
+        'You cannot remove your own membership through this endpoint',
+      );
+    }
+
+    if (membership.role === TenantRole.OWNER) {
+      throw new ForbiddenException(
+        'The tenant owner cannot be removed via staff management',
+      );
+    }
 
     return this.prisma.tenantMembership.delete({ where: { id: membershipId } });
   }

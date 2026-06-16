@@ -82,7 +82,7 @@ export function QuickInventoryTable({
 
   // Filtrer les produits
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) ||
+    const matchesSearch = product.name?.toLowerCase().includes(search.toLowerCase()) ||
                          product.supplier?.toLowerCase().includes(search.toLowerCase());
     const matchesCategory = categoryFilter === "all" || product.category === categoryFilter;
     const matchesStock = 
@@ -199,7 +199,7 @@ export function QuickInventoryTable({
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatPrice(stats.totalValue)}</div>
+            <div className="text-2xl font-bold">{formatPrice(Number(stats.totalValue))}</div>
           </CardContent>
         </Card>
       </div>
@@ -272,7 +272,7 @@ export function QuickInventoryTable({
                 ) : (
                   filteredProducts.map((product) => {
                     const status = getStockStatus(product);
-                    const stockValue = product.stock * product.price;
+                    const stockValue = Number(product.stock) * Number(product.price);
                     
                     return (
                       <TableRow key={product.id}>

@@ -45,8 +45,13 @@ export default function StepFinalization({ data }: Props) {
           // Update auth context
           setUser(result.user as any);
 
-          // Store tenant info via httpOnly cookie route (never document.cookie)
+          // Store tenant info in localStorage (for client-side api-client) AND
+          // as httpOnly cookies via /api/session (for SSR middleware).
           if (result.tenant) {
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('tenantId', result.tenant.id);
+              localStorage.setItem('tenantSlug', result.tenant.slug);
+            }
             await fetch('/api/session', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },

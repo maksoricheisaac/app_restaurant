@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -40,40 +40,11 @@ import { useTables } from "@/hooks/api/useTables";
 import { Order, OrderStatus } from "@/types/order";
 import { createOrderSchema } from "@/schemas/validation";
 import { useQuery } from "@tanstack/react-query";
-
-const statusColors = {
-  pending:   "bg-amber-100   text-amber-700   border-amber-200   dark:bg-amber-950/40  dark:text-amber-300",
-  preparing: "bg-blue-100    text-blue-700    border-blue-200    dark:bg-blue-950/40   dark:text-blue-300",
-  ready:     "bg-indigo-100  text-indigo-700  border-indigo-200  dark:bg-indigo-950/40 dark:text-indigo-300",
-  served:    "bg-green-100   text-green-700   border-green-200   dark:bg-green-950/40  dark:text-green-300",
-  cancelled: "bg-red-100     text-red-700     border-red-200     dark:bg-red-950/40    dark:text-red-300",
-} as const;
-
-const typeLabels = {
-  dine_in: "Sur place",
-  takeaway: "À emporter",
-  delivery: "Livraison",
-} as const;
-
-const statusLabels = {
-  pending: "En attente",
-  preparing: "En préparation",
-  ready: "Prête",
-  served: "Servie",
-  cancelled: "Annulée",
-} as const;
-
-// Fonction de formatage de la monnaie
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('fr-FR', {
-    style: 'currency',
-    currency: 'XAF',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(amount);
-};
+import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
+import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 
 export default function OrdersPage() {
+  const formatCurrency = useTenantCurrency();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [type, setType] = useState<"dine_in" | "takeaway" | "delivery" | undefined>();
@@ -112,15 +83,13 @@ export default function OrdersPage() {
   });
 
   // Rafraîchissement en temps réel via WebSockets NestJS
-  useSocketEvent('new-order', (data) => {
-    console.log('New order received via WebSocket:', data);
+  useSocketEvent('new-order', useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["orders"] });
-  });
+  }, [queryClient]));
 
-  useSocketEvent('order-status-updated', (data) => {
-    console.log('Order status updated via WebSocket:', data);
+  useSocketEvent('order-status-updated', useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["orders"] });
-  });
+  }, [queryClient]));
 
   // Chargement des données via l'API NestJS
   const { data: ordersData, isLoading } = useOrders({

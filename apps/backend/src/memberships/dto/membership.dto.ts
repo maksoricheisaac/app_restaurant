@@ -1,17 +1,26 @@
-import { IsEmail, IsString, IsNotEmpty, IsEnum } from 'class-validator';
+import { IsEmail, IsString, IsNotEmpty, IsIn, IsUUID } from 'class-validator';
+import { ASSIGNABLE_TENANT_ROLES } from '../../common/constants/tenant-roles.constant';
 
 export class InviteMemberDto {
   @IsEmail({}, { message: 'Email invalide' })
   @IsNotEmpty()
   email: string;
 
-  @IsString()
-  @IsNotEmpty()
+  @IsIn(ASSIGNABLE_TENANT_ROLES, {
+    message: `role must be one of: ${ASSIGNABLE_TENANT_ROLES.join(', ')}`,
+  })
   role: string;
 }
 
 export class UpdateMemberRoleDto {
-  @IsString()
-  @IsNotEmpty()
+  @IsIn(ASSIGNABLE_TENANT_ROLES, {
+    message: `role must be one of: ${ASSIGNABLE_TENANT_ROLES.join(', ')}`,
+  })
   role: string;
+}
+
+export class TransferOwnershipDto {
+  @IsUUID()
+  @IsNotEmpty()
+  membershipId: string;
 }

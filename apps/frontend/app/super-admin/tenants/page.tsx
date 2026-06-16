@@ -23,12 +23,11 @@ import { StatsCard } from '@/components/ui/stats-card';
 import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { Label } from '@/components/ui/label';
 import { useState, useMemo } from 'react';
-import { cn } from '@/lib/utils';
+import { cn, safeFormat } from '@/lib/utils';
 import { useTenants } from '@/hooks/api/useDashboard';
 import {
   useCreateTenant, useUpdateTenant, useTenantDetail,
 } from '@/hooks/api/useSuperAdmin';
-import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 
@@ -49,9 +48,9 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; className: str
 };
 
 const PLAN_OPTIONS = [
-  { value: 'free',       label: 'Gratuit',    desc: 'Accès limité, menu digital uniquement' },
-  { value: 'pro',        label: 'Pro',        desc: 'Toutes les fonctionnalités — 49 €/mois' },
-  { value: 'enterprise', label: 'Enterprise', desc: 'Multi-établissements & API — 149 €/mois' },
+  { value: 'free',       label: 'Gratuit',    desc: 'Accès limité, menu digital uniquement',           disabled: false },
+  { value: 'pro',        label: 'Pro',        desc: 'Toutes les fonctionnalités — 29 €/mois',           disabled: false },
+  { value: 'enterprise', label: 'Enterprise', desc: '🚧 En cours de développement — bientôt disponible', disabled: true  },
 ];
 
 const AVATAR_COLORS = [
@@ -175,10 +174,13 @@ function CreateTenantDialog({ open, onClose }: { open: boolean; onClose: () => v
                 <button
                   key={opt.value}
                   type="button"
-                  onClick={() => setPlan(opt.value)}
+                  onClick={() => !opt.disabled && setPlan(opt.value)}
+                  disabled={opt.disabled}
                   className={cn(
                     'flex items-center gap-3 rounded-lg border p-3 text-left transition-all',
-                    plan === opt.value
+                    opt.disabled
+                      ? 'opacity-50 cursor-not-allowed border-dashed border-border'
+                      : plan === opt.value
                       ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                       : 'border-border hover:border-border/80 hover:bg-muted/40'
                   )}
@@ -263,10 +265,13 @@ function ChangePlanDialog({
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => setPlan(opt.value)}
+                onClick={() => !opt.disabled && setPlan(opt.value)}
+                disabled={opt.disabled}
                 className={cn(
                   'flex items-center gap-3 rounded-lg border p-3 text-left transition-all',
-                  plan === opt.value
+                  opt.disabled
+                    ? 'opacity-50 cursor-not-allowed border-dashed border-border'
+                    : plan === opt.value
                     ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
                     : 'border-border hover:bg-muted/40'
                 )}
@@ -338,7 +343,7 @@ function TenantDetailDialog({ id, onClose }: { id: string | null; onClose: () =>
             {/* Meta */}
             <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: Calendar, label: 'Créé le', value: tenant.createdAt ? format(new Date(tenant.createdAt), 'dd MMM yyyy', { locale: fr }) : '—' },
+                { icon: Calendar, label: 'Créé le', value: safeFormat(tenant.createdAt, 'dd MMM yyyy', { locale: fr }) },
                 { icon: Users,    label: 'Membres',  value: tenant.memberships?.length ?? 0 },
               ].map((row) => (
                 <div key={row.label} className="rounded-lg border p-3 flex items-center gap-3">
@@ -579,10 +584,10 @@ export default function TenantsPage() {
                     <TableCell className="py-3.5"><StatusBadge status={tenant.status || 'active'} /></TableCell>
                     <TableCell className="py-3.5 hidden md:table-cell">
                       <p className="text-sm font-medium">
-                        {format(new Date(tenant.createdAt), 'dd MMM yyyy', { locale: fr })}
+                        {safeFormat(tenant.createdAt, 'dd MMM yyyy', { locale: fr })}
                       </p>
                       <p className="text-[10px] text-muted-foreground">
-                        {format(new Date(tenant.createdAt), 'HH:mm')}
+                        {safeFormat(tenant.createdAt, 'HH:mm')}
                       </p>
                     </TableCell>
                     <TableCell className="py-3.5 pr-5 text-right">

@@ -34,8 +34,14 @@ const makePrismaMock = () => ({
     findMany: jest.fn(),
     count: jest.fn().mockResolvedValue(1),
   },
-  order: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
-  menuItem: { findMany: jest.fn().mockResolvedValue([]), count: jest.fn().mockResolvedValue(0) },
+  order: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
+  },
+  menuItem: {
+    findMany: jest.fn().mockResolvedValue([]),
+    count: jest.fn().mockResolvedValue(0),
+  },
   table: { count: jest.fn().mockResolvedValue(0) },
   menuCategory: { findMany: jest.fn().mockResolvedValue([]) },
   $queryRaw: jest.fn().mockResolvedValue([]),
@@ -48,11 +54,29 @@ describe('Tenant Isolation Integration', () => {
   let app: INestApplication;
   let prismaMock: ReturnType<typeof makePrismaMock>;
 
-  const tenant1 = { id: 'tenant-1', slug: 't1', name: 'T1', plan: 'pro', status: 'active' };
-  const tenant2 = { id: 'tenant-2', slug: 't2', name: 'T2', plan: 'free', status: 'active' };
+  const tenant1 = {
+    id: 'tenant-1',
+    slug: 't1',
+    name: 'T1',
+    plan: 'pro',
+    status: 'active',
+  };
+  const tenant2 = {
+    id: 'tenant-2',
+    slug: 't2',
+    name: 'T2',
+    plan: 'free',
+    status: 'active',
+  };
   const user1 = { id: 'user-1', platformRole: 'user', tenantId: 'tenant-1' };
 
-  const token1 = signToken({ sub: 'user-1', email: 'u1@t.com', role: 'owner', platformRole: 'user', tenantId: 'tenant-1' });
+  const token1 = signToken({
+    sub: 'user-1',
+    email: 'u1@t.com',
+    role: 'owner',
+    platformRole: 'user',
+    tenantId: 'tenant-1',
+  });
 
   beforeAll(async () => {
     // Env vars are set by test/integration-env-setup.ts (runs before module load)
@@ -64,13 +88,18 @@ describe('Tenant Isolation Integration', () => {
       .overrideProvider(PrismaService)
       .useValue(prismaMock)
       .overrideProvider(MailService)
-      .useValue({ sendEmailVerification: jest.fn(), sendPasswordReset: jest.fn() })
+      .useValue({
+        sendEmailVerification: jest.fn(),
+        sendPasswordReset: jest.fn(),
+      })
       .compile();
 
     app = module.createNestApplication();
     app.use(cookieParser());
     app.setGlobalPrefix('/api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
     await app.init();
   });
 
@@ -104,7 +133,10 @@ describe('Tenant Isolation Integration', () => {
 
     it('allows access to own tenant resources', async () => {
       prismaMock.tenant.findFirst.mockResolvedValue(tenant1);
-      prismaMock.tenantMembership.findUnique.mockResolvedValue({ id: 'm1', role: 'owner' });
+      prismaMock.tenantMembership.findUnique.mockResolvedValue({
+        id: 'm1',
+        role: 'owner',
+      });
 
       await request(app.getHttpServer())
         .get('/api/v1/orders')
@@ -150,8 +182,11 @@ describe('Tenant Isolation Integration', () => {
 
   describe('super_admin access', () => {
     const adminToken = signToken({
-      sub: 'admin-1', email: 'admin@flashmenu.com', role: 'super_admin',
-      platformRole: 'super_admin', tenantId: null,
+      sub: 'admin-1',
+      email: 'admin@flashmenu.com',
+      role: 'super_admin',
+      platformRole: 'super_admin',
+      tenantId: null,
     });
 
     it('allows super_admin access without x-tenant-id header', async () => {
@@ -168,7 +203,10 @@ describe('Tenant Isolation Integration', () => {
   describe('plan usage', () => {
     it('returns usage summary for authenticated user with tenant', async () => {
       prismaMock.tenant.findFirst.mockResolvedValue(tenant1);
-      prismaMock.tenantMembership.findUnique.mockResolvedValue({ id: 'm1', role: 'owner' });
+      prismaMock.tenantMembership.findUnique.mockResolvedValue({
+        id: 'm1',
+        role: 'owner',
+      });
       prismaMock.tenant.findUnique.mockResolvedValue(tenant1);
 
       const res = await request(app.getHttpServer())

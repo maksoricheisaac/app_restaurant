@@ -9,6 +9,7 @@ export interface Message {
   subject?: string | null;
   message: string;
   read: boolean;
-  status?: MessageStatus;
+  status: MessageStatus;
   createdAt: Date;
+  deletedAt?: Date | null;
 }

@@ -9,12 +9,17 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { MembershipsService } from './memberships.service';
-import { InviteMemberDto, UpdateMemberRoleDto } from './dto/membership.dto';
+import {
+  InviteMemberDto,
+  UpdateMemberRoleDto,
+  TransferOwnershipDto,
+} from './dto/membership.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { Tenant } from '@prisma/client';
 
 @Controller('/memberships')
@@ -38,15 +43,39 @@ export class MembershipsController {
   @Roles('owner')
   updateRole(
     @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
     @Param('id') id: string,
     @Body() body: UpdateMemberRoleDto,
   ) {
-    return this.membershipsService.updateRole(id, tenant.id, body.role);
+    return this.membershipsService.updateRole(
+      id,
+      tenant.id,
+      body.role,
+      user.id,
+    );
+  }
+
+  @Patch('transfer-ownership')
+  @Roles('owner')
+  transferOwnership(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
+    @Body() body: TransferOwnershipDto,
+  ) {
+    return this.membershipsService.transferOwnership(
+      tenant.id,
+      user.id,
+      body.membershipId,
+    );
   }
 
   @Delete(':id')
   @Roles('owner')
-  remove(@CurrentTenant() tenant: Tenant, @Param('id') id: string) {
-    return this.membershipsService.remove(id, tenant.id);
+  remove(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
+    @Param('id') id: string,
+  ) {
+    return this.membershipsService.remove(id, tenant.id, user.id);
   }
 }

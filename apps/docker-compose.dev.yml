@@ -33,7 +33,3 @@ services:
       NODE_ENV: development
     ports:
       - "4000:4000"
-
-  nginx:
-    ports:
-      - "80:80"

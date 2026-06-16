@@ -1,7 +1,13 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { getSkipTake, toPaginated } from '../common/pagination/paginate';
 
 @Injectable()
 export class TenantsService {
@@ -24,8 +30,16 @@ export class TenantsService {
     }
   }
 
-  async findAll() {
-    return this.prisma.tenant.findMany();
+  async findAll(includeDeleted = false, page?: number, limit?: number) {
+    const where = includeDeleted ? {} : { deletedAt: null };
+    const { skip, take, page: p, limit: l } = getSkipTake(page, limit);
+
+    const [data, total] = await Promise.all([
+      this.prisma.tenant.findMany({ where, skip, take }),
+      this.prisma.tenant.count({ where }),
+    ]);
+
+    return toPaginated(data, total, p, l);
   }
 
   async findOne(id: string) {
@@ -55,6 +69,7 @@ export class TenantsService {
       where: {
         slug,
         status: 'active',
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -77,10 +92,30 @@ export class TenantsService {
   }
 
   async remove(id: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant introuvable');
+    }
+    if (tenant.deletedAt) {
+      throw new ConflictException('Ce tenant est déjà supprimé');
+    }
     return this.prisma.tenant.update({
       where: { id },
-      // TenantStatus enum has no 'inactive' — 'suspended' is the correct soft-delete value.
-      data: { status: 'suspended' as any },
+      data: { deletedAt: new Date() },
+    });
+  }
+
+  async restore(id: string) {
+    const tenant = await this.prisma.tenant.findUnique({ where: { id } });
+    if (!tenant) {
+      throw new NotFoundException('Tenant introuvable');
+    }
+    if (!tenant.deletedAt) {
+      throw new ConflictException("Ce tenant n'est pas supprimé");
+    }
+    return this.prisma.tenant.update({
+      where: { id },
+      data: { deletedAt: null },
     });
   }
 }

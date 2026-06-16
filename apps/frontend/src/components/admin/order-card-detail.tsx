@@ -10,8 +10,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
+import { safeFormat } from '@/lib/utils';
 
 interface OrderCardDetailedProps {
   order: Order;
@@ -74,7 +74,7 @@ export const OrderCardDetailed: React.FC<OrderCardDetailedProps> = ({
             <span className="font-semibold text-gray-700">Table :</span> {order.table ? `Table ${order.table.number}` : '-'}
           </div>
           <div>
-            <span className="font-semibold text-gray-700">Date :</span> {format(new Date(order.createdAt), "d MMMM yyyy", { locale: fr })} à {format(new Date(order.createdAt), "HH:mm", { locale: fr })}
+            <span className="font-semibold text-gray-700">Date :</span> {safeFormat(order.createdAt, "d MMMM yyyy", { locale: fr })} à {safeFormat(order.createdAt, "HH:mm", { locale: fr })}
           </div>
           <div>
             <span className="font-semibold text-gray-700">Articles :</span>

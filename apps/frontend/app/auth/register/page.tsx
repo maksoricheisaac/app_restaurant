@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -39,16 +39,23 @@ export default function RegisterPage() {
   const [data, setData] = useState<Partial<OnboardingData>>({});
   const { user, isLoading } = useAuth();
   const router = useRouter();
+  // Guard: prevent the redirect from firing more than once per mount.
+  // Without this, a stale auth state can create an infinite loop between
+  // /auth/register and /admin/dashboard when the server-side profile (DB)
+  // and the client-side auth state disagree briefly after login.
+  const hasRedirected = useRef(false);
 
   // Redirect or resume if already authenticated
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
     // StepFinalization (step 4) gère sa propre redirection après l'animation.
-    // Ne pas l'interrompre ici quand setUser() déclenche cet effet.
     if (step === 4) return;
     if (user.onboardingCompleted) {
-      router.replace('/admin/dashboard');
+      if (!hasRedirected.current) {
+        hasRedirected.current = true;
+        router.replace('/admin/dashboard');
+      }
       return;
     }
     // Resume from the saved step
@@ -103,7 +110,7 @@ export default function RegisterPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
+      {/* Header — minimal, sans les étapes d'onboarding */}
       <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border-b border-slate-100">
         <Link href="/" className="flex items-center gap-2 group">
           <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm group-hover:shadow-primary/30 transition-shadow">
@@ -111,12 +118,6 @@ export default function RegisterPage() {
           </div>
           <span className="font-bold text-slate-900 hidden sm:block">Flash Menu</span>
         </Link>
-
-        {showProgress && (
-          <div className="pb-4">
-            <OnboardingProgress currentStep={step} steps={STEP_LABELS} />
-          </div>
-        )}
 
         <Link
           href="/auth/login"
@@ -130,9 +131,10 @@ export default function RegisterPage() {
       {/* Content */}
       <main className="flex-1 flex items-start md:items-center justify-center px-4 py-10 md:py-16">
         <div className="w-full max-w-lg">
-          {/* Step number indicator (mobile) */}
+          {/* Indicateur d'étapes dans le body, pas dans le header */}
           {showProgress && (
-            <div className="mb-4 text-center">
+            <div className="mb-5 flex flex-col items-center gap-3">
+              <OnboardingProgress currentStep={step} steps={STEP_LABELS} />
               <span className="text-xs font-medium text-slate-400">
                 Étape {step + 1} sur {STEP_LABELS.length}
               </span>
@@ -141,9 +143,9 @@ export default function RegisterPage() {
 
           {/* Card */}
           <div className="rounded-2xl bg-white shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
-            {/* Progress bar at top of card */}
+            {/* Barre de progression en haut de la card */}
             {showProgress && (
-              <div className="h-0.5 bg-slate-100">
+              <div className="h-1 bg-slate-100">
                 <motion.div
                   className="h-full bg-primary rounded-full"
                   animate={{ width: `${((step + 1) / STEP_LABELS.length) * 100}%` }}

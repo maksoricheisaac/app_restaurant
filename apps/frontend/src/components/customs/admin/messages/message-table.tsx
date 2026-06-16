@@ -19,8 +19,11 @@ interface MessageTableProps {
 }
 
 export function MessageTable({ messages, onView, onDelete }: MessageTableProps) {
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString('fr-FR', {
+  const formatDate = (date: Date | string | null | undefined) => {
+    if (!date) return '—';
+    const d = date instanceof Date ? date : new Date(date as string);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('fr-FR', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',

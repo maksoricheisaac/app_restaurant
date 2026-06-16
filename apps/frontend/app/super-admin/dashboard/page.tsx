@@ -6,38 +6,21 @@ import {
   CreditCard,
   Clock,
   Plus,
-  TrendingUp,
   AlertCircle,
   Loader2,
   Activity,
   ShoppingBag,
   Sparkles,
+  BarChart2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatsCard } from "@/components/ui/stats-card";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
 import { usePlatformStats } from "@/hooks/api/useDashboard";
-import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-const data = [
-  { name: "Jan", restaurants: 4, revenue: 400 },
-  { name: "Fév", restaurants: 7, revenue: 700 },
-  { name: "Mar", restaurants: 12, revenue: 1200 },
-  { name: "Avr", restaurants: 18, revenue: 1800 },
-  { name: "Mai", restaurants: 25, revenue: 2500 },
-  { name: "Juin", restaurants: 32, revenue: 3200 },
-];
+import { safeFormat } from "@/lib/utils";
+import Link from "next/link";
 
 export default function SuperAdminDashboard() {
   const { data: statsData, isLoading } = usePlatformStats();
@@ -62,18 +45,16 @@ export default function SuperAdminDashboard() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" className="gap-2">
-            <Sparkles className="h-4 w-4 text-orange-500" />
-            Voir Insights
-          </Button>
-          <Button size="sm" className="gap-2 shadow-sm shadow-primary/20">
-            <Plus className="h-4 w-4" />
-            Nouveau Restaurant
+          <Button size="sm" className="gap-2 shadow-sm shadow-primary/20" asChild>
+            <Link href="/super-admin/tenants">
+              <Plus className="h-4 w-4" />
+              Nouveau Restaurant
+            </Link>
           </Button>
         </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards — données réelles via /dashboard/platform-stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Restaurants"
@@ -97,7 +78,6 @@ export default function SuperAdminDashboard() {
           }).format(statsData?.totalRevenue ?? 0)}
           icon={<CreditCard className="h-5 w-5" />}
           variant="green"
-          trend={{ value: 18, label: "ce mois" }}
         />
         <StatsCard
           title="Commandes"
@@ -109,57 +89,35 @@ export default function SuperAdminDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-7">
-        {/* Graphique de croissance */}
+        {/* Graphique — pas encore de données analytiques en temps réel */}
         <Card className="lg:col-span-4">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-primary" />
+              <BarChart2 className="h-5 w-5 text-primary" />
               Croissance de la Plateforme
             </CardTitle>
             <CardDescription>
-              Évolution au cours des 6 derniers mois (Données démo)
+              Évolution mensuelle des inscriptions et du revenu
             </CardDescription>
           </CardHeader>
-          <CardContent className="h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data}>
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  vertical={false}
-                  stroke="#f1f5f9"
-                />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 12 }}
-                  dy={10}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: "#94a3b8", fontSize: 12 }}
-                />
-                <Tooltip
-                  cursor={{ fill: "#f8fafc" }}
-                  contentStyle={{
-                    borderRadius: "8px",
-                    border: "none",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                  }}
-                />
-                <Bar
-                  dataKey="restaurants"
-                  fill="var(--primary)"
-                  radius={[4, 4, 0, 0]}
-                  barSize={30}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+          <CardContent>
+            <div className="flex flex-col items-center justify-center h-[260px] gap-3 rounded-xl border-2 border-dashed border-border text-center px-6">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <BarChart2 className="h-6 w-6 text-muted-foreground/40" />
+              </div>
+              <div>
+                <p className="font-semibold text-sm text-foreground">Analytiques bientôt disponibles</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                  Les graphiques d'évolution seront affichés ici une fois l'endpoint
+                  <span className="font-mono mx-1">/dashboard/growth</span>
+                  disponible côté API.
+                </p>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Restaurants Récents */}
+        {/* Restaurants Récents — données réelles */}
         <Card className="lg:col-span-3">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
@@ -172,7 +130,7 @@ export default function SuperAdminDashboard() {
               className="text-primary font-semibold hover:bg-primary/10"
               asChild
             >
-              <a href="/super-admin/tenants">Voir tout</a>
+              <Link href="/super-admin/tenants">Voir tout</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -184,39 +142,33 @@ export default function SuperAdminDashboard() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-lg bg-muted flex items-center justify-center font-bold text-muted-foreground text-sm uppercase">
-                      {tenant.name.substring(0, 2)}
+                      {tenant.name?.substring(0, 2)}
                     </div>
                     <div>
                       <div className="text-sm font-semibold">{tenant.name}</div>
-                      <div className="text-xs text-muted-foreground">
-                        @{tenant.slug}
-                      </div>
+                      <div className="text-xs text-muted-foreground">@{tenant.slug}</div>
                     </div>
                   </div>
                   <div className="text-right">
                     <Badge
                       variant={
-                        tenant.plan === "Enterprise"
-                          ? "default"
-                          : tenant.plan === "Pro"
-                          ? "secondary"
-                          : "outline"
+                        tenant.plan === "enterprise" ? "default"
+                        : tenant.plan === "pro" ? "secondary"
+                        : "outline"
                       }
                       className="text-[10px] uppercase font-bold tracking-tighter mb-1"
                     >
-                      {tenant.plan}
+                      {tenant.plan ?? "free"}
                     </Badge>
                     <div className="text-[10px] text-muted-foreground flex items-center gap-1 justify-end">
                       <Clock className="h-3 w-3" />
-                      {format(new Date(tenant.createdAt), "dd MMM yyyy", {
-                        locale: fr,
-                      })}
+                      {safeFormat(tenant.createdAt, "dd MMM yyyy", { locale: fr })}
                     </div>
                   </div>
                 </div>
               ))}
-              {(!statsData?.recentTenants ||
-                statsData.recentTenants.length === 0) && (
+
+              {(!statsData?.recentTenants || statsData.recentTenants.length === 0) && (
                 <div className="flex flex-col items-center justify-center py-10 gap-2 text-center">
                   <AlertCircle className="h-8 w-8 text-muted-foreground/30" />
                   <p className="text-sm text-muted-foreground italic">

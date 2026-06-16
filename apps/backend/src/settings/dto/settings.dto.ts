@@ -67,7 +67,8 @@ export class UpdateGeneralSettingsDto {
 
 export class OpeningHourDto {
   @IsEnum(DayOfWeek, {
-    message: 'dayOfWeek doit être MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY ou SUNDAY',
+    message:
+      'dayOfWeek doit être MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY ou SUNDAY',
   })
   dayOfWeek: DayOfWeek;
 

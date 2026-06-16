@@ -48,27 +48,27 @@ export class ReportsService {
     date?: string,
   ) {
     const { start, end } = this.getDateRange(type, date);
-    const where = { tenantId, createdAt: { gte: start, lte: end } };
+    const dateFilter = { createdAt: { gte: start, lte: end } };
+    const orderWhere = { tenantId, deletedAt: null, ...dateFilter };
+    const reservationWhere = { tenantId, deletedAt: null, ...dateFilter };
 
-    const [
-      ordersStats,
-      revenue,
-      newCustomers,
-      reservationsCount,
-    ] = await Promise.all([
-      this.prisma.order.groupBy({
-        by: ['status'],
-        where,
-        _count: { id: true },
-      }),
-      this.prisma.transaction.aggregate({
-        where: { ...where, type: 'sale' },
-        _sum: { amount: true },
-        _count: { id: true },
-      }),
-      this.prisma.customer.count({ where }),
-      this.prisma.reservation.count({ where }),
-    ]);
+    const [ordersStats, revenue, newCustomers, reservationsCount] =
+      await Promise.all([
+        this.prisma.order.groupBy({
+          by: ['status'],
+          where: orderWhere,
+          _count: { id: true },
+        }),
+        this.prisma.transaction.aggregate({
+          where: { tenantId, type: 'sale', ...dateFilter },
+          _sum: { amount: true },
+          _count: { id: true },
+        }),
+        this.prisma.customer.count({
+          where: { tenantId, deletedAt: null, ...dateFilter },
+        }),
+        this.prisma.reservation.count({ where: reservationWhere }),
+      ]);
 
     const totalOrders = ordersStats.reduce((acc, s) => acc + s._count.id, 0);
     const ordersByStatus = Object.fromEntries(
@@ -101,37 +101,36 @@ export class ReportsService {
   ) {
     const { start, end } = this.getDateRange(type, date);
 
-    const transactions = await this.prisma.transaction.findMany({
-      where: {
-        tenantId,
-        type: 'sale',
-        createdAt: { gte: start, lte: end },
-      },
-      select: { amount: true, createdAt: true },
-      orderBy: { createdAt: 'asc' },
-    });
+    const [revenueRows, orderRows] = await Promise.all([
+      this.prisma.$queryRaw<{ day: Date; total: number }[]>`
+        SELECT date_trunc('day', "createdAt") AS day,
+               COALESCE(SUM(amount), 0)::float8 AS total
+        FROM "Transaction"
+        WHERE "tenantId" = ${tenantId}
+          AND "type" = 'sale'
+          AND "createdAt" BETWEEN ${start} AND ${end}
+        GROUP BY day
+        ORDER BY day ASC
+      `,
+      this.prisma.$queryRaw<{ day: Date; count: number }[]>`
+        SELECT date_trunc('day', "createdAt") AS day,
+               COUNT(*)::int AS count
+        FROM "Order"
+        WHERE "tenantId" = ${tenantId}
+          AND "deletedAt" IS NULL
+          AND "createdAt" BETWEEN ${start} AND ${end}
+        GROUP BY day
+        ORDER BY day ASC
+      `,
+    ]);
 
-    const orders = await this.prisma.order.findMany({
-      where: {
-        tenantId,
-        createdAt: { gte: start, lte: end },
-      },
-      select: { createdAt: true, status: true },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    const revenueByDay = new Map<string, number>();
-    const ordersByDay = new Map<string, number>();
-
-    for (const tx of transactions) {
-      const key = tx.createdAt.toISOString().split('T')[0];
-      revenueByDay.set(key, (revenueByDay.get(key) ?? 0) + Number(tx.amount));
-    }
-
-    for (const order of orders) {
-      const key = order.createdAt.toISOString().split('T')[0];
-      ordersByDay.set(key, (ordersByDay.get(key) ?? 0) + 1);
-    }
+    const dayKey = (d: Date) => d.toISOString().split('T')[0];
+    const revenueByDay = new Map(
+      revenueRows.map((r) => [dayKey(r.day), Number(r.total)]),
+    );
+    const ordersByDay = new Map(
+      orderRows.map((r) => [dayKey(r.day), Number(r.count)]),
+    );
 
     const labels = Array.from(
       new Set([...revenueByDay.keys(), ...ordersByDay.keys()]),

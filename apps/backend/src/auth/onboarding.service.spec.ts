@@ -1,4 +1,9 @@
-import { ConflictException, NotFoundException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
@@ -10,7 +15,9 @@ jest.mock('bcrypt', () => ({
 // Stable crypto mock — deterministic token for assertions
 jest.mock('crypto', () => ({
   ...jest.requireActual('crypto'),
-  randomBytes: jest.fn().mockReturnValue({ toString: () => 'mock_token_abc123' }),
+  randomBytes: jest
+    .fn()
+    .mockReturnValue({ toString: () => 'mock_token_abc123' }),
   createHash: jest.requireActual('crypto').createHash,
 }));
 
@@ -64,7 +71,12 @@ describe('OnboardingService', () => {
   // ─── initiateRegistration ──────────────────────────────────────────────────
 
   describe('initiateRegistration', () => {
-    const dto = { firstName: 'Alice', lastName: 'Dupont', email: 'alice@test.com', password: 'Password@1' };
+    const dto = {
+      firstName: 'Alice',
+      lastName: 'Dupont',
+      email: 'alice@test.com',
+      password: 'Password@1',
+    };
 
     it('creates user with emailVerified: false', async () => {
       prisma.user.findUnique.mockResolvedValue(null); // no existing
@@ -120,7 +132,9 @@ describe('OnboardingService', () => {
     it('throws ConflictException when email already exists', async () => {
       prisma.user.findUnique.mockResolvedValue(baseUser);
 
-      await expect(service.initiateRegistration(dto)).rejects.toThrow(ConflictException);
+      await expect(service.initiateRegistration(dto)).rejects.toThrow(
+        ConflictException,
+      );
       expect(prisma.user.create).not.toHaveBeenCalled();
     });
 
@@ -130,7 +144,11 @@ describe('OnboardingService', () => {
       prisma.refreshToken.findMany.mockResolvedValue([]);
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
 
-      await service.initiateRegistration({ ...dto, firstName: 'Jean', lastName: 'Martin' });
+      await service.initiateRegistration({
+        ...dto,
+        firstName: 'Jean',
+        lastName: 'Martin',
+      });
 
       const createCall = prisma.user.create.mock.calls[0][0];
       expect(createCall.data.name).toBe('Jean Martin');
@@ -153,19 +171,31 @@ describe('OnboardingService', () => {
   describe('saveAccountType', () => {
     it('throws NotFoundException when user not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.saveAccountType('u1', { accountType: 'OWNER' })).rejects.toThrow(NotFoundException);
+      await expect(
+        service.saveAccountType('u1', { accountType: 'OWNER' }),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('throws BadRequestException when onboarding already completed', async () => {
-      prisma.user.findUnique.mockResolvedValue({ ...baseUser, onboardingCompleted: true });
-      await expect(service.saveAccountType('u1', { accountType: 'OWNER' })).rejects.toThrow(BadRequestException);
+      prisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        onboardingCompleted: true,
+      });
+      await expect(
+        service.saveAccountType('u1', { accountType: 'OWNER' }),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('advances onboardingStep to at least 2', async () => {
-      prisma.user.findUnique.mockResolvedValue({ ...baseUser, onboardingStep: 1 });
+      prisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        onboardingStep: 1,
+      });
       prisma.user.update.mockResolvedValue({ ...baseUser, onboardingStep: 2 });
 
-      const result = await service.saveAccountType('u1', { accountType: 'OWNER' });
+      const result = await service.saveAccountType('u1', {
+        accountType: 'OWNER',
+      });
 
       expect(result.onboardingStep).toBe(2);
       const updateCall = prisma.user.update.mock.calls[0][0];
@@ -173,7 +203,10 @@ describe('OnboardingService', () => {
     });
 
     it('does not decrease onboardingStep if already higher', async () => {
-      prisma.user.findUnique.mockResolvedValue({ ...baseUser, onboardingStep: 3 });
+      prisma.user.findUnique.mockResolvedValue({
+        ...baseUser,
+        onboardingStep: 3,
+      });
       prisma.user.update.mockResolvedValue({ ...baseUser, onboardingStep: 3 });
 
       await service.saveAccountType('u1', { accountType: 'OWNER' });
@@ -204,7 +237,9 @@ describe('OnboardingService', () => {
   describe('getOnboardingState', () => {
     it('throws NotFoundException when user not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.getOnboardingState('ghost-id')).rejects.toThrow(NotFoundException);
+      await expect(service.getOnboardingState('ghost-id')).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('returns onboarding data for existing user', async () => {
@@ -233,13 +268,21 @@ describe('OnboardingService', () => {
       prisma.user.create.mockResolvedValue(baseUser);
       // Simulate 5 existing tokens (limit is 5 → should delete oldest)
       prisma.refreshToken.findMany.mockResolvedValue([
-        { id: 'rt-old-1' }, { id: 'rt-old-2' }, { id: 'rt-old-3' },
-        { id: 'rt-old-4' }, { id: 'rt-old-5' },
+        { id: 'rt-old-1' },
+        { id: 'rt-old-2' },
+        { id: 'rt-old-3' },
+        { id: 'rt-old-4' },
+        { id: 'rt-old-5' },
       ]);
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt-new' });
 
-      await service.initiateRegistration({ firstName: 'Alice', lastName: 'Dupont', email: 'alice@test.com', password: 'Password@1' });
+      await service.initiateRegistration({
+        firstName: 'Alice',
+        lastName: 'Dupont',
+        email: 'alice@test.com',
+        password: 'Password@1',
+      });
 
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalled();
     });

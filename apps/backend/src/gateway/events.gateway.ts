@@ -14,7 +14,11 @@ import { JwtService } from '@nestjs/jwt';
   cors: {
     origin: process.env.FRONTEND_URL
       ? process.env.FRONTEND_URL.split(',').map((o) => o.trim())
-      : ['http://localhost:3000', 'http://localhost:3001'],
+      : [
+          'http://localhost:3000',
+          'http://localhost:3001',
+          'http://localhost:4000',
+        ],
     credentials: true,
   },
   namespace: '/ws',
@@ -30,9 +34,26 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   async handleConnection(client: Socket) {
     try {
-      // Token only from Authorization header — never from query params (logged by servers)
-      const token = client.handshake.headers.authorization?.split(' ')[1]
-        ?? (client.handshake.auth as Record<string, string>)?.token;
+      // Token resolution order:
+      //   1. Authorization: Bearer <token> header (explicit API clients)
+      //   2. auth.token from socket handshake (explicit socket clients)
+      //   3. `token` httpOnly cookie (browser clients with withCredentials: true)
+      const cookieHeader =
+        (client.handshake.headers.cookie as string | undefined) ?? '';
+      const cookieToken = cookieHeader
+        .split(';')
+        .map((c) => c.trim())
+        .reduce<string | null>((found, part) => {
+          if (found) return found;
+          const [k, ...v] = part.split('=');
+          return k.trim() === 'token' ? decodeURIComponent(v.join('=')) : null;
+        }, null);
+
+      const token =
+        client.handshake.headers.authorization?.split(' ')[1] ??
+        (client.handshake.auth as Record<string, string>)?.token ??
+        cookieToken ??
+        undefined;
 
       if (token) {
         const decoded = this.jwtService.verify(token);
@@ -72,15 +93,11 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     });
 
     if (!membership) {
-      console.warn(
-        `User ${user.id} tried to join unauthorized tenant room: ${tenantId}`,
-      );
       return { status: 'error', message: 'Forbidden' };
     }
 
     const room = `tenant-${tenantId}`;
     client.join(room);
-    console.log(`User ${user.id} joined room ${room}`);
     return { status: 'ok', room };
   }
 
@@ -99,7 +116,9 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       return { status: 'error', message: 'Order not found' };
     }
 
-    const user = client.data.user as { id?: string; tenantId?: string } | undefined;
+    const user = client.data.user as
+      | { id?: string; tenantId?: string }
+      | undefined;
 
     if (user?.id) {
       // Authenticated staff: verify the order belongs to their tenant.

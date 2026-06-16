@@ -1,10 +1,25 @@
-import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
 import { PlanLimitService } from '../plans/plans.service';
+import { CustomersService } from '../customers/customers.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+
+// Transitions d'état autorisées pour les commandes (machine d'état stricte)
+const VALID_ORDER_TRANSITIONS: Record<string, string[]> = {
+  pending: ['preparing', 'cancelled'],
+  preparing: ['ready', 'cancelled'],
+  ready: ['served', 'cancelled'],
+  served: [], // état terminal — géré par le module caisse (payment)
+  cancelled: [], // état terminal
+};
 
 @Injectable()
 export class OrdersService {
@@ -12,6 +27,7 @@ export class OrdersService {
     private prisma: PrismaService,
     private eventsService: EventsService,
     private planLimitService: PlanLimitService,
+    private customersService: CustomersService,
   ) {}
 
   async findAll(tenantId: string | undefined, filters: OrderFiltersDto) {
@@ -22,6 +38,7 @@ export class OrdersService {
 
     const where = {
       tenantId,
+      deletedAt: null, // exclure les soft-deleted
       ...(status ? { status } : {}),
       ...(type ? { type } : {}),
     };
@@ -55,7 +72,7 @@ export class OrdersService {
   async findOne(tenantId: string | undefined, id: string) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
     return this.prisma.order.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, deletedAt: null },
       include: {
         orderItems: true,
         table: true,
@@ -69,23 +86,43 @@ export class OrdersService {
     // Enforce monthly order quota before accepting the order.
     await this.planLimitService.assertMonthlyOrderLimit(tenantId);
 
-    const { items, ...orderData } = data;
+    const { items, customerName, customerEmail, customerPhone, ...orderData } =
+      data;
+
+    // Auto-upsert customer from order interaction (name/email/phone)
+    let resolvedCustomerId = data.customerId ?? null;
+    if (
+      !resolvedCustomerId &&
+      (customerName || customerEmail || customerPhone)
+    ) {
+      resolvedCustomerId = await this.customersService.upsertFromInteraction({
+        tenantId,
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+      });
+    }
 
     // Re-fetch prices from DB for any item with a menuItemId — never trust client prices.
-    const menuItemIds = items.filter((i) => i.menuItemId).map((i) => i.menuItemId!);
-    const dbMenuItems = menuItemIds.length > 0
-      ? await this.prisma.menuItem.findMany({
-          where: { id: { in: menuItemIds }, tenantId, deletedAt: null },
-          select: { id: true, name: true, price: true, image: true },
-        })
-      : [];
+    const menuItemIds = items
+      .filter((i) => i.menuItemId)
+      .map((i) => i.menuItemId!);
+    const dbMenuItems =
+      menuItemIds.length > 0
+        ? await this.prisma.menuItem.findMany({
+            where: { id: { in: menuItemIds }, tenantId, deletedAt: null },
+            select: { id: true, name: true, price: true, image: true },
+          })
+        : [];
 
     const priceMap = new Map(dbMenuItems.map((m) => [m.id, m]));
 
     // All referenced menuItems must belong to this tenant and be non-deleted.
     for (const item of items) {
       if (item.menuItemId && !priceMap.has(item.menuItemId)) {
-        throw new BadRequestException(`Article inconnu ou indisponible: ${item.menuItemId}`);
+        throw new BadRequestException(
+          `Article inconnu ou indisponible: ${item.menuItemId}`,
+        );
       }
     }
 
@@ -102,7 +139,10 @@ export class OrdersService {
       };
     });
 
-    const itemsTotal = sanitizedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
+    const itemsTotal = sanitizedItems.reduce(
+      (sum, i) => sum + i.price * i.quantity,
+      0,
+    );
     const total = itemsTotal + (data.deliveryFee ?? 0);
 
     const order = await this.prisma.order.create({
@@ -110,6 +150,7 @@ export class OrdersService {
         ...orderData,
         tenantId,
         userId,
+        customerId: resolvedCustomerId ?? orderData.customerId,
         total,
         orderItems: {
           create: sanitizedItems.map((item) => ({
@@ -129,8 +170,45 @@ export class OrdersService {
     return order;
   }
 
-  async updateStatus(tenantId: string | undefined, id: string, dto: UpdateOrderStatusDto) {
+  async findKitchenOrders(tenantId: string) {
+    return this.prisma.order.findMany({
+      where: {
+        tenantId,
+        status: { in: ['pending', 'preparing'] },
+        deletedAt: null,
+      },
+      include: {
+        orderItems: true,
+        table: true,
+        user: { select: { name: true, email: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+  }
+
+  async updateStatus(
+    tenantId: string | undefined,
+    id: string,
+    dto: UpdateOrderStatusDto,
+  ) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
+
+    // Valider la transition d'état avant mise à jour
+    const current = await this.prisma.order.findFirst({
+      where: { id, tenantId },
+      select: { status: true },
+    });
+
+    if (!current) throw new NotFoundException('Commande introuvable');
+
+    const allowed = VALID_ORDER_TRANSITIONS[current.status] ?? [];
+    if (!allowed.includes(dto.status)) {
+      throw new BadRequestException(
+        `Transition invalide : ${current.status} → ${dto.status}. Transitions autorisées : ${allowed.join(', ') || 'aucune'}.`,
+      );
+    }
+
     const order = await this.prisma.order.update({
       where: { id, tenantId },
       data: { status: dto.status },
@@ -149,8 +227,10 @@ export class OrdersService {
 
   async remove(tenantId: string | undefined, id: string) {
     if (!tenantId) throw new ForbiddenException('Tenant context required');
-    return this.prisma.order.delete({
+    // Soft-delete : préserve l'historique comptable et les relations (payment, stockMovements)
+    return this.prisma.order.update({
       where: { id, tenantId },
+      data: { deletedAt: new Date() },
     });
   }
 
@@ -160,8 +240,30 @@ export class OrdersService {
       select: {
         id: true,
         status: true,
+        type: true,
+        total: true,
         createdAt: true,
         updatedAt: true,
+        specialNotes: true,
+        table: { select: { number: true } },
+        tenant: {
+          select: {
+            name: true,
+            logo: true,
+            primaryColor: true,
+            currency: true,
+            slug: true,
+          },
+        },
+        orderItems: {
+          select: {
+            id: true,
+            name: true,
+            quantity: true,
+            price: true,
+            image: true,
+          },
+        },
       },
     });
   }

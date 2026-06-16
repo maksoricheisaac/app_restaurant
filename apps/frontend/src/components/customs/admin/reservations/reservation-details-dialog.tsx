@@ -40,8 +40,8 @@ export function ReservationDetailsDialog({
   const getCustomerInfo = (reservation: Reservation) => {
     if (reservation.user) {
       return {
-        name: reservation.user.name,
-        email: reservation.user.email,
+        name: reservation.user.name ?? 'Anonyme',
+        email: reservation.user.email ?? 'Non renseigné',
         phone: reservation.user.phone || 'Non renseigné'
       };
     } else {
@@ -90,7 +90,7 @@ export function ReservationDetailsDialog({
             <div>
               <label className="text-sm font-medium">Table</label>
               <p className="mt-1">
-                {reservation.table ? `Table ${reservation.table.number} (${reservation.table.seats} places)` : 'Non assignée'}
+                {reservation.table ? `Table ${reservation.table.number ?? '?'} (${reservation.table.seats ?? '?'} places)` : 'Non assignée'}
               </p>
             </div>
             <div>

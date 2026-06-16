@@ -1,12 +1,20 @@
+import { monitoring } from './monitoring';
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 export interface RequestOptions extends RequestInit {
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
   _retry?: boolean;
+  _requestId?: string;
 }
 
 // Single in-flight refresh promise to avoid race conditions
 let refreshPromise: Promise<boolean> | null = null;
+
+function generateRequestId(): string {
+  // Préfixe 'fe-' pour distinguer les requêtes frontend dans les logs backend
+  return `fe-${crypto.randomUUID()}`;
+}
 
 async function tryRefresh(): Promise<boolean> {
   if (refreshPromise) return refreshPromise;
@@ -22,8 +30,8 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
-async function fetchWithInterceptor(endpoint: string, options: RequestOptions = {}): Promise<any> {
-  const { params, _retry = false, ...init } = options;
+async function fetchWithInterceptor(endpoint: string, options: RequestOptions = {}): Promise<unknown> {
+  const { params, _retry = false, _requestId, ...init } = options;
 
   let url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 
@@ -38,6 +46,9 @@ async function fetchWithInterceptor(endpoint: string, options: RequestOptions = 
     if (queryString) url += (url.includes('?') ? '&' : '?') + queryString;
   }
 
+  // requestId — généré une seule fois et propagé sur les retries
+  const requestId = _requestId ?? generateRequestId();
+
   // Tenant context from localStorage (not secret, used for routing only)
   const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenantId') : null;
   const tenantSlug = typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') : null;
@@ -48,21 +59,31 @@ async function fetchWithInterceptor(endpoint: string, options: RequestOptions = 
   }
   if (tenantId) headers.set('x-tenant-id', tenantId);
   else if (tenantSlug) headers.set('x-tenant-slug', tenantSlug);
-  // Auth is via httpOnly cookie — no Authorization header from localStorage
 
-  const response = await fetch(url, {
-    ...init,
-    headers,
-    credentials: init.credentials ?? 'include',
-  });
+  // Propagation du requestId pour corrélation frontend↔backend dans les logs
+  headers.set('X-Request-ID', requestId);
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      ...init,
+      headers,
+      credentials: init.credentials ?? 'include',
+    });
+  } catch (networkError) {
+    monitoring.captureError(networkError, {
+      context: 'api-client:network',
+      extra: { endpoint, requestId },
+    });
+    throw new Error('Erreur réseau — vérifiez votre connexion.');
+  }
 
   // Auto-refresh on 401 (once)
   if (response.status === 401 && !_retry) {
     const refreshed = await tryRefresh();
     if (refreshed) {
-      return fetchWithInterceptor(endpoint, { ...options, _retry: true });
+      return fetchWithInterceptor(endpoint, { ...options, _retry: true, _requestId: requestId });
     }
-    // Refresh failed — redirect to login
     if (typeof window !== 'undefined') {
       window.location.href = '/auth/login';
     }
@@ -70,8 +91,18 @@ async function fetchWithInterceptor(endpoint: string, options: RequestOptions = 
   }
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+    const errorData = await response.json().catch(() => ({})) as Record<string, unknown>;
+    const message = (errorData.message as string) || `HTTP error! status: ${response.status}`;
+    const backendRequestId = response.headers.get('X-Request-ID') ?? requestId;
+
+    monitoring.addBreadcrumb({
+      category: 'api',
+      message: `${init.method ?? 'GET'} ${endpoint} → ${response.status}`,
+      level: response.status >= 500 ? 'error' : 'warning',
+      data: { requestId: backendRequestId, status: response.status },
+    });
+
+    throw new Error(message);
   }
 
   if (response.status === 204) return null;
@@ -85,21 +116,21 @@ const api = {
   get: (url: string, options?: RequestOptions) =>
     fetchWithInterceptor(url, { ...options, method: 'GET' }),
 
-  post: (url: string, data?: any, options?: RequestOptions) =>
+  post: (url: string, data?: unknown, options?: RequestOptions) =>
     fetchWithInterceptor(url, {
       ...options,
       method: 'POST',
       body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     }),
 
-  put: (url: string, data?: any, options?: RequestOptions) =>
+  put: (url: string, data?: unknown, options?: RequestOptions) =>
     fetchWithInterceptor(url, {
       ...options,
       method: 'PUT',
       body: data instanceof FormData ? data : data ? JSON.stringify(data) : undefined,
     }),
 
-  patch: (url: string, data?: any, options?: RequestOptions) =>
+  patch: (url: string, data?: unknown, options?: RequestOptions) =>
     fetchWithInterceptor(url, {
       ...options,
       method: 'PATCH',

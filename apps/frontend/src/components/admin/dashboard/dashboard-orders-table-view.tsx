@@ -2,7 +2,7 @@ import { Order } from '@/types/order';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronRight, ShoppingCart } from "lucide-react";
-import { format } from "date-fns";
+import { safeFormat } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -45,8 +45,8 @@ export function DashboardOrdersTableView({ orders, getStatusBadgeColor }: Dashbo
             <TableRow key={order.id}>
               <TableCell>
                 <div>
-                  <p className="font-medium">{order.user.name}</p>
-                  <p className="text-sm text-gray-500">{order.user.phone}</p>
+                  <p className="font-medium">{order.user?.name ?? 'Invité'}</p>
+                  <p className="text-sm text-gray-500">{order.user?.phone ?? '—'}</p>
                 </div>
               </TableCell>
               <TableCell>
@@ -85,9 +85,9 @@ export function DashboardOrdersTableView({ orders, getStatusBadgeColor }: Dashbo
               </TableCell>
               <TableCell>
                 <div className="text-sm">
-                  {format(new Date(order.createdAt), "HH:mm")}
+                  {safeFormat(order.createdAt, "HH:mm")}
                   <br />
-                  {format(new Date(order.createdAt), "dd/MM/yyyy")}
+                  {safeFormat(order.createdAt, "dd/MM/yyyy")}
                 </div>
               </TableCell>
               <TableCell className="text-right">

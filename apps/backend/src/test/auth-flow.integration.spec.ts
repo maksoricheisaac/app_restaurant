@@ -62,7 +62,13 @@ describe('Auth Flow Integration', () => {
     app = module.createNestApplication();
     app.use(cookieParser());
     app.setGlobalPrefix('/api/v1');
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, stopAtFirstError: true }));
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        stopAtFirstError: true,
+      }),
+    );
     await app.init();
   });
 
@@ -80,7 +86,10 @@ describe('Auth Flow Integration', () => {
   // ─── Login ────────────────────────────────────────────────────────────────
 
   describe('POST /api/v1/auth/login', () => {
-    const validCredentials = { email: 'alice@test.com', password: 'Password@1' };
+    const validCredentials = {
+      email: 'alice@test.com',
+      password: 'Password@1',
+    };
 
     it('returns 401 for unknown user', async () => {
       prismaMock.user.findUnique.mockResolvedValue(null);
@@ -204,9 +213,7 @@ describe('Auth Flow Integration', () => {
 
   describe('Public routes access', () => {
     it('GET /api/v1/health/live returns 200 without auth', async () => {
-      await request(app.getHttpServer())
-        .get('/api/v1/health/live')
-        .expect(200);
+      await request(app.getHttpServer()).get('/api/v1/health/live').expect(200);
     });
 
     it('GET /api/v1/health/ready returns 200 when DB reachable', async () => {

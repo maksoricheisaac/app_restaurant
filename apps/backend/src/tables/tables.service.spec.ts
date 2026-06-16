@@ -3,7 +3,14 @@ import { TablesService } from './tables.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
 const T = 'tenant-1';
-const TABLE = { id: 'tbl-1', number: 5, seats: 4, tenantId: T, deletedAt: null, status: 'available' };
+const TABLE = {
+  id: 'tbl-1',
+  number: 5,
+  seats: 4,
+  tenantId: T,
+  deletedAt: null,
+  status: 'available',
+};
 
 const mockPlanLimitService = {
   assertTableLimit: jest.fn().mockResolvedValue(undefined),
@@ -24,7 +31,9 @@ describe('TablesService', () => {
 
   describe('findAll', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findAll(undefined)).rejects.toThrow(ForbiddenException);
+      await expect(service.findAll(undefined)).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('returns only non-deleted tables for the tenant', async () => {
@@ -38,7 +47,9 @@ describe('TablesService', () => {
     it('orders tables by number ascending', async () => {
       prisma.table.findMany.mockResolvedValue([]);
       await service.findAll(T);
-      expect(prisma.table.findMany.mock.calls[0][0].orderBy).toEqual({ number: 'asc' });
+      expect(prisma.table.findMany.mock.calls[0][0].orderBy).toEqual({
+        number: 'asc',
+      });
     });
   });
 
@@ -46,7 +57,9 @@ describe('TablesService', () => {
 
   describe('findOne', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findOne(undefined, 'tbl-1')).rejects.toThrow(ForbiddenException);
+      await expect(service.findOne(undefined, 'tbl-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('queries with both id and tenantId for isolation', async () => {
@@ -74,14 +87,20 @@ describe('TablesService', () => {
     it('throws ConflictException when table number already exists', async () => {
       prisma.table.findFirst.mockResolvedValue(TABLE); // existing table
 
-      await expect(service.create(T, dto as any)).rejects.toThrow(ConflictException);
+      await expect(service.create(T, dto as any)).rejects.toThrow(
+        ConflictException,
+      );
       expect(prisma.table.create).not.toHaveBeenCalled();
     });
 
     it('does not create when plan limit is exceeded', async () => {
-      mockPlanLimitService.assertTableLimit.mockRejectedValue(new ForbiddenException('Quota atteint'));
+      mockPlanLimitService.assertTableLimit.mockRejectedValue(
+        new ForbiddenException('Quota atteint'),
+      );
 
-      await expect(service.create(T, dto as any)).rejects.toThrow(ForbiddenException);
+      await expect(service.create(T, dto as any)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(prisma.table.findFirst).not.toHaveBeenCalled();
     });
 
@@ -100,11 +119,16 @@ describe('TablesService', () => {
 
   describe('remove', () => {
     it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.remove(undefined, 'tbl-1')).rejects.toThrow(ForbiddenException);
+      await expect(service.remove(undefined, 'tbl-1')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
 
     it('soft-deletes by setting deletedAt', async () => {
-      prisma.table.update.mockResolvedValue({ ...TABLE, deletedAt: new Date() });
+      prisma.table.update.mockResolvedValue({
+        ...TABLE,
+        deletedAt: new Date(),
+      });
 
       await service.remove(T, 'tbl-1');
 

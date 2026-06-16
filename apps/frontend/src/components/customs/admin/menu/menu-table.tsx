@@ -92,7 +92,7 @@ export function MenuTable({
                       )}
                     </TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell>{item.category.name}</TableCell>
+                    <TableCell>{item.category?.name ?? '—'}</TableCell>
                     <TableCell>{formatPrice(item.price)}</TableCell>
                     <TableCell>
                       <Badge className={item.available ? "bg-green-500" : "bg-red-500"}>

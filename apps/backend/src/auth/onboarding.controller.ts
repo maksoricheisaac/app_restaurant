@@ -25,7 +25,10 @@ export class OnboardingController {
   constructor(private readonly onboardingService: OnboardingService) {}
 
   @Public()
-  @Throttle({ short: { limit: 5, ttl: 60_000 }, long: { limit: 20, ttl: 60_000 * 60 } })
+  @Throttle({
+    short: { limit: 5, ttl: 60_000 },
+    long: { limit: 20, ttl: 60_000 * 60 },
+  })
   @Post('initiate')
   async initiateRegistration(
     @Body() dto: InitiateRegistrationDto,

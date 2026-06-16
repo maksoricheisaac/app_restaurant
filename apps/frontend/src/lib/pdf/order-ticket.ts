@@ -1,5 +1,5 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import { mmToPt, wrapText, embedPngFromDataUrl, downloadPdfBytes } from './utils';
+import { mmToPt, wrapText, embedPngFromDataUrl, fetchLogoForPdf, downloadPdfBytes, type RestaurantInfo } from './utils';
 import QRCode from 'qrcode';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -33,8 +33,11 @@ export async function generateOrderTicketPdf(options: {
   fileName?: string;
   openInsteadOfDownload?: boolean;
   amountPaid?: number;
+  restaurant?: RestaurantInfo;
 }) {
   const { order, paperWidth, statusLabels, typeLabels } = options;
+  const restaurant = options.restaurant;
+  const restaurantName = restaurant?.name ?? 'Votre Restaurant';
 
   if (!order || !order.orderItems || order.orderItems.length === 0) {
     throw new Error('La commande ne contient aucun article.');
@@ -66,9 +69,17 @@ export async function generateOrderTicketPdf(options: {
 
   const maxTextWidth = widthPt - marginPt * 2 - mmToPt(20); // leave room for price
 
-  let heightPt = marginPt; // top margin from top we'll invert later
+  const logoSizeMm = 18;
+  const hasLogo = !!restaurant?.logoUrl;
+  const hasContact = !!(restaurant?.phone || restaurant?.address);
+
+  let heightPt = marginPt;
+  // Logo row (if present)
+  if (hasLogo) heightPt += mmToPt(logoSizeMm) + mmToPt(3);
   // Header
   heightPt += line(headerSize) + line(subHeaderSize) + mmToPt(4);
+  // Contact line below subheader
+  if (hasContact) heightPt += line(smallSize) + mmToPt(1);
   // Info block
   heightPt += 7 * line(smallSize) + mmToPt(2);
   // Separator
@@ -128,17 +139,37 @@ export async function generateOrderTicketPdf(options: {
     }
   };
 
-  // Header avec style amélioré (sans emojis pour compatibilité PDF)
-  centerText('APP RESTAURANT', cursorY - line(headerSize), headerSize, true);
+  // ── Header ──────────────────────────────────────────────────────────────
+  // Logo centré (si disponible)
+  if (restaurant?.logoUrl) {
+    const logo = await fetchLogoForPdf(pdfDoc, restaurant.logoUrl);
+    if (logo) {
+      const logoSizePt = mmToPt(logoSizeMm);
+      const aspectRatio = logo.width / logo.height;
+      const logoW = logoSizePt * aspectRatio;
+      const logoX = (widthPt - logoW) / 2;
+      page.drawImage(logo.image, { x: logoX, y: cursorY - logoSizePt, width: logoW, height: logoSizePt });
+      move(logoSizePt + mmToPt(3));
+    }
+  }
+  centerText(restaurantName, cursorY - line(headerSize), headerSize, true);
   move(line(headerSize) + mmToPt(1));
   centerText('--- Ticket de Commande ---', cursorY - line(subHeaderSize), subHeaderSize, false);
-  move(line(subHeaderSize) + mmToPt(4));
+  move(line(subHeaderSize) + mmToPt(2));
+  // Contact
+  if (restaurant?.phone || restaurant?.address) {
+    const contact = [restaurant?.phone, restaurant?.address].filter(Boolean).join(' | ');
+    centerText(contact, cursorY - line(smallSize), smallSize, false);
+    move(line(smallSize) + mmToPt(1));
+  }
+  move(mmToPt(2));
 
   // Infos
   const leftX = marginPt;
   const rightX = widthPt - marginPt;
 
-  const created = new Date(order.createdAt);
+  const _rawDate = new Date(order.createdAt);
+  const created = isNaN(_rawDate.getTime()) ? new Date() : _rawDate;
   text(`ID: ${order.id.slice(-8).toUpperCase()}`, leftX, cursorY - line(smallSize), smallSize);
   move(line(smallSize));
   text(`Date: ${format(created, "dd/MM/yyyy", { locale: fr })} ${format(created, 'HH:mm', { locale: fr })}`, leftX, cursorY - line(smallSize), smallSize);
@@ -252,10 +283,10 @@ export async function generateOrderTicketPdf(options: {
     total: order.total || 0,
     status: order.status,
     type: order.type,
-    createdAt: new Date(order.createdAt).toISOString(),
+    createdAt: (() => { const d = new Date(order.createdAt); return isNaN(d.getTime()) ? new Date().toISOString() : d.toISOString(); })(),
     items: order.orderItems.map((i) => ({ n: i.name, q: i.quantity, p: i.price })),
   };
-  
+
   // QR Code avec cadre
   const qrDataUrl = await QRCode.toDataURL(JSON.stringify(qrPayload), { width: 250, margin: 1 });
   const qrPng = await embedPngFromDataUrl(pdfDoc, qrDataUrl);

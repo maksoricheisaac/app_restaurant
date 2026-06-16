@@ -10,6 +10,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
+import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -25,17 +26,37 @@ import type { Tenant } from '@prisma/client';
 @Controller('/orders')
 @UseGuards(AuthGuard, TenantGuard, RolesGuard)
 export class OrdersController {
-  constructor(private readonly ordersService: OrdersService) {}
+  constructor(
+    private readonly ordersService: OrdersService,
+    private readonly featureFlags: FeatureFlagsService,
+  ) {}
 
   @Get()
   @Roles('owner', 'manager', 'waiter', 'cashier', 'head_chef', 'chef')
-  findAll(@CurrentTenant() tenant: Tenant | undefined, @Query() filters: OrderFiltersDto) {
+  findAll(
+    @CurrentTenant() tenant: Tenant | undefined,
+    @Query() filters: OrderFiltersDto,
+  ) {
     return this.ordersService.findAll(tenant?.id, filters);
+  }
+
+  /**
+   * Kitchen Display System — Pro feature only.
+   * Returns active orders (pending + preparing) for kitchen staff.
+   */
+  @Get('kitchen')
+  @Roles('owner', 'manager', 'head_chef', 'chef')
+  async getKitchenOrders(@CurrentTenant() tenant: Tenant) {
+    await this.featureFlags.assertPlanFeature(tenant.id, 'kds');
+    return this.ordersService.findKitchenOrders(tenant.id);
   }
 
   @Get(':id')
   @Roles('owner', 'manager', 'waiter', 'cashier', 'head_chef', 'chef')
-  findOne(@CurrentTenant() tenant: Tenant | undefined, @Param('id') id: string) {
+  findOne(
+    @CurrentTenant() tenant: Tenant | undefined,
+    @Param('id') id: string,
+  ) {
     return this.ordersService.findOne(tenant?.id, id);
   }
 

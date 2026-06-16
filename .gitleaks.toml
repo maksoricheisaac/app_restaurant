@@ -1,0 +1,37 @@
+# Gitleaks configuration for Flash Menu
+#
+# Usage:
+#   - Local pre-commit: see apps/docs/SECRETS.md for hook setup
+#   - CI: enforced in apps/.github/workflows/ci.yml (job "secrets")
+#
+# This extends gitleaks' default ruleset (covers AWS keys, JWTs, generic
+# API keys/tokens, private keys, Stripe/Lemon Squeezy/Vercel tokens, etc.)
+# and adds project-specific allowlisting so documentation placeholders
+# don't trigger false positives.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Flash Menu allowlist — placeholders & fixtures"
+regexes = [
+  '''REPLACE_[A-Z0-9_]*''',
+  '''REPLACE_WITH_[A-Z0-9_]*''',
+  '''CHANGE_ME''',
+  '''changeme_redis''',
+  '''ci_test_secret_min_32_chars_long_abc''',
+  '''sk_test_REPLACE''',
+  '''sk_live_REPLACE''',
+  '''whsec_REPLACE''',
+  '''test_REPLACE''',
+  '''vercel_blob_rw_REPLACE''',
+]
+
+paths = [
+  '''.*\.env\.example$''',
+  '''.*/node_modules/.*''',
+  '''.*/dist/.*''',
+  '''.*/\.next/.*''',
+  '''.*/coverage/.*''',
+  '''.*pnpm-lock\.yaml$''',
+]

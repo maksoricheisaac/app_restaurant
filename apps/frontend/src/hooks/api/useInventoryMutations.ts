@@ -10,6 +10,7 @@ export const useCreateIngredient = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingredients'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock-alerts'] });
     },
   });
 };
@@ -21,6 +22,8 @@ export const useAddStockMovement = () => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['ingredients'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock-alerts'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-movements'] });
     },
   });
 };

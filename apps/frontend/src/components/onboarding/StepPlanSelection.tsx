@@ -6,6 +6,8 @@ import { Check, Zap, ArrowRight, ArrowLeft, Loader2, Sparkles, Building } from '
 import { Button } from '@/components/ui/button';
 import { onboardingService } from '@/services/onboarding.service';
 import type { OnboardingData } from '@/types/onboarding';
+import { PLANS } from '@/config/plans';
+import type { PlanId } from '@/config/plans';
 
 interface Props {
   onNext: (data: Partial<OnboardingData>) => void;
@@ -13,76 +15,34 @@ interface Props {
   data: Partial<OnboardingData>;
 }
 
-const plans = [
-  {
-    id: 'free' as const,
-    name: 'Starter',
-    price: 'Gratuit',
-    priceDetail: 'Pour toujours',
+const PLAN_UI: Record<PlanId, {
+  icon: typeof Zap;
+  iconBg: string;
+  iconColor: string;
+  borderSelected: string;
+}> = {
+  free: {
     icon: Zap,
-    badge: null,
-    description: 'Parfait pour démarrer et tester la plateforme.',
-    color: 'slate',
     iconBg: 'bg-slate-100',
     iconColor: 'text-slate-600',
     borderSelected: 'border-slate-400',
-    features: [
-      '1 restaurant',
-      'Menu digital QR',
-      'Commandes en ligne',
-      'Jusqu\'à 50 commandes/mois',
-      'Support par email',
-    ],
-    excluded: ['Analyses avancées', 'Multi-restaurants', 'Intégrations'],
   },
-  {
-    id: 'pro' as const,
-    name: 'Pro',
-    price: '49€',
-    priceDetail: 'par mois',
+  pro: {
     icon: Sparkles,
-    badge: 'Le plus populaire',
-    description: 'Tout ce qu\'il faut pour un restaurant performant.',
-    color: 'primary',
     iconBg: 'bg-primary/10',
     iconColor: 'text-primary',
     borderSelected: 'border-primary',
-    features: [
-      '1 restaurant',
-      'Commandes illimitées',
-      'Caisse enregistreuse',
-      'Inventaire & recettes',
-      'Analyses & rapports',
-      'Support prioritaire',
-    ],
-    excluded: [],
   },
-  {
-    id: 'enterprise' as const,
-    name: 'Enterprise',
-    price: '149€',
-    priceDetail: 'par mois',
+  enterprise: {
     icon: Building,
-    badge: null,
-    description: 'Pour les groupes et franchises multi-établissements.',
-    color: 'violet',
     iconBg: 'bg-violet-50',
     iconColor: 'text-violet-600',
     borderSelected: 'border-violet-400',
-    features: [
-      'Restaurants illimités',
-      'Tableau de bord groupe',
-      'Gestion centralisée',
-      'API & intégrations',
-      'Compte manager dédié',
-      'SLA garanti',
-    ],
-    excluded: [],
   },
-];
+};
 
 export default function StepPlanSelection({ onNext, onBack, data }: Props) {
-  const [selected, setSelected] = useState<'free' | 'pro' | 'enterprise'>('pro');
+  const [selected, setSelected] = useState<PlanId>('pro');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -111,34 +71,47 @@ export default function StepPlanSelection({ onNext, onBack, data }: Props) {
       </div>
 
       <div className="space-y-3">
-        {plans.map((plan, i) => {
-          const Icon = plan.icon;
+        {PLANS.map((plan, i) => {
+          const ui = PLAN_UI[plan.id];
+          const Icon = ui.icon;
           const isSelected = selected === plan.id;
+          const isDisabled = !!plan.comingSoon;
+
           return (
             <motion.button
               key={plan.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07 }}
-              onClick={() => setSelected(plan.id)}
+              onClick={() => !isDisabled && setSelected(plan.id)}
+              disabled={isDisabled}
               className={`relative w-full text-left rounded-xl border-2 p-4 transition-all duration-200 ${
-                isSelected
-                  ? `${plan.borderSelected} bg-white shadow-md`
+                isDisabled
+                  ? 'border-dashed border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
+                  : isSelected
+                  ? `${ui.borderSelected} bg-white shadow-md`
                   : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
               }`}
             >
-              {plan.badge && (
+              {plan.comingSoon ? (
+                <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
+                  <span className="inline-flex items-center rounded-full bg-slate-400 px-3 py-0.5 text-[10px] font-semibold text-white shadow-sm">
+                    🚧 Bientôt disponible
+                  </span>
+                </div>
+              ) : plan.badge ? (
                 <div className="absolute -top-2.5 left-1/2 -translate-x-1/2">
                   <span className="inline-flex items-center rounded-full bg-primary px-3 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                     {plan.badge}
                   </span>
                 </div>
-              )}
+              ) : null}
 
               <div className="flex items-start gap-3">
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${plan.iconBg}`}>
-                  <Icon className={`h-5 w-5 ${plan.iconColor}`} />
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${ui.iconBg}`}>
+                  <Icon className={`h-5 w-5 ${ui.iconColor}`} />
                 </div>
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <div>
@@ -146,16 +119,16 @@ export default function StepPlanSelection({ onNext, onBack, data }: Props) {
                       <p className="text-xs text-slate-500 mt-0.5">{plan.description}</p>
                     </div>
                     <div className="text-right shrink-0">
-                      <p className="font-bold text-slate-900">{plan.price}</p>
+                      <p className="font-bold text-slate-900">{plan.priceLabel}</p>
                       <p className="text-[10px] text-slate-400">{plan.priceDetail}</p>
                     </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1">
-                    {plan.features.map((f) => (
-                      <div key={f} className="flex items-center gap-1.5">
+                    {plan.highlights.slice(0, 6).map((h) => (
+                      <div key={h} className="flex items-center gap-1.5">
                         <Check className="h-3 w-3 shrink-0 text-green-500" />
-                        <span className="text-[11px] text-slate-600">{f}</span>
+                        <span className="text-[11px] text-slate-600">{h}</span>
                       </div>
                     ))}
                   </div>

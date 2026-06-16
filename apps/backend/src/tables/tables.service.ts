@@ -1,4 +1,8 @@
-import { Injectable, ForbiddenException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  ConflictException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { PlanLimitService } from '../plans/plans.service';
 import { CreateTableDto } from './dto/create-table.dto';
@@ -51,7 +55,9 @@ export class TablesService {
         where: { tenantId, number: data.number, deletedAt: null, NOT: { id } },
       });
       if (conflict) {
-        throw new ConflictException(`La table numéro ${data.number} existe déjà`);
+        throw new ConflictException(
+          `La table numéro ${data.number} existe déjà`,
+        );
       }
     }
     return this.prisma.table.update({

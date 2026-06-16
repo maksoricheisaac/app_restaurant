@@ -1,7 +1,18 @@
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common';
 import { Request, Response, NextFunction } from 'express';
 
-const SENSITIVE_PATHS = ['/auth/login', '/auth/logout', '/billing/', '/tenants/', '/permissions/'];
+const SENSITIVE_PATHS = [
+  '/auth/login',
+  '/auth/logout',
+  '/auth/refresh',
+  '/auth/reset-password',
+  '/billing/',
+  '/tenants/',
+  '/permissions/',
+  '/cash-register/payment', // paiements — traçabilité comptable
+  '/orders/', // commandes — traçabilité métier
+  '/memberships/', // gestion staff
+];
 
 @Injectable()
 export class AuditMiddleware implements NestMiddleware {

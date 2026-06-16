@@ -1,6 +1,5 @@
-import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, safeFormat } from "@/lib/utils";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -124,9 +123,13 @@ export function OrderCard({
 					<div className="flex items-center gap-2">
 						<Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
 						<span className="text-foreground">
-							{format(new Date(order.createdAt), "d MMM yyyy", { locale: fr })}
-							{" à "}
-							{format(new Date(order.createdAt), "HH:mm")}
+							{order.createdAt && !isNaN(new Date(order.createdAt).getTime())
+                ? <>
+                    {safeFormat(order.createdAt, "d MMM yyyy", { locale: fr })}
+                    {" à "}
+                    {safeFormat(order.createdAt, "HH:mm")}
+                  </>
+                : "—"}
 						</span>
 					</div>
 

@@ -1,25 +1,5 @@
-import { Hero } from '@/components/customs/public/about/hero';
-import { Story } from '@/components/customs/public/about/story';
-import { Values } from '@/components/customs/public/about/values';
-import { Timeline } from '@/components/customs/public/about/timeline';
-import { Team } from '@/components/customs/public/about/team';
-import { CTA } from '@/components/customs/public/about/cta';
-
-import { StructuredData } from '@/components/seo/structured-data';
-
+import { redirect } from 'next/navigation';
 
 export default function About() {
-  return (
-    <>
-      <StructuredData type="organization" />
-      <div className="min-h-screen bg-background">
-        <Hero />
-        <Story />
-        <Values />
-        <Timeline />
-        <Team />
-        <CTA />
-      </div>
-    </>
-  );
+  redirect('/');
 }

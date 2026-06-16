@@ -23,11 +23,13 @@ function makeCtx(overrides: {
 }
 
 describe('RolesGuard', () => {
-
   // ─── No roles required ────────────────────────────────────────────────────
 
   it('returns true when no @Roles() decorator is set', () => {
-    const { ctx, reflector } = makeCtx({ roles: undefined, user: { id: 'u1' } });
+    const { ctx, reflector } = makeCtx({
+      roles: undefined,
+      user: { id: 'u1' },
+    });
     const guard = new RolesGuard(reflector);
     expect(guard.canActivate(ctx)).toBe(true);
   });
@@ -98,12 +100,19 @@ describe('RolesGuard', () => {
   });
 
   it('grants access to all listed roles individually', () => {
-    const guard = new RolesGuard(
-      { getAllAndOverride: jest.fn().mockReturnValue(['owner', 'manager', 'head_chef']) } as any,
-    );
+    const guard = new RolesGuard({
+      getAllAndOverride: jest
+        .fn()
+        .mockReturnValue(['owner', 'manager', 'head_chef']),
+    } as any);
     for (const role of ['owner', 'manager', 'head_chef']) {
       const ctx = {
-        switchToHttp: () => ({ getRequest: () => ({ user: { id: 'u1', platformRole: 'user' }, membership: { role } }) }),
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { id: 'u1', platformRole: 'user' },
+            membership: { role },
+          }),
+        }),
         getHandler: jest.fn(),
         getClass: jest.fn(),
       } as any;
@@ -112,12 +121,17 @@ describe('RolesGuard', () => {
   });
 
   it('blocks roles not in the allowed list', () => {
-    const guard = new RolesGuard(
-      { getAllAndOverride: jest.fn().mockReturnValue(['owner']) } as any,
-    );
+    const guard = new RolesGuard({
+      getAllAndOverride: jest.fn().mockReturnValue(['owner']),
+    } as any);
     for (const role of ['manager', 'waiter', 'chef', 'cashier']) {
       const ctx = {
-        switchToHttp: () => ({ getRequest: () => ({ user: { id: 'u1', platformRole: 'user' }, membership: { role } }) }),
+        switchToHttp: () => ({
+          getRequest: () => ({
+            user: { id: 'u1', platformRole: 'user' },
+            membership: { role },
+          }),
+        }),
         getHandler: jest.fn(),
         getClass: jest.fn(),
       } as any;

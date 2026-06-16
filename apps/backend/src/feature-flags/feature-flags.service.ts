@@ -46,7 +46,10 @@ export class FeatureFlagsService {
   }
 
   /** Plan-feature shortcut (no DB lookup for plan-based features). */
-  async assertPlanFeature(tenantId: string, feature: keyof PlanFeatures): Promise<void> {
+  async assertPlanFeature(
+    tenantId: string,
+    feature: keyof PlanFeatures,
+  ): Promise<void> {
     return this.assertEnabled(tenantId, feature as string);
   }
 

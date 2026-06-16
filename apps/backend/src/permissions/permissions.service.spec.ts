@@ -1,4 +1,8 @@
-import { ForbiddenException, ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PermissionsService } from './permissions.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
@@ -16,7 +20,10 @@ describe('PermissionsService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new PermissionsService(prisma as any, mockPlanLimitService as any);
+    service = new PermissionsService(
+      prisma as any,
+      mockPlanLimitService as any,
+    );
     jest.clearAllMocks();
     mockPlanLimitService.assertStaffMemberLimit.mockResolvedValue(undefined);
   });
@@ -26,7 +33,11 @@ describe('PermissionsService', () => {
   describe('createStaff — plan limit enforcement', () => {
     it('calls assertStaffMemberLimit before creating staff', async () => {
       prisma.user.findUnique.mockResolvedValue(null); // new user
-      prisma.user.create.mockResolvedValue({ id: 'u1', name: 'Alice', email: 'alice@test.com' });
+      prisma.user.create.mockResolvedValue({
+        id: 'u1',
+        name: 'Alice',
+        email: 'alice@test.com',
+      });
       prisma.tenantMembership.create.mockResolvedValue({
         id: 'm1',
         user: { id: 'u1', name: 'Alice', email: 'alice@test.com' },
@@ -39,7 +50,9 @@ describe('PermissionsService', () => {
         role: 'waiter',
       } as any);
 
-      expect(mockPlanLimitService.assertStaffMemberLimit).toHaveBeenCalledWith('tenant-1');
+      expect(mockPlanLimitService.assertStaffMemberLimit).toHaveBeenCalledWith(
+        'tenant-1',
+      );
     });
 
     it('does NOT create staff when quota is exceeded', async () => {
@@ -125,8 +138,78 @@ describe('PermissionsService', () => {
       prisma.tenantMembership.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.updateStaff('tenant-1', 'unknown-membership', { role: 'waiter' } as any),
+        service.updateStaff(
+          'tenant-1',
+          'unknown-membership',
+          { role: 'waiter' } as any,
+          'current-user',
+        ),
       ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when modifying own membership', async () => {
+      prisma.tenantMembership.findFirst.mockResolvedValue({
+        id: 'm1',
+        userId: 'current-user',
+        role: 'manager',
+      });
+
+      await expect(
+        service.updateStaff(
+          'tenant-1',
+          'm1',
+          { role: 'waiter' } as any,
+          'current-user',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.tenantMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when target membership is the tenant owner', async () => {
+      prisma.tenantMembership.findFirst.mockResolvedValue({
+        id: 'm1',
+        userId: 'owner-user',
+        role: 'owner',
+      });
+
+      await expect(
+        service.updateStaff(
+          'tenant-1',
+          'm1',
+          { role: 'manager' } as any,
+          'current-user',
+        ),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.tenantMembership.update).not.toHaveBeenCalled();
+    });
+
+    it('updates the membership role when target is a non-owner, non-self member', async () => {
+      prisma.tenantMembership.findFirst
+        .mockResolvedValueOnce({ id: 'm1', userId: 'u1', role: 'waiter' })
+        .mockResolvedValueOnce({
+          id: 'm1',
+          userId: 'u1',
+          role: 'manager',
+          user: { id: 'u1', name: 'Alice', email: 'alice@test.com' },
+        });
+      prisma.tenantMembership.update.mockResolvedValue({ id: 'm1' });
+
+      const result = await service.updateStaff(
+        'tenant-1',
+        'm1',
+        { role: 'manager' } as any,
+        'current-user',
+      );
+
+      expect(prisma.tenantMembership.update).toHaveBeenCalledWith({
+        where: { id: 'm1' },
+        data: { role: 'manager' },
+      });
+      expect(result).toEqual(
+        expect.objectContaining({ id: 'm1', role: 'manager' }),
+      );
     });
   });
 
@@ -134,17 +217,53 @@ describe('PermissionsService', () => {
 
   describe('deleteStaff', () => {
     it('deletes membership when found', async () => {
-      prisma.tenantMembership.findFirst.mockResolvedValue({ id: 'm1', userId: 'u1' });
+      prisma.tenantMembership.findFirst.mockResolvedValue({
+        id: 'm1',
+        userId: 'u1',
+        role: 'waiter',
+      });
       prisma.tenantMembership.delete.mockResolvedValue({ id: 'm1' });
 
-      await service.deleteStaff('tenant-1', 'm1');
+      await service.deleteStaff('tenant-1', 'm1', 'current-user');
 
-      expect(prisma.tenantMembership.delete).toHaveBeenCalledWith({ where: { id: 'm1' } });
+      expect(prisma.tenantMembership.delete).toHaveBeenCalledWith({
+        where: { id: 'm1' },
+      });
     });
 
     it('throws NotFoundException when membership not found', async () => {
       prisma.tenantMembership.findFirst.mockResolvedValue(null);
-      await expect(service.deleteStaff('tenant-1', 'unknown')).rejects.toThrow(NotFoundException);
+      await expect(
+        service.deleteStaff('tenant-1', 'unknown', 'current-user'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws ForbiddenException when removing own membership', async () => {
+      prisma.tenantMembership.findFirst.mockResolvedValue({
+        id: 'm1',
+        userId: 'current-user',
+        role: 'manager',
+      });
+
+      await expect(
+        service.deleteStaff('tenant-1', 'm1', 'current-user'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.tenantMembership.delete).not.toHaveBeenCalled();
+    });
+
+    it('throws ForbiddenException when removing the tenant owner', async () => {
+      prisma.tenantMembership.findFirst.mockResolvedValue({
+        id: 'm1',
+        userId: 'owner-user',
+        role: 'owner',
+      });
+
+      await expect(
+        service.deleteStaff('tenant-1', 'm1', 'current-user'),
+      ).rejects.toThrow(ForbiddenException);
+
+      expect(prisma.tenantMembership.delete).not.toHaveBeenCalled();
     });
   });
 });

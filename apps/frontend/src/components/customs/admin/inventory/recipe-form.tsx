@@ -126,7 +126,7 @@ export function RecipeForm({
                     <SelectContent>
                       {menuItems.map((item: MenuItem) => (
                         <SelectItem key={item.id} value={item.id}>
-                          {item.name} - {item.category.name}
+                          {item.name} - {item.category?.name ?? 'Sans catégorie'}
                         </SelectItem>
                       ))}
                     </SelectContent>

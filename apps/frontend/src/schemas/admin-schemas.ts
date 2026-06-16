@@ -23,10 +23,15 @@ export const UpdatePersonnelSchema = z.object({
 // --- Settings Schemas ---
 
 export const GeneralSettingsSchema = z.object({
-  name: z.string().min(1, "Le nom du restaurant est requis."),
+  name:            z.string().min(1, "Le nom du restaurant est requis."),
+  description:     z.string().optional(),
+  phone:           z.string().optional(),
+  email:           z.string().email("Email invalide").optional().or(z.literal("")),
+  address:         z.string().optional(),
+  website:         z.string().optional(),
   deliveryEnabled: z.boolean(),
   takeawayEnabled: z.boolean(),
-  dineInEnabled: z.boolean(),
+  dineInEnabled:   z.boolean(),
 });
 
 export enum DayOfWeek {

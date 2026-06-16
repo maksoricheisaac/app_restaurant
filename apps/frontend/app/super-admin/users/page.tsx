@@ -26,9 +26,8 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/lib/api-client";
 import { useUpdateUserRole, useUpdateUserStatus } from "@/hooks/api/useSuperAdmin";
-import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+import { cn, safeFormat } from "@/lib/utils";
 import { toast } from "sonner";
 
 // ─── Role Change Dialog ────────────────────────────────────────────────────────
@@ -297,7 +296,7 @@ export default function SuperAdminUsersPage() {
                       </TableCell>
                       <TableCell className="text-center py-4 hidden lg:table-cell">
                         <p className="text-sm font-medium">
-                          {format(new Date(user.createdAt), "dd MMM yyyy", { locale: fr })}
+                          {safeFormat(user.createdAt, "dd MMM yyyy", { locale: fr })}
                         </p>
                         <p className="text-[10px] text-muted-foreground font-mono">
                           ID: {user.id.substring(0, 8)}

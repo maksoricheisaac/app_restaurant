@@ -1,3 +1,4 @@
+import { safeLocaleDateString } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -113,7 +114,7 @@ export function CustomerTable({
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(customer.createdAt).toLocaleDateString('fr-FR')}
+                      {safeLocaleDateString(customer.createdAt, 'fr-FR')}
                     </TableCell>
                     <TableCell>{customer._count.orders}</TableCell>
                     {/* <TableCell>

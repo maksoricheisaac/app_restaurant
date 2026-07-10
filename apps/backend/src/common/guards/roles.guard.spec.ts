@@ -56,6 +56,38 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(ctx)).toBe(true);
   });
 
+  // ─── Platform-role bypass, scoped to routes that list it explicitly ──────
+
+  it('grants access to a platform role (e.g. support) explicitly listed in @Roles(), without membership', () => {
+    const { ctx, reflector } = makeCtx({
+      roles: ['super_admin', 'support'],
+      user: { id: 'u1', platformRole: 'support' },
+      membership: null,
+    });
+    const guard = new RolesGuard(reflector);
+    expect(guard.canActivate(ctx)).toBe(true);
+  });
+
+  it('does NOT grant support a blanket bypass on tenant-scoped routes that do not list it', () => {
+    const { ctx, reflector } = makeCtx({
+      roles: ['owner', 'manager'], // 'support' not listed here
+      user: { id: 'u1', platformRole: 'support' },
+      membership: null,
+    });
+    const guard = new RolesGuard(reflector);
+    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
+
+  it('still requires a real membership role for support on tenant-scoped routes it is not listed on', () => {
+    const { ctx, reflector } = makeCtx({
+      roles: ['owner'],
+      user: { id: 'u1', platformRole: 'support' },
+      membership: { role: 'waiter' }, // even with membership, wrong role
+    });
+    const guard = new RolesGuard(reflector);
+    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
+
   // ─── Missing user / membership ────────────────────────────────────────────
 
   it('throws ForbiddenException when user is null', () => {

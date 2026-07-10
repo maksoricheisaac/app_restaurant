@@ -35,7 +35,7 @@ export class AuthService {
     // Ne pas vérifier emailVerified ici (contexte Passport) :
     // une exception lancée dans validate() peut remonter en 500.
     // La vérification se fait dans login() après que Passport a validé les credentials.
-    const { password, ...result } = user;
+    const { password: _password, ...result } = user;
     return result;
   }
 
@@ -71,7 +71,6 @@ export class AuthService {
         platformRole: user.platformRole,
         tenantId: user.tenantId,
         image: user.image,
-        onboardingStep: user.onboardingStep,
         onboardingCompleted: user.onboardingCompleted,
       },
     };
@@ -132,7 +131,7 @@ export class AuthService {
     // Cela indique une possible attaque replay : un attaquant a obtenu un
     // refresh token et tente de l'utiliser après qu'il ait été rotaté.
     // Réponse défensive : révoquer TOUTES les sessions de cet utilisateur.
-    // eslint-disable-next-line eqeqeq -- loose equality couvre null ET undefined (mock vs DB)
+
     if (stored.usedAt != null) {
       await this.prisma.refreshToken.deleteMany({
         where: { userId: stored.userId },
@@ -215,10 +214,8 @@ export class AuthService {
         phone: true,
         status: true,
         platformRole: true,
-        accountType: true,
         tenantId: true,
         emailVerified: true,
-        onboardingStep: true,
         onboardingCompleted: true,
         createdAt: true,
         memberships: {

@@ -36,13 +36,17 @@ export class MenuService {
     const where: any = {
       tenantId,
       ...NOT_DELETED,
-      ...(availableOnly || query.availableOnly === 'true' ? { available: true } : {}),
+      ...(availableOnly || query.availableOnly === 'true'
+        ? { available: true }
+        : {}),
       ...(categoryId ? { categoryId } : {}),
       ...(search
         ? {
             OR: [
               { name: { contains: search, mode: 'insensitive' as const } },
-              { description: { contains: search, mode: 'insensitive' as const } },
+              {
+                description: { contains: search, mode: 'insensitive' as const },
+              },
             ],
           }
         : {}),

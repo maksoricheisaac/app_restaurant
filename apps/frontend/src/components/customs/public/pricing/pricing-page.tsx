@@ -452,7 +452,7 @@ export default function PricingPageClient() {
                 Essai gratuit 14 jours · Sans engagement
               </span>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">
-                Lancez-vous aujourd'hui
+                Lancez-vous aujourd&apos;hui
               </h2>
               <p className="text-primary-foreground/80 text-base sm:text-lg mb-10 max-w-lg mx-auto">
                 Rejoignez les restaurateurs qui ont déjà digitalisé leur établissement avec Flash Menu.

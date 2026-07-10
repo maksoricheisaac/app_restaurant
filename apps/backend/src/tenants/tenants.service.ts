@@ -23,7 +23,7 @@ export class TenantsService {
           status: 'active' as any,
         },
       });
-    } catch (error) {
+    } catch {
       throw new InternalServerErrorException(
         'Erreur lors de la création du tenant',
       );
@@ -43,7 +43,7 @@ export class TenantsService {
   }
 
   async findOne(id: string) {
-    return this.prisma.tenant.findUnique({
+    const tenant = await this.prisma.tenant.findUnique({
       where: { id },
       include: {
         memberships: {
@@ -61,6 +61,25 @@ export class TenantsService {
           },
         },
       },
+    });
+    if (!tenant) return null;
+    // Vue admin : on ne filtre pas les tenants soft-deleted (utile pour
+    // l'outillage support), mais on signale explicitement leur état plutôt
+    // que de laisser l'appelant le déduire silencieusement de deletedAt.
+    return { ...tenant, isDeleted: tenant.deletedAt !== null };
+  }
+
+  /**
+   * Slugs des tenants actifs, publics — utilisé par le sitemap.xml du
+   * frontend pour référencer les pages /menu/[slug] réelles au lieu de
+   * routes statiques génériques.
+   */
+  async findAllPublicSlugs() {
+    return this.prisma.tenant.findMany({
+      where: { deletedAt: null, status: 'active' },
+      select: { slug: true, updatedAt: true },
+      orderBy: { updatedAt: 'desc' },
+      take: 5000,
     });
   }
 
@@ -99,9 +118,16 @@ export class TenantsService {
     if (tenant.deletedAt) {
       throw new ConflictException('Ce tenant est déjà supprimé');
     }
-    return this.prisma.tenant.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    // Domain n'a pas de deletedAt et son champ `domain` est @unique : on le
+    // supprime réellement au soft-delete du tenant (ce n'est qu'un mapping
+    // de vérification de domaine, pas une donnée métier à conserver), pour
+    // qu'un futur tenant puisse réutiliser le même nom de domaine.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.domain.deleteMany({ where: { tenantId: id } });
+      return tx.tenant.update({
+        where: { id },
+        data: { deletedAt: new Date() },
+      });
     });
   }
 

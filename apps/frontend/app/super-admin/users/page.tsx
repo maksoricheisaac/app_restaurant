@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import {
-  Users, UserPlus, Shield, ShieldAlert, UserCheck, UserCog,
+  Users, Shield, ShieldAlert, UserCheck, UserCog,
   Search, MoreVertical, Mail, Loader2, AlertCircle, RefreshCw,
-  Fingerprint, ChevronDown,
+  Fingerprint,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

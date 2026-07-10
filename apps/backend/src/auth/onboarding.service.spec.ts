@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  NotFoundException,
-  BadRequestException,
-  InternalServerErrorException,
-} from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
@@ -54,10 +49,17 @@ describe('OnboardingService', () => {
     emailVerified: false,
     platformRole: 'user',
     tenantId: null,
-    onboardingStep: 1,
     onboardingCompleted: false,
-    accountType: null,
-    onboardingData: null,
+  };
+
+  const completeDto = {
+    restaurantName: 'Le Maquis',
+    slug: 'le-maquis',
+    country: 'CG',
+    currency: 'XAF',
+    timezone: 'Africa/Brazzaville',
+    cuisineType: 'Africaine',
+    plan: 'pro',
   };
 
   beforeEach(() => {
@@ -88,6 +90,22 @@ describe('OnboardingService', () => {
 
       const createCall = prisma.user.create.mock.calls[0][0];
       expect(createCall.data.emailVerified).toBe(false);
+    });
+
+    it('does NOT persist any restaurant/onboarding data at account creation', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.user.create.mockResolvedValue(baseUser);
+      prisma.refreshToken.findMany.mockResolvedValue([]);
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+
+      await service.initiateRegistration(dto);
+
+      const createCall = prisma.user.create.mock.calls[0][0];
+      // Aucune donnée d'onboarding intermédiaire ne doit être écrite ici.
+      expect(createCall.data.onboardingCompleted).toBe(false);
+      expect(createCall.data).not.toHaveProperty('accountType');
+      expect(createCall.data).not.toHaveProperty('onboardingStep');
+      expect(createCall.data).not.toHaveProperty('onboardingData');
     });
 
     it('creates user with emailVerificationToken', async () => {
@@ -166,53 +184,97 @@ describe('OnboardingService', () => {
     });
   });
 
-  // ─── saveAccountType ───────────────────────────────────────────────────────
+  // ─── completeOnboarding — provisionnement transactionnel ───────────────────
 
-  describe('saveAccountType', () => {
+  describe('completeOnboarding', () => {
     it('throws NotFoundException when user not found', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
       await expect(
-        service.saveAccountType('u1', { accountType: 'OWNER' }),
+        service.completeOnboarding('ghost', completeDto),
       ).rejects.toThrow(NotFoundException);
     });
 
-    it('throws BadRequestException when onboarding already completed', async () => {
+    it('rejects a slug already used by an active tenant (before any write)', async () => {
+      prisma.user.findUnique.mockResolvedValue(baseUser);
+      prisma.tenant.findFirst.mockResolvedValue({ id: 'other-tenant' });
+
+      await expect(
+        service.completeOnboarding('u1', completeDto),
+      ).rejects.toThrow(ConflictException);
+      // Rien ne doit être créé si le slug est pris.
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('creates tenant + settings + owner membership + default categories in ONE transaction', async () => {
+      prisma.user.findUnique.mockResolvedValue(baseUser);
+      prisma.tenant.findFirst.mockResolvedValue(null);
+      prisma.refreshToken.findMany.mockResolvedValue([]);
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+
+      const createdTenant = { id: 't1', slug: 'le-maquis', name: 'Le Maquis' };
+      const tx = {
+        tenant: { create: jest.fn().mockResolvedValue(createdTenant) },
+        tenantMembership: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+        menuCategory: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
+        user: {
+          update: jest
+            .fn()
+            .mockResolvedValue({ ...baseUser, tenantId: 't1', onboardingCompleted: true }),
+        },
+      };
+      prisma.$transaction.mockImplementation((cb: any) => cb(tx));
+
+      const result = await service.completeOnboarding('u1', completeDto);
+
+      // Tenant créé avec settings imbriqués + plan/devise/slug corrects
+      expect(tx.tenant.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            name: 'Le Maquis',
+            slug: 'le-maquis',
+            plan: 'pro',
+            currency: 'XAF',
+            onboardingCompleted: true,
+            settings: { create: { name: 'Le Maquis' } },
+          }),
+        }),
+      );
+      // Membership owner
+      expect(tx.tenantMembership.create).toHaveBeenCalledWith({
+        data: { tenantId: 't1', userId: 'u1', role: 'owner' },
+      });
+      // 4 catégories par défaut
+      const catArg = tx.menuCategory.createMany.mock.calls[0][0];
+      expect(catArg.data).toHaveLength(4);
+      // User lié au tenant + onboarding terminé
+      expect(tx.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            tenantId: 't1',
+            onboardingCompleted: true,
+          }),
+        }),
+      );
+      // Réponse cohérente (owner + tenant + tokens frais)
+      expect(result.success).toBe(true);
+      expect(result.tenant).toEqual(createdTenant);
+      expect(result.user.role).toBe('owner');
+      expect(result.access_token).toBeDefined();
+      expect(result.refresh_token).toBeDefined();
+    });
+
+    it('is idempotent: returns current state without recreating when already completed', async () => {
       prisma.user.findUnique.mockResolvedValue({
         ...baseUser,
         onboardingCompleted: true,
+        tenantId: 't1',
       });
-      await expect(
-        service.saveAccountType('u1', { accountType: 'OWNER' }),
-      ).rejects.toThrow(BadRequestException);
-    });
+      prisma.tenant.findUnique.mockResolvedValue({ id: 't1', slug: 'le-maquis' });
 
-    it('advances onboardingStep to at least 2', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...baseUser,
-        onboardingStep: 1,
-      });
-      prisma.user.update.mockResolvedValue({ ...baseUser, onboardingStep: 2 });
+      const result = await service.completeOnboarding('u1', completeDto);
 
-      const result = await service.saveAccountType('u1', {
-        accountType: 'OWNER',
-      });
-
-      expect(result.onboardingStep).toBe(2);
-      const updateCall = prisma.user.update.mock.calls[0][0];
-      expect(updateCall.data.accountType).toBe('OWNER');
-    });
-
-    it('does not decrease onboardingStep if already higher', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...baseUser,
-        onboardingStep: 3,
-      });
-      prisma.user.update.mockResolvedValue({ ...baseUser, onboardingStep: 3 });
-
-      await service.saveAccountType('u1', { accountType: 'OWNER' });
-
-      const updateCall = prisma.user.update.mock.calls[0][0];
-      expect(updateCall.data.onboardingStep).toBe(3); // max(3, 2) = 3
+      expect(result.alreadyCompleted).toBe(true);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
     });
   });
 
@@ -220,43 +282,23 @@ describe('OnboardingService', () => {
 
   describe('checkSlugAvailability', () => {
     it('returns { available: true } when slug is not taken', async () => {
-      prisma.tenant.findUnique.mockResolvedValue(null);
+      prisma.tenant.findFirst.mockResolvedValue(null);
       const result = await service.checkSlugAvailability('my-restaurant');
       expect(result).toEqual({ available: true });
     });
 
     it('returns { available: false } when slug is already taken', async () => {
-      prisma.tenant.findUnique.mockResolvedValue({ id: 'existing-tenant' });
+      prisma.tenant.findFirst.mockResolvedValue({ id: 'existing-tenant' });
       const result = await service.checkSlugAvailability('taken-slug');
       expect(result).toEqual({ available: false });
     });
-  });
 
-  // ─── getOnboardingState ───────────────────────────────────────────────────
+    it('excludes soft-deleted tenants — a freed slug is reported available', async () => {
+      prisma.tenant.findFirst.mockResolvedValue(null);
+      await service.checkSlugAvailability('reusable-slug');
 
-  describe('getOnboardingState', () => {
-    it('throws NotFoundException when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      await expect(service.getOnboardingState('ghost-id')).rejects.toThrow(
-        NotFoundException,
-      );
-    });
-
-    it('returns onboarding data for existing user', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        onboardingStep: 2,
-        onboardingCompleted: false,
-        onboardingData: { accountType: 'OWNER' },
-        accountType: 'OWNER',
-        firstName: 'Alice',
-        lastName: 'Dupont',
-        email: 'alice@test.com',
-      });
-
-      const result = await service.getOnboardingState('u1');
-
-      expect(result.onboardingStep).toBe(2);
-      expect(result.email).toBe('alice@test.com');
+      const call = prisma.tenant.findFirst.mock.calls[0][0];
+      expect(call.where).toEqual({ slug: 'reusable-slug', deletedAt: null });
     });
   });
 

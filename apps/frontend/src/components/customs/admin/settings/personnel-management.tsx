@@ -25,7 +25,7 @@ import {
 import { toast } from "sonner";
 import { usePersonnel, useCreateStaff, useUpdateStaff, useDeleteStaff } from "@/hooks/api/usePermissions";
 import { generateSecurePassword } from "@/utils/passwordUtils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "@radix-ui/react-alert-dialog";
 import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
@@ -87,6 +87,7 @@ export function PersonnelManagement() {
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Erreur lors de la suppression du personnel");
     },
+    meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
       queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
@@ -101,6 +102,7 @@ export function PersonnelManagement() {
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Erreur lors de la mise à jour du statut");
     },
+    meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
       queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
@@ -129,6 +131,7 @@ export function PersonnelManagement() {
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Erreur lors de l'ajout du personnel");
     },
+    meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
       queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
@@ -158,6 +161,7 @@ export function PersonnelManagement() {
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : "Erreur lors de la modification du personnel");
     },
+    meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
       queryClient.invalidateQueries({ queryKey: ["personnel-data"] });

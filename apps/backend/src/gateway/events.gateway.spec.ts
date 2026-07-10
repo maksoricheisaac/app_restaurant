@@ -36,7 +36,7 @@ describe('EventsGateway', () => {
   // ─── handleConnection ─────────────────────────────────────────────────────
 
   describe('handleConnection', () => {
-    it('sets client.data.user from a valid Authorization header token', async () => {
+    it('sets client.data.user from a valid Authorization header token', () => {
       const client = buildSocket({ authHeader: 'Bearer valid.jwt.token' });
       mockJwtService.verify.mockReturnValue({
         sub: 'u1',
@@ -45,7 +45,7 @@ describe('EventsGateway', () => {
         tenantId: 'tenant-1',
       });
 
-      await gateway.handleConnection(client);
+      gateway.handleConnection(client);
 
       expect(client.data.user).toEqual({
         id: 'u1',
@@ -55,7 +55,7 @@ describe('EventsGateway', () => {
       });
     });
 
-    it('sets client.data.user from auth.token', async () => {
+    it('sets client.data.user from auth.token', () => {
       const client = buildSocket({ authToken: 'auth.token.here' });
       mockJwtService.verify.mockReturnValue({
         sub: 'u2',
@@ -64,12 +64,12 @@ describe('EventsGateway', () => {
         tenantId: 'tenant-2',
       });
 
-      await gateway.handleConnection(client);
+      gateway.handleConnection(client);
 
       expect(client.data.user.id).toBe('u2');
     });
 
-    it('prefers Authorization header over auth.token', async () => {
+    it('prefers Authorization header over auth.token', () => {
       const client = buildSocket({
         authHeader: 'Bearer header.token',
         authToken: 'auth.token',
@@ -81,25 +81,25 @@ describe('EventsGateway', () => {
         tenantId: null,
       });
 
-      await gateway.handleConnection(client);
+      gateway.handleConnection(client);
 
       expect(mockJwtService.verify).toHaveBeenCalledWith('header.token');
     });
 
-    it('leaves client.data.user undefined for invalid token (silent fail)', async () => {
+    it('leaves client.data.user undefined for invalid token (silent fail)', () => {
       const client = buildSocket({ authHeader: 'Bearer bad.token' });
       mockJwtService.verify.mockImplementation(() => {
         throw new Error('Invalid JWT');
       });
 
-      await gateway.handleConnection(client);
+      gateway.handleConnection(client);
 
       expect(client.data.user).toBeUndefined();
     });
 
-    it('leaves client.data.user undefined when no token provided', async () => {
+    it('leaves client.data.user undefined when no token provided', () => {
       const client = buildSocket();
-      await gateway.handleConnection(client);
+      gateway.handleConnection(client);
 
       expect(mockJwtService.verify).not.toHaveBeenCalled();
       expect(client.data.user).toBeUndefined();

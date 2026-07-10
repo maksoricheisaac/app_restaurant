@@ -114,16 +114,19 @@ export class BlobService {
       // Vercel Blob store is configured as private — public blobs are required
       // for images to be accessible by restaurant customers without authentication.
       // Fix: Vercel Dashboard → Storage → <store> → Settings → set Default Access to Public.
-      if (errMsg.includes('private store') || errMsg.includes('Cannot use public access')) {
+      if (
+        errMsg.includes('private store') ||
+        errMsg.includes('Cannot use public access')
+      ) {
         this.logger.error(
           '[BlobService] Vercel Blob store is private. Images cannot be served publicly. ' +
-          'Go to Vercel Dashboard → Storage → your store → Settings → set Default Blob Access to Public.',
+            'Go to Vercel Dashboard → Storage → your store → Settings → set Default Blob Access to Public.',
         );
         throw new InternalServerErrorException(
           'Le store Vercel Blob est configuré en mode PRIVÉ. ' +
-          'Les images restaurant doivent être publiquement accessibles. ' +
-          'Allez dans Vercel Dashboard → Storage → votre store → Settings → ' +
-          'passez "Default Blob Access" en PUBLIC, puis copiez le nouveau BLOB_READ_WRITE_TOKEN.',
+            'Les images restaurant doivent être publiquement accessibles. ' +
+            'Allez dans Vercel Dashboard → Storage → votre store → Settings → ' +
+            'passez "Default Blob Access" en PUBLIC, puis copiez le nouveau BLOB_READ_WRITE_TOKEN.',
         );
       }
 

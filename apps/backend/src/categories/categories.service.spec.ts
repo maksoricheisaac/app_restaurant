@@ -121,9 +121,9 @@ describe('CategoriesService', () => {
 
     it('soft-deletes child items before soft-deleting the category', async () => {
       let capturedOps: any[] = [];
-      prisma.$transaction.mockImplementation(async (ops: any[]) => {
+      prisma.$transaction.mockImplementation((ops: any[]) => {
         capturedOps = ops;
-        return ops;
+        return Promise.resolve(ops);
       });
 
       await service.remove(T, 'cat-1');

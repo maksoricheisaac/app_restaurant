@@ -1,11 +1,4 @@
-import {
-  IsNumber,
-  IsEnum,
-  IsOptional,
-  IsString,
-  Min,
-  IsUUID,
-} from 'class-validator';
+import { IsNumber, IsEnum, Min, IsUUID } from 'class-validator';
 
 export enum PaymentMethod {
   CASH = 'cash',

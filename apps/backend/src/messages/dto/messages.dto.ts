@@ -5,7 +5,6 @@ import {
   IsEmail,
   IsBoolean,
   IsEnum,
-  IsPhoneNumber,
 } from 'class-validator';
 
 export enum MessageStatusValue {

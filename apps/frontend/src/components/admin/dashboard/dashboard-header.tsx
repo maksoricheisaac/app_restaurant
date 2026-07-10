@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export function DashboardHeader() {
-  const { user, role, isAdmin } = useRole();
+  const { user, isAdmin } = useRole();
   const today = format(new Date(), "EEEE d MMMM yyyy", { locale: fr });
   const capitalizedDate = today.charAt(0).toUpperCase() + today.slice(1);
 

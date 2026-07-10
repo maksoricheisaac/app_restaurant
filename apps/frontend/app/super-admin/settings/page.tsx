@@ -1,7 +1,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Settings, Shield, Bell, Globe, Save, AlertCircle } from "lucide-react";
+import { Shield, Bell, Globe, Save, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const SECTIONS = [

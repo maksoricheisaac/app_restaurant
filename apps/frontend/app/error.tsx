@@ -1,0 +1,46 @@
+"use client";
+
+import { useEffect } from "react";
+import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
+import { monitoring } from "@/lib/monitoring";
+
+export default function RootError({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    monitoring.captureError(error, { context: "app-root" });
+  }, [error]);
+
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center p-8 text-center gap-5 bg-slate-50">
+      <div className="h-16 w-16 rounded-2xl bg-white flex items-center justify-center shadow-sm border border-slate-100">
+        <AlertTriangle className="h-8 w-8 text-amber-500" />
+      </div>
+      <div>
+        <p className="text-xl font-black text-slate-800">Une erreur est survenue</p>
+        <p className="text-sm text-slate-500 mt-1 max-w-sm">
+          {error.message || "Quelque chose s'est mal passé. Veuillez réessayer."}
+        </p>
+      </div>
+      <div className="flex gap-3">
+        <button
+          onClick={reset}
+          className="px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-xl hover:bg-slate-700 transition-colors"
+        >
+          Réessayer
+        </button>
+        <Link
+          href="/"
+          className="px-5 py-2.5 bg-white text-slate-700 text-sm font-semibold rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors"
+        >
+          Retour à l&apos;accueil
+        </Link>
+      </div>
+    </div>
+  );
+}

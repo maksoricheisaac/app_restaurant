@@ -10,7 +10,7 @@ export const dashboardService = {
         activeCustomers: response.activeCustomers ?? 0,
         totalReservations: response.reservationsCount ?? 0,
       };
-    } catch (error) {
+    } catch {
       // Fallback pour super_admin sans tenant
       return {
         totalOrders: 0,

@@ -24,11 +24,13 @@ export class PaystackProvider implements PaymentProvider {
     return false;
   }
 
-  async createCheckoutSession(
+  createCheckoutSession(
     _params: CheckoutSessionParams,
   ): Promise<CheckoutSessionResult> {
-    throw new BadRequestException(
-      'Le fournisseur de paiement Paystack n\'est pas encore disponible',
+    return Promise.reject(
+      new BadRequestException(
+        "Le fournisseur de paiement Paystack n'est pas encore disponible",
+      ),
     );
   }
 
@@ -38,7 +40,7 @@ export class PaystackProvider implements PaymentProvider {
 
   parseWebhookEvent(_payload: Buffer): NormalizedPaymentEvent {
     throw new BadRequestException(
-      'Le fournisseur de paiement Paystack n\'est pas encore disponible',
+      "Le fournisseur de paiement Paystack n'est pas encore disponible",
     );
   }
 }

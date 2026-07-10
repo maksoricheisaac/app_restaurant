@@ -44,7 +44,7 @@ import { RedisModule } from './common/redis/redis.module';
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
+      useFactory: async (configService: ConfigService) => {
         const redisUrl = configService.get<string>('REDIS_URL');
 
         // Redis store enables distributed rate limiting across multiple instances.
@@ -53,11 +53,9 @@ import { RedisModule } from './common/redis/redis.module';
         let storage: ThrottlerStorage | undefined;
         if (redisUrl) {
           try {
-            // Dynamic require so a missing ioredis peer dep never hard-crashes the boot.
-            // eslint-disable-next-line @typescript-eslint/no-require-imports
-            const {
-              ThrottlerStorageRedisService,
-            } = require('@nest-lab/throttler-storage-redis');
+            // Dynamic import so a missing ioredis peer dep never hard-crashes the boot.
+            const { ThrottlerStorageRedisService } =
+              await import('@nest-lab/throttler-storage-redis');
             storage = new ThrottlerStorageRedisService(
               redisUrl,
             ) as ThrottlerStorage;
@@ -70,10 +68,10 @@ import { RedisModule } from './common/redis/redis.module';
 
         return {
           throttlers: [
-            { name: 'short',  ttl: 60_000,        limit: 30  },
-            { name: 'long',   ttl: 60_000 * 60,   limit: 500 },
+            { name: 'short', ttl: 60_000, limit: 30 },
+            { name: 'long', ttl: 60_000 * 60, limit: 500 },
             // Public order submissions: max 5 per IP per hour (DoS / quota exhaustion protection)
-            { name: 'orders', ttl: 60_000 * 60,   limit: 5   },
+            { name: 'orders', ttl: 60_000 * 60, limit: 5 },
           ],
           ...(storage ? { storage } : {}),
         };
@@ -81,7 +79,7 @@ import { RedisModule } from './common/redis/redis.module';
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => {
+      useFactory: (configService: ConfigService) => {
         const secret = configService.get<string>('JWT_SECRET');
         if (!secret)
           throw new Error('JWT_SECRET environment variable is required');

@@ -77,6 +77,8 @@ export const queryKeys = {
     transactions: (filters: Record<string, unknown> = {}) => ['transactions', filters] as const,
     bilan: (date: string) => ['cash-bilan', date] as const,
     unpaidOrders: () => ['unpaid-orders'] as const,
+    currentSession: () => ['cash-session', 'current'] as const,
+    sessionHistory: (params: Record<string, unknown> = {}) => ['cash-session', 'history', params] as const,
   },
 
   // ─── Paramètres ───────────────────────────────────────────────────────────

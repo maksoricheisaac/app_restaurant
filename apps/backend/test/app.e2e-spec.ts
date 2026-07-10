@@ -152,7 +152,6 @@ describe('Flash Menu E2E', () => {
     });
 
     it('GET /api/v1/public-menu/by-table/:id — 404 for unknown table', async () => {
-      const { createMockPrisma } = require('../src/__tests__/prisma.mock');
       prismaMock.tenant.findFirst = jest.fn().mockResolvedValue(null);
 
       await request(app.getHttpServer())

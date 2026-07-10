@@ -50,7 +50,7 @@ export default function DomainsPage() {
               cname.flashmenu.app
               <Copy className="h-3 w-3" />
             </button>{' '}
-            puis cliquez sur "Vérifier".
+            puis cliquez sur &quot;Vérifier&quot;.
           </p>
         </div>
       </div>
@@ -66,7 +66,7 @@ export default function DomainsPage() {
               <p className="font-semibold text-foreground">Gestion des domaines à venir</p>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                 La liste des domaines personnalisés sera affichée ici dès que
-                l'endpoint <span className="font-mono">/domains</span> sera disponible côté API.
+                l&apos;endpoint <span className="font-mono">/domains</span> sera disponible côté API.
               </p>
             </div>
             <div className="flex flex-wrap justify-center gap-5 pt-1 text-xs text-muted-foreground">
@@ -80,7 +80,7 @@ export default function DomainsPage() {
               </div>
               <div className="flex items-center gap-1.5">
                 <XCircle className="h-3.5 w-3.5 text-red-500" />
-                Alertes d'échec DNS
+                Alertes d&apos;échec DNS
               </div>
             </div>
           </div>

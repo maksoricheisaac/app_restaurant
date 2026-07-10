@@ -1,16 +1,16 @@
 import { SettingsService } from './settings.service';
-import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
+import { createMockPrisma } from '../__tests__/prisma.mock';
 
 const T = 'tenant-1';
 const SETTINGS = { id: 'set-1', tenantId: T, name: 'Mon Restaurant' };
 
 function buildService(prisma: any) {
-  (prisma as any).restaurantSettings = {
+  prisma.restaurantSettings = {
     findUnique: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
   };
-  (prisma as any).openingHours = {
+  prisma.openingHours = {
     findMany: jest.fn().mockResolvedValue([]),
     upsert: jest.fn().mockResolvedValue({}),
   };

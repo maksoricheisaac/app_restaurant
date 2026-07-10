@@ -44,6 +44,7 @@ const makePrismaMock = () => ({
   },
   table: { count: jest.fn().mockResolvedValue(0) },
   menuCategory: { findMany: jest.fn().mockResolvedValue([]) },
+  restaurantSettings: { findUnique: jest.fn().mockResolvedValue(null) },
   $queryRaw: jest.fn().mockResolvedValue([]),
   $connect: jest.fn(),
   $disconnect: jest.fn(),
@@ -68,8 +69,6 @@ describe('Tenant Isolation Integration', () => {
     plan: 'free',
     status: 'active',
   };
-  const user1 = { id: 'user-1', platformRole: 'user', tenantId: 'tenant-1' };
-
   const token1 = signToken({
     sub: 'user-1',
     email: 'u1@t.com',

@@ -48,20 +48,29 @@ async function main() {
   console.log('[seed-test] Starting...');
 
   // ── 1. Tenant ───────────────────────────────────────────────────────────────
-  const tenant = await prisma.tenant.upsert({
-    where: { slug: TENANT_SLUG },
-    update: { name: 'Test Restaurant', status: 'active', plan: 'pro' },
-    create: {
-      name: 'Test Restaurant',
-      slug: TENANT_SLUG,
-      plan: 'pro',
-      status: 'active',
-      primaryColor: '#f97316',
-      currency: 'EUR',
-      timezone: 'Europe/Paris',
-      onboardingCompleted: true,
-    },
+  // slug n'est plus une contrainte unique Prisma "plein" (index partiel
+  // WHERE deletedAt IS NULL à la place) — upsert({where:{slug}}) n'est donc
+  // plus type-safe ; on réplique manuellement le comportement upsert.
+  const existingTenant = await prisma.tenant.findFirst({
+    where: { slug: TENANT_SLUG, deletedAt: null },
   });
+  const tenant = existingTenant
+    ? await prisma.tenant.update({
+        where: { id: existingTenant.id },
+        data: { name: 'Test Restaurant', status: 'active', plan: 'pro' },
+      })
+    : await prisma.tenant.create({
+        data: {
+          name: 'Test Restaurant',
+          slug: TENANT_SLUG,
+          plan: 'pro',
+          status: 'active',
+          primaryColor: '#f97316',
+          currency: 'EUR',
+          timezone: 'Europe/Paris',
+          onboardingCompleted: true,
+        },
+      });
 
   console.log(`[seed-test] Tenant: ${tenant.slug} (${tenant.id})`);
 

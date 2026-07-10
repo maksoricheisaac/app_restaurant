@@ -81,6 +81,7 @@ export function PermissionsManagement() {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+    meta: { skipGlobalErrorToast: true },
   });
 
   // Mettre à jour les permissions personnalisées quand l'utilisateur change

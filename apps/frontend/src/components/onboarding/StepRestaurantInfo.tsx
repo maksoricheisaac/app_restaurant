@@ -76,8 +76,6 @@ function slugify(str: string) {
 type SlugStatus = 'idle' | 'checking' | 'available' | 'taken';
 
 export default function StepRestaurantInfo({ onNext, onBack, data }: Props) {
-  const [isLoading, setIsLoading] = useState(false);
-  const [apiError, setApiError] = useState('');
   const [slugStatus, setSlugStatus] = useState<SlugStatus>('idle');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -119,18 +117,11 @@ export default function StepRestaurantInfo({ onNext, onBack, data }: Props) {
     form.setValue('slug', slugify(name), { shouldValidate: true });
   };
 
-  const onSubmit = async (values: StepRestaurantInfoInput) => {
+  const onSubmit = (values: StepRestaurantInfoInput) => {
     if (slugStatus === 'taken') return;
-    setIsLoading(true);
-    setApiError('');
-    try {
-      await onboardingService.saveRestaurantInfo(values);
-      onNext(values as Partial<OnboardingData>);
-    } catch (err: any) {
-      setApiError(err.message || 'Une erreur est survenue');
-    } finally {
-      setIsLoading(false);
-    }
+    // Aucune écriture en base ici : on accumule seulement dans l'état du wizard.
+    // La disponibilité du slug a déjà été vérifiée en lecture seule (checkSlug).
+    onNext(values as Partial<OnboardingData>);
   };
 
   return (
@@ -322,12 +313,6 @@ export default function StepRestaurantInfo({ onNext, onBack, data }: Props) {
             />
           </div>
 
-          {apiError && (
-            <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-              {apiError}
-            </p>
-          )}
-
           <div className="flex gap-3">
             <Button
               type="button"
@@ -339,17 +324,11 @@ export default function StepRestaurantInfo({ onNext, onBack, data }: Props) {
             </Button>
             <Button
               type="submit"
-              disabled={isLoading || slugStatus === 'taken'}
+              disabled={slugStatus === 'taken'}
               className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:translate-y-0"
             >
-              {isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  Continuer
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </>
-              )}
+              Continuer
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
         </form>

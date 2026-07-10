@@ -133,7 +133,11 @@ export class PermissionsService {
     });
   }
 
-  async deleteStaff(tenantId: string, membershipId: string, currentUserId: string) {
+  async deleteStaff(
+    tenantId: string,
+    membershipId: string,
+    currentUserId: string,
+  ) {
     const membership = await this.prisma.tenantMembership.findFirst({
       where: { id: membershipId, tenantId },
     });

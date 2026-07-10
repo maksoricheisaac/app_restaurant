@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
 import { PlanLimitService } from '../plans/plans.service';
 import { CustomersService } from '../customers/customers.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -28,6 +29,7 @@ export class OrdersService {
     private eventsService: EventsService,
     private planLimitService: PlanLimitService,
     private customersService: CustomersService,
+    private inventoryService: InventoryService,
   ) {}
 
   async findAll(tenantId: string | undefined, filters: OrderFiltersDto) {
@@ -145,27 +147,63 @@ export class OrdersService {
     );
     const total = itemsTotal + (data.deliveryFee ?? 0);
 
-    const order = await this.prisma.order.create({
-      data: {
-        ...orderData,
-        tenantId,
-        userId,
-        customerId: resolvedCustomerId ?? orderData.customerId,
-        total,
-        orderItems: {
-          create: sanitizedItems.map((item) => ({
-            menuItemId: item.menuItemId,
-            name: item.name,
-            quantity: item.quantity,
-            price: item.price,
-            image: item.image,
+    const { order, lowStockWarnings } = await this.prisma.$transaction(
+      async (tx) => {
+        // Un tableId doit appartenir au tenant résolu — sans ce contrôle, un
+        // UUID de table d'un autre restaurant pouvait être attaché à la
+        // commande sans aucune vérification serveur.
+        if (orderData.tableId) {
+          const table = await tx.table.findFirst({
+            where: { id: orderData.tableId, tenantId, deletedAt: null },
+            select: { id: true },
+          });
+          if (!table) {
+            throw new BadRequestException(
+              'Table introuvable pour ce restaurant',
+            );
+          }
+        }
+
+        const createdOrder = await tx.order.create({
+          data: {
+            ...orderData,
+            tenantId,
+            userId,
+            customerId: resolvedCustomerId ?? orderData.customerId,
+            total,
+            orderItems: {
+              create: sanitizedItems.map((item) => ({
+                menuItemId: item.menuItemId,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                image: item.image,
+              })),
+            },
+          },
+          include: { orderItems: true, table: true },
+        });
+
+        // Décrémente le stock des ingrédients (via les recettes définies) —
+        // rejette toute la commande si le stock est insuffisant.
+        const warnings = await this.inventoryService.decrementStockForOrder(
+          tx,
+          tenantId,
+          createdOrder.id,
+          sanitizedItems.map((i) => ({
+            menuItemId: i.menuItemId,
+            quantity: i.quantity,
           })),
-        },
+        );
+
+        return { order: createdOrder, lowStockWarnings: warnings };
       },
-      include: { orderItems: true, table: true },
-    });
+    );
 
     this.eventsService.emitToTenant(tenantId, 'new-order', order);
+    for (const warning of lowStockWarnings) {
+      this.eventsService.emitToTenant(tenantId, 'low-stock-alert', warning);
+    }
 
     return order;
   }
@@ -196,7 +234,7 @@ export class OrdersService {
 
     // Valider la transition d'état avant mise à jour
     const current = await this.prisma.order.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, deletedAt: null },
       select: { status: true },
     });
 
@@ -235,8 +273,10 @@ export class OrdersService {
   }
 
   async getTracking(id: string) {
-    return this.prisma.order.findUnique({
-      where: { id },
+    // findFirst (pas findUnique) : deletedAt n'est pas une clé unique, mais
+    // une commande soft-deleted ne doit plus être trackable publiquement.
+    return this.prisma.order.findFirst({
+      where: { id, deletedAt: null },
       select: {
         id: true,
         status: true,

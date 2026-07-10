@@ -26,7 +26,10 @@ describe('RedisIoAdapter', () => {
 
     const server: any = { adapter: jest.fn() };
     jest
-      .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(adapter)), 'createIOServer')
+      .spyOn(
+        Object.getPrototypeOf(Object.getPrototypeOf(adapter)),
+        'createIOServer',
+      )
       .mockReturnValue(server);
 
     adapter.createIOServer(0);
@@ -39,7 +42,10 @@ describe('RedisIoAdapter', () => {
 
     const server: any = { adapter: jest.fn() };
     jest
-      .spyOn(Object.getPrototypeOf(Object.getPrototypeOf(adapter)), 'createIOServer')
+      .spyOn(
+        Object.getPrototypeOf(Object.getPrototypeOf(adapter)),
+        'createIOServer',
+      )
       .mockReturnValue(server);
 
     adapter.createIOServer(0);

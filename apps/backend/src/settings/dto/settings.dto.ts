@@ -8,7 +8,6 @@ import {
   IsNumber,
   Min,
   IsEmail,
-  IsArray,
 } from 'class-validator';
 import { DayOfWeek } from '@prisma/client';
 

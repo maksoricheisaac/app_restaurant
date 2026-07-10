@@ -1,15 +1,23 @@
 /**
  * Tenant-scoped roles stored in `TenantMembership.role`.
  * Mirrors the comment on `TenantMembership.role` in prisma/schema.prisma.
+ *
+ * A `const` object (rather than a TS `enum`) so its members stay
+ * structurally compatible with the plain `String` Prisma stores
+ * `TenantMembership.role` as — comparing an `enum` member against that raw
+ * string tripped `@typescript-eslint/no-unsafe-enum-comparison` everywhere
+ * a membership's role was checked.
  */
-export enum TenantRole {
-  OWNER = 'owner',
-  MANAGER = 'manager',
-  WAITER = 'waiter',
-  HEAD_CHEF = 'head_chef',
-  CHEF = 'chef',
-  CASHIER = 'cashier',
-}
+export const TenantRole = {
+  OWNER: 'owner',
+  MANAGER: 'manager',
+  WAITER: 'waiter',
+  HEAD_CHEF: 'head_chef',
+  CHEF: 'chef',
+  CASHIER: 'cashier',
+} as const;
+
+export type TenantRole = (typeof TenantRole)[keyof typeof TenantRole];
 
 /**
  * Roles that can be assigned to a staff member through the generic

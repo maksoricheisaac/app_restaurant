@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unescaped-entities */
 import { Card, CardContent } from "@/components/ui/card"
 import { Users } from "lucide-react"
 

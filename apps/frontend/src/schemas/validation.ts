@@ -59,10 +59,6 @@ export const stepAccountCreationSchema = z.object({
     .regex(/\d/, 'Au moins un chiffre'),
 });
 
-export const stepAccountTypeSchema = z.object({
-  accountType: z.enum(['OWNER', 'MULTI_MANAGER', 'FRANCHISE']),
-});
-
 export const stepRestaurantInfoSchema = z.object({
   restaurantName: z.string().min(1, 'Le nom du restaurant est requis'),
   slug: z
@@ -80,24 +76,8 @@ export const stepPlanSchema = z.object({
   plan: z.enum(['free', 'pro', 'enterprise']),
 });
 
-// Legacy schema kept for backward compat
-export const registerTenantSchema = z.object({
-  restaurantName: z.string().min(1, 'Nom du restaurant requis'),
-  slug: z.string()
-    .min(1, 'Slug requis')
-    .regex(/^[a-z0-9-]+$/, 'Slug invalide (minuscules, chiffres et tirets)'),
-  ownerEmail: z.string().email('Email invalide'),
-  ownerName: z.string().min(1, 'Nom du propriétaire requis'),
-  password: z.string()
-    .min(8, 'Le mot de passe doit faire au moins 8 caractères')
-    .regex(/[A-Z]/, 'Le mot de passe doit contenir au moins une majuscule')
-    .regex(/[a-z]/, 'Le mot de passe doit contenir au moins une minuscule')
-    .regex(/\d/, 'Le mot de passe doit contenir au moins un chiffre'),
-});
-
 export type MenuItemInput = z.infer<typeof menuItemSchema>;
 export type OrderInput = z.infer<typeof createOrderSchema>;
 export type ReservationInput = z.infer<typeof reservationSchema>;
-export type RegisterTenantInput = z.infer<typeof registerTenantSchema>;
 export type StepAccountCreationInput = z.infer<typeof stepAccountCreationSchema>;
 export type StepRestaurantInfoInput = z.infer<typeof stepRestaurantInfoSchema>;

@@ -11,9 +11,9 @@ import { VIEWPORTS } from '../helpers';
  * 4. Finalise la commande
  * 5. Track sa commande
  */
-test.describe('QR Flow — Menu public client', () => {
-  const testSlug = process.env.E2E_TEST_SLUG || 'test-restaurant';
+const testSlug = process.env.E2E_TEST_SLUG || 'test-restaurant';
 
+test.describe('QR Flow — Menu public client', () => {
   test('accès menu par slug s\'affiche', async ({ page }) => {
     await page.goto(`/menu/${testSlug}`);
     await expect(page.getByRole('main')).toBeVisible({ timeout: 10_000 });

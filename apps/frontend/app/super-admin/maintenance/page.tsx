@@ -6,8 +6,6 @@ import {
   Database,
   Zap,
   RefreshCw,
-  AlertTriangle,
-  CheckCircle2,
   Activity,
   Cpu,
   HardDrive,
@@ -16,7 +14,6 @@ import {
   Trash2,
   Clock,
 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -61,7 +58,7 @@ export default function MaintenancePage() {
                 </p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
                   Les statuts et latences en temps réel seront disponibles via
-                  l'endpoint <span className="font-mono">/health</span> de l'API.
+                  l&apos;endpoint <span className="font-mono">/health</span> de l&apos;API.
                 </p>
               </div>
               <div className="flex flex-wrap justify-center gap-4 pt-1 text-[11px] text-muted-foreground">
@@ -163,8 +160,8 @@ export default function MaintenancePage() {
             <div className="flex flex-col items-center justify-center py-10 gap-2 text-center px-4">
               <Clock className="h-6 w-6 text-muted-foreground/30" />
               <p className="text-xs text-muted-foreground">
-                Le journal d'événements sera disponible via
-                l'endpoint <span className="font-mono">/admin/logs</span>.
+                Le journal d&apos;événements sera disponible via
+                l&apos;endpoint <span className="font-mono">/admin/logs</span>.
               </p>
             </div>
           </div>

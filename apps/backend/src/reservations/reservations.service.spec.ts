@@ -22,6 +22,9 @@ describe('ReservationsService', () => {
   const mockCustomersService = {
     upsertFromInteraction: jest.fn().mockResolvedValue(null),
   };
+  const mockMailService = {
+    sendReservationConfirmation: jest.fn().mockResolvedValue(undefined),
+  };
 
   beforeEach(() => {
     prisma = createMockPrisma();
@@ -32,11 +35,14 @@ describe('ReservationsService', () => {
     service = new ReservationsService(
       prisma as any,
       mockCustomersService as any,
+      mockMailService as any,
     );
     jest.clearAllMocks();
     (prisma.$transaction as jest.Mock).mockImplementation((cb: any) =>
       cb(prisma),
     );
+    mockMailService.sendReservationConfirmation.mockResolvedValue(undefined);
+    prisma.tenant.findUnique.mockResolvedValue({ name: 'Le Maquis' });
   });
 
   // ─── findAll ──────────────────────────────────────────────────────────────
@@ -144,6 +150,33 @@ describe('ReservationsService', () => {
       await expect(
         service.create(T, dtoWithTable as any),
       ).resolves.toBeDefined();
+    });
+
+    it('sends a confirmation email when an email address is provided', async () => {
+      prisma.reservation.findFirst.mockResolvedValue(null);
+      prisma.reservation.create.mockResolvedValue(RES);
+
+      await service.create(T, dto as any);
+
+      expect(mockMailService.sendReservationConfirmation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'alice@test.com',
+          restaurantName: 'Le Maquis',
+          customerName: 'Alice',
+        }),
+      );
+    });
+
+    it('does not attempt to send an email when none is provided', async () => {
+      const { email: _email, ...dtoWithoutEmail } = dto;
+      prisma.reservation.findFirst.mockResolvedValue(null);
+      prisma.reservation.create.mockResolvedValue(RES);
+
+      await service.create(T, dtoWithoutEmail as any);
+
+      expect(
+        mockMailService.sendReservationConfirmation,
+      ).not.toHaveBeenCalled();
     });
   });
 

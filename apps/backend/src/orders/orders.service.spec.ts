@@ -10,6 +10,9 @@ const mockPlanLimitService = {
 const mockCustomersService = {
   upsertFromInteraction: jest.fn().mockResolvedValue(null),
 };
+const mockInventoryService = {
+  decrementStockForOrder: jest.fn().mockResolvedValue([]),
+};
 
 describe('OrdersService — price injection prevention', () => {
   let service: OrdersService;
@@ -22,8 +25,13 @@ describe('OrdersService — price injection prevention', () => {
       mockEventsService as any,
       mockPlanLimitService as any,
       mockCustomersService as any,
+      mockInventoryService as any,
     );
     jest.clearAllMocks();
+    mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
+    // create() écrit désormais dans une transaction — router tx vers le
+    // même mock que celui utilisé dans les assertions.
+    prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
     mockPlanLimitService.assertMonthlyOrderLimit.mockResolvedValue(undefined);
   });
 
@@ -163,6 +171,152 @@ describe('OrdersService — price injection prevention', () => {
     });
   });
 
+  describe('create — tableId tenant ownership', () => {
+    const orderWithTable = {
+      type: OrderType.DINE_IN,
+      tableId: 'table-1',
+      items: [{ menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 }],
+    };
+
+    it('rejects a tableId that does not belong to this tenant', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.table.findFirst.mockResolvedValue(null); // foreign/unknown table
+
+      await expect(
+        service.create('tenant-1', orderWithTable as any),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(prisma.order.create).not.toHaveBeenCalled();
+    });
+
+    it('accepts a tableId that belongs to this tenant', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.table.findFirst.mockResolvedValue({ id: 'table-1' });
+      prisma.order.create.mockResolvedValue({
+        id: 'o1',
+        total: 1000,
+        orderItems: [],
+        table: { id: 'table-1' },
+      });
+
+      await expect(
+        service.create('tenant-1', orderWithTable as any),
+      ).resolves.toBeDefined();
+
+      const tableCall = prisma.table.findFirst.mock.calls[0][0];
+      expect(tableCall.where).toEqual({
+        id: 'table-1',
+        tenantId: 'tenant-1',
+        deletedAt: null,
+      });
+    });
+
+    it('skips the table check entirely when no tableId is provided', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.order.create.mockResolvedValue({
+        id: 'o1',
+        total: 1000,
+        orderItems: [],
+        table: null,
+      });
+
+      await service.create('tenant-1', {
+        type: OrderType.DINE_IN,
+        items: [
+          { menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 },
+        ],
+      } as any);
+
+      expect(prisma.table.findFirst).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('create — stock decrement', () => {
+    it('decrements stock via InventoryService after creating the order', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.order.create.mockResolvedValue({
+        id: 'order-77',
+        total: 2000,
+        orderItems: [],
+        table: null,
+      });
+
+      await service.create('tenant-1', {
+        type: OrderType.DINE_IN,
+        items: [
+          { menuItemId: 'menu-1', name: 'Item', quantity: 2, price: 1000 },
+        ],
+      } as any);
+
+      expect(mockInventoryService.decrementStockForOrder).toHaveBeenCalledWith(
+        prisma,
+        'tenant-1',
+        'order-77',
+        [{ menuItemId: 'menu-1', quantity: 2 }],
+      );
+    });
+
+    it('rejects the whole order when stock is insufficient (transaction rolls back)', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 1000,
+        orderItems: [],
+        table: null,
+      });
+      mockInventoryService.decrementStockForOrder.mockRejectedValue(
+        new Error('Stock insuffisant'),
+      );
+
+      await expect(
+        service.create('tenant-1', {
+          type: OrderType.DINE_IN,
+          items: [
+            { menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 },
+          ],
+        } as any),
+      ).rejects.toThrow('Stock insuffisant');
+    });
+
+    it('emits a low-stock-alert event for each ingredient returned by InventoryService', async () => {
+      prisma.menuItem.findMany.mockResolvedValue([
+        { id: 'menu-1', name: 'Item', price: 1000, image: null },
+      ]);
+      prisma.order.create.mockResolvedValue({
+        id: 'order-1',
+        total: 1000,
+        orderItems: [],
+        table: null,
+      });
+      mockInventoryService.decrementStockForOrder.mockResolvedValue([
+        { ingredientId: 'ing-1', name: 'Tomate', stock: 2, minStock: 5 },
+      ]);
+
+      await service.create('tenant-1', {
+        type: OrderType.DINE_IN,
+        items: [
+          { menuItemId: 'menu-1', name: 'Item', quantity: 1, price: 1000 },
+        ],
+      } as any);
+
+      expect(mockEventsService.emitToTenant).toHaveBeenCalledWith(
+        'tenant-1',
+        'low-stock-alert',
+        { ingredientId: 'ing-1', name: 'Tomate', stock: 2, minStock: 5 },
+      );
+    });
+  });
+
   describe('create — plan limit enforcement', () => {
     it('calls assertMonthlyOrderLimit before creating the order', async () => {
       prisma.menuItem.findMany.mockResolvedValue([
@@ -219,8 +373,13 @@ describe('OrdersService — updateStatus state machine', () => {
       mockEventsService as any,
       mockPlanLimitService as any,
       mockCustomersService as any,
+      mockInventoryService as any,
     );
     jest.clearAllMocks();
+    mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
+    // create() écrit désormais dans une transaction — router tx vers le
+    // même mock que celui utilisé dans les assertions.
+    prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
   });
 
   const setCurrentStatus = (status: string) => {
@@ -293,8 +452,13 @@ describe('OrdersService — remove (soft-delete)', () => {
       mockEventsService as any,
       mockPlanLimitService as any,
       mockCustomersService as any,
+      mockInventoryService as any,
     );
     jest.clearAllMocks();
+    mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
+    // create() écrit désormais dans une transaction — router tx vers le
+    // même mock que celui utilisé dans les assertions.
+    prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
   });
 
   it('soft-deletes order (sets deletedAt, does NOT call prisma.order.delete)', async () => {

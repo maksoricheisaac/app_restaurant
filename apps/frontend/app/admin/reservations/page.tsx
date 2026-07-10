@@ -17,7 +17,7 @@ import { ConfirmationDialog } from '@/components/ui/confirmation-dialog';
 import { useSocketEvent } from '@/hooks/useSocketEvent';
 import { Reservation, ReservationStatus } from '@/types/reservation';
 import { useReservations } from '@/hooks/api/useReservations';
-import { useUpdateReservationStatus } from '@/hooks/api/useReservationsMutations';
+import { useUpdateReservationStatus, useDeleteReservation } from '@/hooks/api/useReservationsMutations';
 
 type FilterStatus = ReservationStatus | 'all' | undefined;
 type SortOrder = 'date-desc' | 'date-asc' | 'guests-desc' | 'guests-asc';
@@ -40,17 +40,18 @@ export default function ReservationsPage() {
   });
 
   // Rafraîchissement en temps réel via WebSockets NestJS
-  useSocketEvent('new-reservation', (data) => {
+  useSocketEvent('new-reservation', (_data) => {
     toast.success('Nouvelle réservation reçue !');
     queryClient.invalidateQueries({ queryKey: ['reservations'] });
   });
 
-  useSocketEvent('reservation-updated', (data) => {
+  useSocketEvent('reservation-updated', (_data) => {
     queryClient.invalidateQueries({ queryKey: ['reservations'] });
   });
 
   // Mutations backend
   const updateStatusMutation = useUpdateReservationStatus();
+  const deleteMutation = useDeleteReservation();
 
   // Handlers
   const handleDelete = async (id: string) => {
@@ -59,10 +60,14 @@ export default function ReservationsPage() {
   };
 
   const handleDeleteConfirm = () => {
-    // Mutation de suppression à implémenter si nécessaire
-    toast.info("Fonctionnalité de suppression à venir");
-    setIsDeleteDialogOpen(false);
-    setDeleteReservationId(null);
+    if (!deleteReservationId) return;
+    deleteMutation.mutate(deleteReservationId, {
+      onSuccess: () => {
+        toast.success('Réservation supprimée');
+        setIsDeleteDialogOpen(false);
+        setDeleteReservationId(null);
+      },
+    });
   };
 
   const handleStatusChange = (reservation: Reservation, newStatus: ReservationStatus) => {
@@ -196,7 +201,7 @@ export default function ReservationsPage() {
         description="Êtes-vous sûr de vouloir supprimer cette réservation ? Cette action est irréversible."
         confirmText="Supprimer"
         cancelText="Annuler"
-        isLoading={false}
+        isLoading={deleteMutation.isPending}
         variant="destructive"
       />
       </div>

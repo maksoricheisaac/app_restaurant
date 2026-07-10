@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Loader2 } from 'lucide-react';
@@ -10,6 +10,8 @@ import type { OnboardingData } from '@/types/onboarding';
 
 interface Props {
   data: OnboardingData;
+  /** Appelé une fois la finalisation réussie (ex: purge du brouillon localStorage). */
+  onComplete?: () => void;
 }
 
 const STEPS = [
@@ -19,15 +21,24 @@ const STEPS = [
   { label: 'Finalisation de votre compte', delay: 2700 },
 ];
 
-export default function StepFinalization({ data }: Props) {
+export default function StepFinalization({ data, onComplete }: Props) {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [currentLabel, setCurrentLabel] = useState(0);
   const [error, setError] = useState('');
   const [isDone, setIsDone] = useState(false);
   const { setUser } = useAuth();
   const router = useRouter();
+  // Garde-fou : la finalisation ne doit partir qu'UNE fois, même si React
+  // (strict mode en dev, ou un remount) ré-exécute l'effet. Sans cela, deux
+  // appels concurrents à /onboarding/complete se courent après → 409 sur le
+  // slug. L'idempotence backend couvre le cas déjà terminé ; ce ref élimine
+  // la course à la source, côté client.
+  const startedRef = useRef(false);
 
   useEffect(() => {
+    if (startedRef.current) return;
+    startedRef.current = true;
+
     const run = async () => {
       try {
         // Start the animation sequence
@@ -38,15 +49,24 @@ export default function StepFinalization({ data }: Props) {
           }, step.delay);
         });
 
-        // Make the API call
-        const result = await onboardingService.complete();
+        // Provisionnement complet en une transaction (backend) — on envoie
+        // toutes les données accumulées par le wizard.
+        const result = await onboardingService.complete({
+          restaurantName: data.restaurantName,
+          slug: data.slug,
+          country: data.country,
+          currency: data.currency,
+          timezone: data.timezone,
+          cuisineType: data.cuisineType,
+          plan: data.plan,
+        });
 
         if (result.success) {
-          // Update auth context
+          // Update auth context (role='owner' + tenantId frais, sans reconnexion)
           setUser(result.user as any);
 
-          // Store tenant info in localStorage (for client-side api-client) AND
-          // as httpOnly cookies via /api/session (for SSR middleware).
+          // Store tenant info in localStorage (client-side api-client) AND as
+          // httpOnly cookies via /api/session (SSR proxy + layout).
           if (result.tenant) {
             if (typeof window !== 'undefined') {
               localStorage.setItem('tenantId', result.tenant.id);
@@ -62,10 +82,20 @@ export default function StepFinalization({ data }: Props) {
             });
           }
 
-          // Wait for animation to finish before redirect
+          // Onboarding réussi → purge du brouillon.
+          onComplete?.();
+
+          // Wait for animation to finish before redirect.
           setTimeout(() => {
             setIsDone(true);
-            setTimeout(() => router.push('/admin/dashboard'), 800);
+            setTimeout(() => {
+              // router.refresh() force le re-render du layout serveur /admin
+              // (Server Component) avec le profil/tenant à jour AVANT la
+              // navigation — élimine tout rendu périmé (permissions/sidebar)
+              // au premier affichage du dashboard, sans refresh manuel.
+              router.refresh();
+              router.push('/admin/dashboard');
+            }, 800);
           }, 3600);
         }
       } catch (err: any) {

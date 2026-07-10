@@ -11,7 +11,7 @@ export function useOrderTracking(orderId: string | null) {
   });
 
   // Mise à jour en temps réel via WebSocket
-  useSocketEvent(`order-tracking-${orderId}`, (data: { status: string }) => {
+  useSocketEvent(`order-tracking-${orderId}`, (_data: { status: string }) => {
     query.refetch();
   });
 

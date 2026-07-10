@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Store, Mail, LogOut, Clock, Building2, Network } from 'lucide-react';
+import { Store, Mail, LogOut, Clock, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -15,14 +15,11 @@ export default function PendingInvitePage() {
     router.push('/auth/login');
   };
 
-  const accountTypeLabel =
-    user?.accountType === 'FRANCHISE'
-      ? 'Franchise'
-      : user?.accountType === 'MULTI_MANAGER'
-        ? 'Multi-restaurants'
-        : 'Gestionnaire';
-
-  const AccountIcon = user?.accountType === 'FRANCHISE' ? Network : Building2;
+  // Page affichée à un membre invité tant qu'aucun restaurant ne lui est
+  // rattaché (flux d'invitation MembershipInvite). Le « type de compte » n'existe
+  // plus — un utilisateur sans restaurant est simplement un futur membre d'équipe.
+  const accountTypeLabel = 'Gestionnaire';
+  const AccountIcon = Building2;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-orange-50 flex flex-col items-center justify-center p-6">

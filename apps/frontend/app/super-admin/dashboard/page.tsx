@@ -10,7 +10,6 @@ import {
   Loader2,
   Activity,
   ShoppingBag,
-  Sparkles,
   BarChart2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -38,7 +37,7 @@ export default function SuperAdminDashboard() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Vue d'ensemble</h2>
+          <h2 className="text-2xl font-bold tracking-tight">Vue d&apos;ensemble</h2>
           <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2">
             <Activity className="h-4 w-4 text-emerald-500" />
             La plateforme fonctionne normalement.
@@ -108,7 +107,7 @@ export default function SuperAdminDashboard() {
               <div>
                 <p className="font-semibold text-sm text-foreground">Analytiques bientôt disponibles</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Les graphiques d'évolution seront affichés ici une fois l'endpoint
+                  Les graphiques d&apos;évolution seront affichés ici une fois l&apos;endpoint
                   <span className="font-mono mx-1">/dashboard/growth</span>
                   disponible côté API.
                 </p>

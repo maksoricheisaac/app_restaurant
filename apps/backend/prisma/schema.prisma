@@ -12,7 +12,12 @@ datasource db {
 model Tenant {
   id           String       @id @default(uuid())
   name         String
-  slug         String       @unique // Utilisé pour {slug}.flashmenu.app
+  // Pas de @unique ici : l'unicité réelle est un index unique PARTIEL
+  // (WHERE "deletedAt" IS NULL) créé en SQL brut dans une migration, pour
+  // qu'un tenant soft-deleted libère son slug/ses identifiants de paiement
+  // au lieu de les squatter indéfiniment. Voir migration
+  // add_tenant_soft_delete_partial_unique_constraints.
+  slug         String       // Utilisé pour {slug}.flashmenu.app
   plan         TenantPlan   @default(free)
   status       TenantStatus @default(active)
   logo             String?
@@ -26,9 +31,14 @@ model Tenant {
   cuisineType  String?
   onboardingCompleted Boolean @default(false)
 
-  // Lemon Squeezy subscription tracking
-  lemonSqueezyCustomerId      String?   @unique
-  lemonSqueezySubscriptionId  String?   @unique
+  // Fournisseur de paiement agnostique — voir apps/backend/src/payments.
+  // paymentProvider identifie quel PaymentProvider a créé l'abonnement
+  // (ex: "moneroo", "stripe"...) afin de pouvoir router les opérations
+  // ultérieures (statut, annulation) vers le bon provider.
+  paymentProvider             String?
+  // Idem slug : unicité imposée par un index partiel WHERE "deletedAt" IS NULL.
+  paymentCustomerId           String?
+  paymentSubscriptionId       String?
   subscriptionStatus    String?   // active | past_due | canceled | trialing | unpaid
   subscriptionCurrentPeriodEnd DateTime?
   gracePeriodEndsAt     DateTime? // paid grace after payment failure (3 days)
@@ -39,6 +49,7 @@ model Tenant {
 
   // Relations métier
   memberships         TenantMembership[]
+  membershipInvites   MembershipInvite[]
   users               User[]
   customers           Customer[]
   orders              Order[]
@@ -47,9 +58,11 @@ model Tenant {
   tables              Table[]
   reservations        Reservation[]
   ingredients         Ingredient[]
+  recipes             Recipe[]
   stockMovements      StockMovement[]
   payments            Payment[]
   transactions        Transaction[]
+  cashRegisterSessions CashRegisterSession[]
   deliveryZones       DeliveryZone[]
   openingHours        OpeningHours[]
   exceptionalClosures ExceptionalClosure[]
@@ -79,6 +92,43 @@ model TenantMembership {
 
   @@unique([userId, tenantId])
   @@index([tenantId])
+}
+
+/// Invitation d'un employé n'ayant pas encore de compte FlashMenu. Suit le
+/// même patron que RefreshToken/emailVerificationToken : seul le hash
+/// SHA-256 du jeton est stocké, le jeton brut n'existe que dans le lien
+/// envoyé par email. Si l'email invité correspond déjà à un compte existant,
+/// MembershipsService.invite() garde le chemin rapide historique (ajout
+/// immédiat) sans passer par cette table.
+model MembershipInvite {
+  id       String @id @default(uuid())
+  tenantId String
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email     String
+  role      String
+  tokenHash String       @unique
+  status    InviteStatus @default(pending)
+
+  invitedBy     String
+  invitedByUser User     @relation("InviteInvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([email])
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  declined
+  revoked
+  expired
 }
 
 model Domain {
@@ -114,11 +164,11 @@ model User {
   phone         String?
   status        UserStatus   @default(active)
   platformRole  PlatformRole @default(user)
-  accountType   String?      // OWNER, MULTI_MANAGER, FRANCHISE
 
-  onboardingStep      Int     @default(0)
+  // Onboarding : seul l'état « terminé » est persisté. Les données du wizard
+  // (restaurant, plan…) ne touchent la base qu'à la finalisation, dans une
+  // transaction unique (voir OnboardingService.completeOnboarding).
   onboardingCompleted Boolean @default(false)
-  onboardingData      Json?
 
   emailVerificationToken   String?   @unique
   emailVerificationExpiry  DateTime?
@@ -141,6 +191,9 @@ model User {
   transactions    Transaction[]
   userPermissions UserPermission[]
   refreshTokens   RefreshToken[]
+  cashSessionsOpened CashRegisterSession[] @relation("CashSessionOpenedBy")
+  cashSessionsClosed CashRegisterSession[] @relation("CashSessionClosedBy")
+  invitesSent        MembershipInvite[]    @relation("InviteInvitedBy")
 
   @@index([tenantId])
 }
@@ -349,6 +402,12 @@ model Payment {
   method    PaymentMethod
   status    PaymentStatus @default(completed)
   cashierId String
+  // Session de caisse ouverte au moment du paiement, si une l'était — sert
+  // à la réconciliation de fermeture de session. Nullable : un paiement
+  // reste valide même sans session ouverte (carte/en ligne, ou tenant qui
+  // n'utilise pas le cycle de session).
+  cashSessionId String?
+  cashSession   CashRegisterSession? @relation(fields: [cashSessionId], references: [id])
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -358,6 +417,45 @@ model Payment {
 
   @@index([tenantId])
   @@index([tenantId, createdAt]) // Filtrage par période (clôture de caisse)
+  @@index([cashSessionId])
+}
+
+/// Cycle de vie d'une session de caisse : ouverture (fond de caisse initial),
+/// activité (paiements liés via Payment.cashSessionId), fermeture avec
+/// réconciliation (montant compté vs attendu). Un seul index PARTIEL
+/// (WHERE status='open') garantit qu'un tenant n'a jamais deux sessions
+/// ouvertes simultanément — voir migration add_cash_register_session.
+model CashRegisterSession {
+  id       String            @id @default(uuid())
+  tenantId String
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  status   CashSessionStatus @default(open)
+
+  openedBy     String
+  openedByUser User     @relation("CashSessionOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
+  openedAt     DateTime @default(now())
+  openingAmount Decimal // Fond de caisse initial (espèces)
+
+  closedBy      String?
+  closedByUser  User?     @relation("CashSessionClosedBy", fields: [closedBy], references: [id], onDelete: Restrict)
+  closedAt      DateTime?
+  // Montant compté physiquement dans le tiroir à la fermeture
+  closingAmount Decimal?
+  // openingAmount + total des paiements cash de la session (calculé à la fermeture)
+  expectedAmount Decimal?
+  // closingAmount - expectedAmount : positif = surplus, négatif = manque
+  variance       Decimal?
+  notes          String?
+
+  payments Payment[]
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+}
+
+enum CashSessionStatus {
+  open
+  closed
 }
 
 model Ingredient {
@@ -385,14 +483,20 @@ model Ingredient {
 
 model Recipe {
   id           String @id @default(uuid())
+  // Dénormalisé depuis menuItem.tenantId : sans cette colonne, tout
+  // scoping tenant sur Recipe exige une jointure imbriquée via menuItem,
+  // ce qui rend trivial d'oublier le filtre dans une future requête.
+  tenantId     String
   menuItemId   String
   ingredientId String
   quantity     Float  // Quantité de l'ingrédient dans la recette (mesure physique)
 
+  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
   menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
 
   @@unique([menuItemId, ingredientId])
+  @@index([tenantId])
 }
 
 model Message {

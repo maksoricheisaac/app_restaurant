@@ -13,12 +13,12 @@ export class MenuSessionService {
   constructor(private readonly config: ConfigService) {
     this.isDev = config.get<string>('NODE_ENV') !== 'production';
     const dedicated = config.get<string>('MENU_SESSION_SECRET');
-    const fallback  = config.get<string>('JWT_SECRET') ?? '';
+    const fallback = config.get<string>('JWT_SECRET') ?? '';
 
     if (!dedicated && !this.isDev) {
       this.logger.warn(
         'MENU_SESSION_SECRET not set — falling back to JWT_SECRET. ' +
-        'Set a dedicated secret in production.',
+          'Set a dedicated secret in production.',
       );
     }
 

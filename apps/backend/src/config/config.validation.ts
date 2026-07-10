@@ -40,20 +40,15 @@ const envSchema = z.object({
   SMTP_FROM: z.string().optional(),
 
   // ── Paiement ──────────────────────────────────────────────────────────────
-  // Sélectionne le fournisseur actif (cf. apps/backend/src/payments).
-  // "lemonsqueezy" est le seul fournisseur implémenté ; les autres sont des
-  // placeholders qui refusent toute opération tant qu'ils ne sont pas
-  // implémentés.
+  // Sélectionne le fournisseur actif (cf. apps/backend/src/payments). Aucun
+  // fournisseur n'est implémenté à ce jour — tous sont des placeholders
+  // inertes qui refusent toute opération. Le prochain fournisseur à
+  // implémenter est Moneroo ; ses variables d'environnement (MONEROO_*)
+  // seront ajoutées ici au moment de son implémentation, suivant le même
+  // schéma que les autres providers.
   PAYMENT_PROVIDER: z
-    .enum(['lemonsqueezy', 'stripe', 'paddle', 'flutterwave', 'paystack'])
+    .enum(['stripe', 'paddle', 'flutterwave', 'paystack'])
     .optional(),
-
-  // ── Lemon Squeezy (optional in dev) ──────────────────────────────────────
-  LEMON_SQUEEZY_API_KEY: z.string().optional(),
-  LEMON_SQUEEZY_WEBHOOK_SECRET: z.string().optional(),
-  LEMON_SQUEEZY_STORE_ID: z.string().optional(),
-  LEMON_SQUEEZY_PRO_VARIANT_ID: z.string().optional(),
-  LEMON_SQUEEZY_ENTERPRISE_VARIANT_ID: z.string().optional(),
 
   // ── Menu session token ────────────────────────────────────────────────────
   // Distinct from JWT_SECRET. Falls back to JWT_SECRET in dev if absent.

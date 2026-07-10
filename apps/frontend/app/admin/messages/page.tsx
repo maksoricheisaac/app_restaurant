@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -49,7 +49,7 @@ export default function MessagesPage() {
   const { isLoading: isLoadingDetails } = useMessage(editingMessage?.id || '');
 
   // Configuration WebSockets pour les messages
-  useSocketEvent('new-message', (data) => {
+  useSocketEvent('new-message', (_data) => {
     toast.success('Nouveau message reçu !');
     queryClient.invalidateQueries({ queryKey: ['messages'] });
   });

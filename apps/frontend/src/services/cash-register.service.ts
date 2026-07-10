@@ -16,4 +16,20 @@ export const cashRegisterService = {
   getUnpaidOrders: async () => {
     return api.get('/cash-register/unpaid-orders');
   },
+
+  openSession: async (data: { openingAmount: number; notes?: string }) => {
+    return api.post('/cash-register/session/open', data);
+  },
+
+  closeSession: async (data: { closingAmount: number; notes?: string }) => {
+    return api.post('/cash-register/session/close', data);
+  },
+
+  getCurrentSession: async () => {
+    return api.get('/cash-register/session/current');
+  },
+
+  getSessionHistory: async (params?: { page?: number; limit?: number }) => {
+    return api.get('/cash-register/session/history', { params });
+  },
 };

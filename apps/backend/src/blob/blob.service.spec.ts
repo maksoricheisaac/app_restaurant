@@ -214,6 +214,7 @@ describe('BlobService', () => {
         }),
       ).rejects.toThrow(InternalServerErrorException);
 
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- jest.Mocked<T> method reference, not an actual unbound `this` call
       expect(monitoringService.captureError).toHaveBeenCalled();
     });
 
@@ -253,6 +254,7 @@ describe('BlobService', () => {
       await expect(
         service.deleteImage('bad/path.webp'),
       ).resolves.toBeUndefined();
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- jest.Mocked<T> method reference, not an actual unbound `this` call
       expect(monitoringService.captureError).toHaveBeenCalled();
     });
 

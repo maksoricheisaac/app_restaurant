@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Plus, Minus, Settings2, Search, Package2, AlertTriangle, TrendingUp, DollarSign } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,7 +76,7 @@ export function QuickInventoryTable({
   const [loading, setLoading] = useState(false);
 
   // WebSockets pour les mises à jour du stock
-  useSocketEvent('stock-updated', (data) => {
+  useSocketEvent('stock-updated', (_data) => {
     onRefresh();
   });
 

@@ -153,7 +153,7 @@ export function OrderHistory({ onOrderSelect, email }: OrderHistoryProps) {
         {/* Liste des commandes */}
         {orders.length > 0 ? (
           <div className="space-y-3 sm:space-y-4 md:space-y-5">
-            {orders.map((order) => (
+            {orders.map((order: any) => (
               <Collapsible key={order.id}>
                 <Card className="border border-gray-200 hover:border-orange-300 transition-colors duration-200 overflow-hidden">
                   <CollapsibleTrigger 
@@ -228,7 +228,7 @@ export function OrderHistory({ onOrderSelect, email }: OrderHistoryProps) {
                     <Separator />
                     <CardContent className="p-3 sm:p-4 md:p-5 lg:p-6 bg-gray-50">
                       <div className="space-y-3 sm:space-y-4">
-                        {order.items.map((item) => (
+                        {order.items.map((item: any) => (
                           <div key={item.id} className="flex items-start gap-3 sm:gap-4">
                             {/* Image du plat */}
                             <div className="flex-shrink-0">

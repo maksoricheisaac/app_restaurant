@@ -1,3 +1,5 @@
+import type { CompleteOnboardingPayload } from '@/types/onboarding';
+
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
 function apiFetch(path: string, init?: RequestInit) {
@@ -23,34 +25,11 @@ export interface InitiateRegistrationPayload {
   password: string;
 }
 
-export interface AccountTypePayload {
-  accountType: 'OWNER' | 'MULTI_MANAGER' | 'FRANCHISE';
-}
-
-export interface RestaurantInfoPayload {
-  restaurantName: string;
-  slug: string;
-  country: string;
-  currency: string;
-  timezone: string;
-  cuisineType?: string;
-}
-
-export interface SelectPlanPayload {
-  plan: 'free' | 'pro' | 'enterprise';
-}
-
-export interface OnboardingState {
-  onboardingStep: number;
-  onboardingCompleted: boolean;
-  onboardingData: Record<string, unknown> | null;
-  accountType: string | null;
-  firstName: string | null;
-  lastName: string | null;
-  email: string;
-}
-
 export const onboardingService = {
+  /**
+   * Étape 1 — crée le compte et ouvre une session (cookies posés par le backend).
+   * Seul appel « écrivant » du wizard avant la finalisation.
+   */
   async initiate(payload: InitiateRegistrationPayload) {
     const res = await apiFetch('/onboarding/initiate', {
       method: 'POST',
@@ -60,35 +39,18 @@ export const onboardingService = {
     return handleResponse<{ user: Record<string, unknown> }>(res);
   },
 
-  async saveAccountType(payload: AccountTypePayload) {
-    const res = await apiFetch('/onboarding/step/account-type', {
-      method: 'PATCH',
+  /**
+   * Étape finale — envoie l'intégralité des données du restaurant. Le backend
+   * crée tenant + settings + membership + catégories en une transaction unique
+   * et renvoie les tokens frais (cookies), rendant la session immédiatement
+   * cohérente sans reconnexion.
+   */
+  async complete(payload: CompleteOnboardingPayload) {
+    const res = await apiFetch('/onboarding/complete', {
+      method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return handleResponse<{ onboardingStep: number }>(res);
-  },
-
-  async saveRestaurantInfo(payload: RestaurantInfoPayload) {
-    const res = await apiFetch('/onboarding/step/restaurant-info', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ onboardingStep: number }>(res);
-  },
-
-  async savePlan(payload: SelectPlanPayload) {
-    const res = await apiFetch('/onboarding/step/plan', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ onboardingStep: number }>(res);
-  },
-
-  async complete() {
-    const res = await apiFetch('/onboarding/complete', { method: 'POST' });
     return handleResponse<{
       success: boolean;
       tenant: { id: string; slug: string; name: string };
@@ -96,11 +58,7 @@ export const onboardingService = {
     }>(res);
   },
 
-  async getState() {
-    const res = await apiFetch('/onboarding/state');
-    return handleResponse<OnboardingState>(res);
-  },
-
+  /** Lecture seule — vérifie la disponibilité d'un slug (aucune écriture). */
   async checkSlug(slug: string): Promise<{ available: boolean }> {
     const res = await apiFetch(`/onboarding/check-slug?slug=${encodeURIComponent(slug)}`);
     return handleResponse<{ available: boolean }>(res);

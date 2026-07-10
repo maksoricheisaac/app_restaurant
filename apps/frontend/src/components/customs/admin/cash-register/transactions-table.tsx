@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { PaymentMethod, TransactionType } from "@/types/order";
 import { useTransactions } from "@/hooks/api/useCashRegister";
-import { useProcessPayment } from "@/hooks/api/useCashRegisterMutations";
 
 interface TransactionsTableProps {
   formatCurrency: (amount: number) => string;

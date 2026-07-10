@@ -73,7 +73,7 @@ export function GeneralSettingsForm() {
         <CardHeader>
           <CardTitle>Informations du restaurant</CardTitle>
           <CardDescription>
-            Ces informations s'affichent dans le footer de votre menu client.
+            Ces informations s&apos;affichent dans le footer de votre menu client.
           </CardDescription>
         </CardHeader>
         <CardContent>

@@ -10,9 +10,20 @@ import { AuthModule } from '../auth/auth.module';
 import { GatewayModule } from '../gateway/gateway.module';
 import { PlansModule } from '../plans/plans.module';
 import { BlobModule } from '../blob/blob.module';
+import { InventoryModule } from '../inventory/inventory.module';
+import { ReservationsModule } from '../reservations/reservations.module';
 
 @Module({
-  imports: [ConfigModule, PrismaModule, AuthModule, GatewayModule, PlansModule, BlobModule],
+  imports: [
+    ConfigModule,
+    PrismaModule,
+    AuthModule,
+    GatewayModule,
+    PlansModule,
+    BlobModule,
+    InventoryModule,
+    ReservationsModule,
+  ],
   controllers: [MenuController, PublicMenuController],
   providers: [MenuService, PublicOrderService, MenuSessionService],
   exports: [MenuService],

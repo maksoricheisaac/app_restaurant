@@ -1,4 +1,4 @@
-import { IsEmail, IsString, IsNotEmpty, IsIn, IsUUID } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsIn, IsUUID } from 'class-validator';
 import { ASSIGNABLE_TENANT_ROLES } from '../../common/constants/tenant-roles.constant';
 
 export class InviteMemberDto {

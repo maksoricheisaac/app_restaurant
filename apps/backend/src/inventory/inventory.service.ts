@@ -2,7 +2,9 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  ConflictException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateIngredientDto,
@@ -10,10 +12,20 @@ import {
   MovementFiltersDto,
   CreateRecipeDto,
   UpdateRecipeDto,
+  StockMovementType,
 } from './dto/inventory.dto';
 import { getSkipTake, toPaginated } from '../common/pagination/paginate';
 
 const NOT_DELETED = { deletedAt: null };
+
+const DEFAULT_LOW_STOCK_THRESHOLD = 10;
+
+export interface LowStockWarning {
+  ingredientId: string;
+  name: string;
+  stock: number;
+  minStock: number | null;
+}
 
 // Le frontend consomme cette liste comme un tableau complet (sélecteurs de
 // recettes/mouvements de stock) : pas de pagination ici pour ne pas casser
@@ -61,8 +73,9 @@ export class InventoryService {
       where: { id, tenantId, ...NOT_DELETED },
     });
     if (!ingredient) throw new NotFoundException('Ingrédient non trouvé');
+    // Inclure tenantId dans le where pour garantir l'isolation tenant même en cas de race
     return this.prisma.ingredient.update({
-      where: { id },
+      where: { id, tenantId },
       data: { deletedAt: new Date() },
     });
   }
@@ -91,7 +104,11 @@ export class InventoryService {
       // 2. Mettre à jour le stock de l'ingrédient
       // IN: +quantity, OUT: -quantity, ADJUST: quantity peut être signé
       const adjustment =
-        type === 'IN' ? quantity : type === 'OUT' ? -quantity : quantity;
+        type === StockMovementType.IN
+          ? quantity
+          : type === StockMovementType.OUT
+            ? -quantity
+            : quantity;
       await tx.ingredient.update({
         where: { id: ingredientId, tenantId },
         data: {
@@ -181,7 +198,7 @@ export class InventoryService {
 
   async findAllRecipes(tenantId: string) {
     return this.prisma.recipe.findMany({
-      where: { menuItem: { tenantId, ...NOT_DELETED } },
+      where: { tenantId, menuItem: NOT_DELETED },
       include: {
         menuItem: { select: { id: true, name: true } },
         ingredient: { select: { id: true, name: true, unit: true } },
@@ -197,6 +214,7 @@ export class InventoryService {
 
     return this.prisma.recipe.create({
       data: {
+        tenantId,
         menuItemId: data.menuItemId,
         ingredientId: data.ingredientId,
         quantity: data.quantity,
@@ -210,12 +228,12 @@ export class InventoryService {
 
   async updateRecipe(tenantId: string, id: string, data: UpdateRecipeDto) {
     const recipe = await this.prisma.recipe.findFirst({
-      where: { id, menuItem: { tenantId, ...NOT_DELETED } },
+      where: { id, tenantId },
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
 
     return this.prisma.recipe.update({
-      where: { id },
+      where: { id, tenantId },
       data,
       include: {
         menuItem: { select: { id: true, name: true } },
@@ -226,10 +244,121 @@ export class InventoryService {
 
   async deleteRecipe(tenantId: string, id: string) {
     const recipe = await this.prisma.recipe.findFirst({
-      where: { id, menuItem: { tenantId, ...NOT_DELETED } },
+      where: { id, tenantId },
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
 
-    return this.prisma.recipe.delete({ where: { id } });
+    return this.prisma.recipe.delete({ where: { id, tenantId } });
+  }
+
+  // ─── Stock decrement on order creation ───────────────────────────────────
+
+  /**
+   * Décrémente atomiquement le stock des ingrédients consommés par une
+   * commande, d'après les recettes (Recipe) définies pour chaque article
+   * commandé. Appelé par OrdersService/PublicOrderService à l'intérieur de
+   * LEUR PROPRE `$transaction` (d'où le paramètre `tx` explicite plutôt que
+   * `this.prisma`) pour que la commande et l'impact stock soient atomiques :
+   * si le stock est insuffisant, toute la commande est annulée.
+   *
+   * Les articles sans recette définie (menuItemId null, ou aucun Recipe
+   * pour ce menuItem) n'ont simplement aucun impact stock — toutes les
+   * cartes ne suivent pas leurs ingrédients au gramme près.
+   *
+   * Retourne la liste des ingrédients passés sous leur seuil d'alerte après
+   * décrément, pour que l'appelant puisse émettre une notification.
+   */
+  async decrementStockForOrder(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    orderId: string,
+    items: Array<{ menuItemId?: string | null; quantity: number }>,
+  ): Promise<LowStockWarning[]> {
+    const menuItemIds = items
+      .filter((i) => i.menuItemId)
+      .map((i) => i.menuItemId as string);
+    if (menuItemIds.length === 0) return [];
+
+    const recipes = await tx.recipe.findMany({
+      where: { tenantId, menuItemId: { in: menuItemIds } },
+      select: { menuItemId: true, ingredientId: true, quantity: true },
+    });
+    if (recipes.length === 0) return [];
+
+    // menuItemId -> quantité commandée (au cas où un même article apparaît
+    // plusieurs fois dans `items`, on cumule).
+    const orderedQtyByMenuItem = new Map<string, number>();
+    for (const item of items) {
+      if (!item.menuItemId) continue;
+      orderedQtyByMenuItem.set(
+        item.menuItemId,
+        (orderedQtyByMenuItem.get(item.menuItemId) ?? 0) + item.quantity,
+      );
+    }
+
+    // ingredientId -> quantité totale à décrémenter
+    const neededByIngredient = new Map<string, number>();
+    for (const recipe of recipes) {
+      const orderedQty = orderedQtyByMenuItem.get(recipe.menuItemId) ?? 0;
+      if (orderedQty === 0) continue;
+      const needed = recipe.quantity * orderedQty;
+      neededByIngredient.set(
+        recipe.ingredientId,
+        (neededByIngredient.get(recipe.ingredientId) ?? 0) + needed,
+      );
+    }
+
+    const warnings: LowStockWarning[] = [];
+
+    for (const [ingredientId, needed] of neededByIngredient) {
+      // Décrément conditionnel atomique : ne réussit que si le stock actuel
+      // couvre le besoin, évitant toute race entre deux commandes
+      // concurrentes (Postgres sérialise les UPDATE sur la même ligne).
+      const result = await tx.ingredient.updateMany({
+        where: { id: ingredientId, tenantId, stock: { gte: needed } },
+        data: { stock: { decrement: needed } },
+      });
+
+      if (result.count === 0) {
+        const ingredient = await tx.ingredient.findFirst({
+          where: { id: ingredientId, tenantId },
+          select: { name: true, stock: true },
+        });
+        throw new ConflictException(
+          ingredient
+            ? `Stock insuffisant pour "${ingredient.name}" (disponible : ${ingredient.stock}, requis : ${needed}).`
+            : 'Ingrédient introuvable pour le calcul du stock.',
+        );
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          tenantId,
+          ingredientId,
+          type: 'OUT',
+          quantity: needed,
+          description: `Décrémenté automatiquement — commande #${orderId.slice(-6).toUpperCase()}`,
+          orderId,
+        },
+      });
+
+      const updated = await tx.ingredient.findFirst({
+        where: { id: ingredientId, tenantId },
+        select: { id: true, name: true, stock: true, minStock: true },
+      });
+      if (
+        updated &&
+        updated.stock <= (updated.minStock ?? DEFAULT_LOW_STOCK_THRESHOLD)
+      ) {
+        warnings.push({
+          ingredientId: updated.id,
+          name: updated.name,
+          stock: updated.stock,
+          minStock: updated.minStock,
+        });
+      }
+    }
+
+    return warnings;
   }
 }

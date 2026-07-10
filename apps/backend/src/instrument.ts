@@ -48,7 +48,6 @@ Sentry.init({
 });
 
 if (dsn) {
-  // eslint-disable-next-line no-console
   console.log(
     '[Sentry] Initialized — env:',
     process.env.NODE_ENV ?? 'development',

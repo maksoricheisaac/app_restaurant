@@ -46,13 +46,11 @@ ENV NODE_ENV=production
 # Security: create non-root user
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001
 
-# Copy pruned node_modules + compiled output
+# Copy pruned node_modules (includes the .pnpm store, so Prisma client
+# binaries generated in the build stage come along) + compiled output.
 COPY --from=build --chown=nestjs:nodejs /app/node_modules ./node_modules
 COPY --from=build --chown=nestjs:nodejs /app/dist ./dist
 COPY --from=build --chown=nestjs:nodejs /app/prisma ./prisma
-
-# Prisma client binaries (re-generated for linux target)
-COPY --from=build --chown=nestjs:nodejs /app/node_modules/.pnpm /app/node_modules/.pnpm 2>/dev/null || true
 
 USER nestjs
 

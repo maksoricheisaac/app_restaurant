@@ -73,19 +73,6 @@ export interface IngredientFormData {
   isActive: boolean;
 }
 
-export interface RecipeFormData {
-  menuItemId: string;
-  ingredientId: string;
-  quantity: number;
-}
-
-export interface StockMovementFormData {
-  ingredientId: string;
-  type: StockMovementType;
-  quantity: number;
-  description?: string;
-}
-
 export interface InventoryFilters {
   search?: string;
   page?: number;

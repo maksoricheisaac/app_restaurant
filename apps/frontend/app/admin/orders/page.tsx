@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -39,7 +39,6 @@ import { useSocketEvent } from "@/hooks/useSocketEvent";
 import { useTables } from "@/hooks/api/useTables";
 import { Order, OrderStatus } from "@/types/order";
 import { createOrderSchema } from "@/schemas/validation";
-import { useQuery } from "@tanstack/react-query";
 import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
 import { useTenantCurrency } from "@/hooks/useTenantCurrency";
 
@@ -66,7 +65,7 @@ export default function OrdersPage() {
   const [isTicketPreviewOpen, setIsTicketPreviewOpen] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
+  const [_deleteOrderId, setDeleteOrderId] = useState<string | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   const queryClient = useQueryClient();

@@ -10,12 +10,10 @@ import {
   ParseFilePipe,
   MaxFileSizeValidator,
   FileTypeValidator,
-  NotFoundException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { BlobService } from '../blob/blob.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { MediaService } from './media.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -24,8 +22,6 @@ import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
 import { MAX_FILE_SIZE_BYTES } from '../blob/constants/blob.constants';
 import type { Tenant } from '@prisma/client';
 import type { Request } from 'express';
-
-const NOT_DELETED = { deletedAt: null };
 
 const uploadInterceptor = () =>
   FileInterceptor('file', {
@@ -40,74 +36,46 @@ const fileValidator = new ParseFilePipe({
   ],
 });
 
+function requestIdOf(req: Request): string | undefined {
+  return (req as Request & { requestId?: string }).requestId;
+}
+
 @Controller('/media')
 @UseGuards(AuthGuard, TenantGuard, RolesGuard)
 export class MediaController {
-  constructor(
-    private readonly blobService: BlobService,
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly mediaService: MediaService) {}
 
   // ── Menu item image ──────────────────────────────────────────────────────
 
   @Post('/upload/menu-item/:id')
   @Roles('owner', 'manager', 'head_chef')
   @UseInterceptors(uploadInterceptor())
-  async uploadMenuItemImage(
+  uploadMenuItemImage(
     @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    const item = await this.prisma.menuItem.findFirst({
-      where: { id, tenantId: tenant.id, ...NOT_DELETED },
-      select: { id: true, imagePathname: true },
-    });
-    if (!item) throw new NotFoundException('Menu item introuvable');
-
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    const uploaded = await this.blobService.replaceImage(
-      {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        tenantId: tenant.id,
-        context: 'menu-items',
-        oldPathname: item.imagePathname,
-      },
-      requestId,
+    return this.mediaService.uploadMenuItemImage(
+      tenant.id,
+      id,
+      file,
+      requestIdOf(req),
     );
-
-    await this.prisma.menuItem.update({
-      where: { id },
-      data: { image: uploaded.url, imagePathname: uploaded.pathname },
-    });
-
-    return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
   @Delete('/menu-item/:id/image')
   @Roles('owner', 'manager', 'head_chef')
-  async deleteMenuItemImage(
+  deleteMenuItemImage(
     @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const item = await this.prisma.menuItem.findFirst({
-      where: { id, tenantId: tenant.id, ...NOT_DELETED },
-      select: { id: true, imagePathname: true },
-    });
-    if (!item) throw new NotFoundException('Menu item introuvable');
-    if (!item.imagePathname) return { message: 'Aucune image associée' };
-
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    await this.blobService.deleteImage(item.imagePathname, requestId);
-
-    await this.prisma.menuItem.update({
-      where: { id },
-      data: { image: null, imagePathname: null },
-    });
-
-    return { message: 'Image supprimée' };
+    return this.mediaService.deleteMenuItemImage(
+      tenant.id,
+      id,
+      requestIdOf(req),
+    );
   }
 
   // ── Category image ───────────────────────────────────────────────────────
@@ -115,61 +83,32 @@ export class MediaController {
   @Post('/upload/category/:id')
   @Roles('owner', 'manager', 'head_chef')
   @UseInterceptors(uploadInterceptor())
-  async uploadCategoryImage(
+  uploadCategoryImage(
     @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    const category = await this.prisma.menuCategory.findFirst({
-      where: { id, tenantId: tenant.id, ...NOT_DELETED },
-      select: { id: true, imagePathname: true },
-    });
-    if (!category) throw new NotFoundException('Catégorie introuvable');
-
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    const uploaded = await this.blobService.replaceImage(
-      {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        tenantId: tenant.id,
-        context: 'categories',
-        oldPathname: category.imagePathname,
-      },
-      requestId,
+    return this.mediaService.uploadCategoryImage(
+      tenant.id,
+      id,
+      file,
+      requestIdOf(req),
     );
-
-    await this.prisma.menuCategory.update({
-      where: { id },
-      data: { imageUrl: uploaded.url, imagePathname: uploaded.pathname },
-    });
-
-    return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
   @Delete('/category/:id/image')
   @Roles('owner', 'manager', 'head_chef')
-  async deleteCategoryImage(
+  deleteCategoryImage(
     @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @Req() req: Request,
   ) {
-    const category = await this.prisma.menuCategory.findFirst({
-      where: { id, tenantId: tenant.id, ...NOT_DELETED },
-      select: { id: true, imagePathname: true },
-    });
-    if (!category) throw new NotFoundException('Catégorie introuvable');
-    if (!category.imagePathname) return { message: 'Aucune image associée' };
-
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    await this.blobService.deleteImage(category.imagePathname, requestId);
-
-    await this.prisma.menuCategory.update({
-      where: { id },
-      data: { imageUrl: null, imagePathname: null },
-    });
-
-    return { message: 'Image supprimée' };
+    return this.mediaService.deleteCategoryImage(
+      tenant.id,
+      id,
+      requestIdOf(req),
+    );
   }
 
   // ── Tenant logo ──────────────────────────────────────────────────────────
@@ -177,47 +116,23 @@ export class MediaController {
   @Post('/upload/tenant-logo')
   @Roles('owner')
   @UseInterceptors(uploadInterceptor())
-  async uploadTenantLogo(
+  uploadTenantLogo(
     @CurrentTenant() tenant: Tenant,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    const uploaded = await this.blobService.replaceImage(
-      {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        tenantId: tenant.id,
-        context: 'tenant-logo',
-        oldPathname: (tenant as any).logoPathname ?? null,
-      },
-      requestId,
+    return this.mediaService.uploadTenantLogo(
+      tenant.id,
+      (tenant as any).logoPathname ?? null,
+      file,
+      requestIdOf(req),
     );
-
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { logo: uploaded.url, logoPathname: uploaded.pathname },
-    });
-
-    return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
   @Delete('/tenant-logo')
   @Roles('owner')
-  async deleteTenantLogo(@CurrentTenant() tenant: Tenant, @Req() req: Request) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenant.id },
-      select: { logoPathname: true },
-    });
-    if (t?.logoPathname) {
-      const requestId = (req as Request & { requestId?: string }).requestId;
-      await this.blobService.deleteImage(t.logoPathname, requestId);
-    }
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { logo: null, logoPathname: null },
-    });
-    return { message: 'Logo supprimé' };
+  deleteTenantLogo(@CurrentTenant() tenant: Tenant, @Req() req: Request) {
+    return this.mediaService.deleteTenantLogo(tenant.id, requestIdOf(req));
   }
 
   // ── Tenant banner ────────────────────────────────────────────────────────
@@ -225,54 +140,21 @@ export class MediaController {
   @Post('/upload/tenant-banner')
   @Roles('owner')
   @UseInterceptors(uploadInterceptor())
-  async uploadTenantBanner(
+  uploadTenantBanner(
     @CurrentTenant() tenant: Tenant,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenant.id },
-      select: { bannerPathname: true },
-    });
-
-    const requestId = (req as Request & { requestId?: string }).requestId;
-    const uploaded = await this.blobService.replaceImage(
-      {
-        buffer: file.buffer,
-        mimeType: file.mimetype,
-        tenantId: tenant.id,
-        context: 'tenant-banner',
-        oldPathname: t?.bannerPathname ?? null,
-      },
-      requestId,
+    return this.mediaService.uploadTenantBanner(
+      tenant.id,
+      file,
+      requestIdOf(req),
     );
-
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { bannerUrl: uploaded.url, bannerPathname: uploaded.pathname },
-    });
-
-    return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
   @Delete('/tenant-banner')
   @Roles('owner')
-  async deleteTenantBanner(
-    @CurrentTenant() tenant: Tenant,
-    @Req() req: Request,
-  ) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenant.id },
-      select: { bannerPathname: true },
-    });
-    if (t?.bannerPathname) {
-      const requestId = (req as Request & { requestId?: string }).requestId;
-      await this.blobService.deleteImage(t.bannerPathname, requestId);
-    }
-    await this.prisma.tenant.update({
-      where: { id: tenant.id },
-      data: { bannerUrl: null, bannerPathname: null },
-    });
-    return { message: 'Bannière supprimée' };
+  deleteTenantBanner(@CurrentTenant() tenant: Tenant, @Req() req: Request) {
+    return this.mediaService.deleteTenantBanner(tenant.id, requestIdOf(req));
   }
 }

@@ -12,6 +12,9 @@ const mockPlanLimitService = {
 };
 // Always passes in tests (mirrors dev-mode behaviour)
 const mockMenuSessionService = { verify: jest.fn().mockReturnValue(true) };
+const mockInventoryService = {
+  decrementStockForOrder: jest.fn().mockResolvedValue([]),
+};
 
 describe('PublicOrderService', () => {
   let service: PublicOrderService;
@@ -32,9 +35,14 @@ describe('PublicOrderService', () => {
       mockEventsService as any,
       mockPlanLimitService as any,
       mockMenuSessionService as any,
+      mockInventoryService as any,
     );
     jest.clearAllMocks();
     mockPlanLimitService.assertMonthlyOrderLimit.mockResolvedValue(undefined);
+    mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
+    // createOrder() écrit désormais dans une transaction — router tx vers
+    // le même mock que celui utilisé dans les assertions.
+    prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
   });
 
   // ─── Plan limit enforcement ──────────────────────────────────────────────
@@ -175,5 +183,110 @@ describe('PublicOrderService', () => {
       'new-order',
       expect.any(Object),
     );
+  });
+
+  // ─── tableId tenant ownership ────────────────────────────────────────────
+
+  it('rejects a tableId that does not belong to the resolved tenant', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.table.findFirst.mockResolvedValue(null); // foreign/unknown table
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        tableId: 'table-from-other-tenant',
+        items: [{ menuItemId: 'item-1', quantity: 1 }],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+
+    expect(prisma.order.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts a tableId that belongs to the resolved tenant', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.table.findFirst.mockResolvedValue({ id: 'table-1' });
+    prisma.order.create.mockResolvedValue({
+      id: 'o1',
+      status: 'pending',
+      total: 2500,
+    });
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        tableId: 'table-1',
+        items: [{ menuItemId: 'item-1', quantity: 1 }],
+      } as any),
+    ).resolves.toBeDefined();
+
+    const tableCall = prisma.table.findFirst.mock.calls[0][0];
+    expect(tableCall.where).toEqual({
+      id: 'table-1',
+      tenantId: 'tenant-1',
+      deletedAt: null,
+    });
+  });
+
+  it('skips the table check when no tableId is provided', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.order.create.mockResolvedValue({
+      id: 'o1',
+      status: 'pending',
+      total: 2500,
+    });
+
+    await service.createOrder('le-maquis', {
+      type: 'dine_in',
+      items: [{ menuItemId: 'item-1', quantity: 1 }],
+    } as any);
+
+    expect(prisma.table.findFirst).not.toHaveBeenCalled();
+  });
+
+  // ─── Stock decrement ──────────────────────────────────────────────────────
+
+  it('decrements stock via InventoryService after creating the order', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.order.create.mockResolvedValue({
+      id: 'order-42',
+      status: 'pending',
+      total: 5000,
+    });
+
+    await service.createOrder('le-maquis', {
+      type: 'dine_in',
+      items: [{ menuItemId: 'item-1', quantity: 2 }],
+    } as any);
+
+    expect(mockInventoryService.decrementStockForOrder).toHaveBeenCalledWith(
+      prisma,
+      'tenant-1',
+      'order-42',
+      [{ menuItemId: 'item-1', quantity: 2 }],
+    );
+  });
+
+  it('rejects the order when stock is insufficient', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.order.create.mockResolvedValue({
+      id: 'order-1',
+      status: 'pending',
+      total: 2500,
+    });
+    mockInventoryService.decrementStockForOrder.mockRejectedValue(
+      new Error('Stock insuffisant'),
+    );
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        items: [{ menuItemId: 'item-1', quantity: 1 }],
+      } as any),
+    ).rejects.toThrow('Stock insuffisant');
   });
 });

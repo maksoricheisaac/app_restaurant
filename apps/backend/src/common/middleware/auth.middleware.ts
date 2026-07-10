@@ -6,7 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 export class AuthMiddleware implements NestMiddleware {
   constructor(private readonly jwtService: JwtService) {}
 
-  async use(req: Request, res: Response, next: NextFunction) {
+  use(req: Request, res: Response, next: NextFunction) {
     let token: string | null = null;
     const authHeader = req.headers.authorization;
 
@@ -26,7 +26,7 @@ export class AuthMiddleware implements NestMiddleware {
           platformRole: decoded.platformRole,
           tenantId: decoded.tenantId,
         };
-      } catch (error) {
+      } catch {
         // Token invalide, on laisse passer pour que les Guards fassent leur travail
       }
     }

@@ -4,7 +4,6 @@ import {
   InternalServerErrorException,
   Logger,
   NotFoundException,
-  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,9 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { InitiateRegistrationDto } from './dto/initiate-registration.dto';
-import { AccountTypeDto } from './dto/account-type.dto';
-import { RestaurantInfoDto } from './dto/restaurant-info.dto';
-import { SelectPlanDto } from './dto/select-plan.dto';
+import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 
 @Injectable()
 export class OnboardingService {
@@ -27,6 +24,22 @@ export class OnboardingService {
     private config: ConfigService,
     private jwtService: JwtService,
   ) {}
+
+  /**
+   * Retire les champs sensibles avant de renvoyer un User dans une réponse HTTP
+   * (tokens de vérification email / reset mot de passe, hash de mot de passe).
+   */
+  private sanitizeUser<T extends Record<string, any>>(user: T) {
+    const {
+      password: _pwd,
+      emailVerificationToken: _evt,
+      emailVerificationExpiry: _eve,
+      passwordResetToken: _prt,
+      passwordResetExpiry: _pre,
+      ...safe
+    } = user;
+    return safe;
+  }
 
   private buildAccessToken(user: {
     id: string;
@@ -70,6 +83,14 @@ export class OnboardingService {
     return rawToken;
   }
 
+  /**
+   * Étape 1 — Création du compte.
+   *
+   * C'est le SEUL point de l'onboarding qui écrit en base pendant l'assistant :
+   * il faut bien créer le User pour pouvoir l'authentifier immédiatement (le
+   * reste du wizard se fait sous session). Aucune donnée « restaurant » n'est
+   * persistée ici — elle reste côté client jusqu'à `completeOnboarding`.
+   */
   async initiateRegistration(dto: InitiateRegistrationDto) {
     const { firstName, lastName, email, password } = dto;
 
@@ -98,7 +119,6 @@ export class OnboardingService {
           emailVerified: false,
           emailVerificationToken: verificationTokenHash,
           emailVerificationExpiry: verificationExpiry,
-          onboardingStep: 1,
           onboardingCompleted: false,
         },
       });
@@ -115,8 +135,11 @@ export class OnboardingService {
       const access_token = this.buildAccessToken(user);
       const refresh_token = await this.issueRefreshToken(user.id);
 
-      const { password: _pwd, onboardingData: _od, ...safeUser } = user;
-      return { access_token, refresh_token, user: { ...safeUser, role: null } };
+      return {
+        access_token,
+        refresh_token,
+        user: { ...this.sanitizeUser(user), role: null },
+      };
     } catch (error) {
       if (error instanceof ConflictException) throw error;
       this.logger.error(
@@ -129,124 +152,43 @@ export class OnboardingService {
     }
   }
 
-  async saveAccountType(userId: string, dto: AccountTypeDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Utilisateur non trouvé');
-    if (user.onboardingCompleted)
-      throw new BadRequestException('Onboarding déjà finalisé');
-
-    const currentData = (user.onboardingData as Record<string, unknown>) ?? {};
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        accountType: dto.accountType,
-        onboardingStep: Math.max(user.onboardingStep, 2),
-        onboardingData: { ...currentData, accountType: dto.accountType },
-      },
-    });
-
-    return { onboardingStep: 2 };
-  }
-
-  async saveRestaurantInfo(userId: string, dto: RestaurantInfoDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Utilisateur non trouvé');
-    if (user.onboardingCompleted)
-      throw new BadRequestException('Onboarding déjà finalisé');
-
-    const existingTenant = await this.prisma.tenant.findUnique({
-      where: { slug: dto.slug },
-    });
-    if (existingTenant) throw new ConflictException('Ce slug est déjà utilisé');
-
-    const currentData = (user.onboardingData as Record<string, unknown>) ?? {};
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        onboardingStep: Math.max(user.onboardingStep, 3),
-        onboardingData: {
-          ...currentData,
-          restaurantName: dto.restaurantName,
-          slug: dto.slug,
-          country: dto.country,
-          currency: dto.currency,
-          timezone: dto.timezone,
-          cuisineType: dto.cuisineType ?? null,
-        },
-      },
-    });
-
-    return { onboardingStep: 3 };
-  }
-
-  async savePlan(userId: string, dto: SelectPlanDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Utilisateur non trouvé');
-    if (user.onboardingCompleted)
-      throw new BadRequestException('Onboarding déjà finalisé');
-
-    const currentData = (user.onboardingData as Record<string, unknown>) ?? {};
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        onboardingStep: Math.max(user.onboardingStep, 4),
-        onboardingData: { ...currentData, plan: dto.plan },
-      },
-    });
-
-    return { onboardingStep: 4 };
-  }
-
-  async completeOnboarding(userId: string) {
+  /**
+   * Étape finale — Provisionnement complet du restaurant.
+   *
+   * Reçoit l'intégralité des données du wizard (accumulées côté client) et crée
+   * TOUT en une transaction Prisma unique et atomique :
+   *   Tenant + RestaurantSettings + TenantMembership(owner) + catégories par défaut.
+   * En cas d'échec à n'importe quelle étape → rollback complet, aucune donnée
+   * partielle ne subsiste. Un nouveau couple de tokens (avec le tenantId frais)
+   * est émis pour que la session soit immédiatement cohérente sans reconnexion.
+   *
+   * NB : le « type de compte » (OWNER) n'est plus un choix — tout utilisateur qui
+   * termine l'onboarding crée son restaurant et en devient OWNER. Le
+   * multi-restaurants / la franchise dépendront du plan (voir plans.config.ts,
+   * feature `multiSite`), pas d'un type de compte figé à l'inscription.
+   */
+  async completeOnboarding(userId: string, dto: CompleteOnboardingDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur non trouvé');
 
-    // Déjà terminé → retourner l'état actuel avec user pour rafraîchir le contexte frontend
-    if (user.onboardingCompleted) {
-      const tenant = user.tenantId
-        ? await this.prisma.tenant.findUnique({ where: { id: user.tenantId } })
-        : null;
-      const { password: _pwd, onboardingData: _od, ...safeUser } = user;
+    // Idempotence : si l'onboarding est déjà terminé (double-clic, retry réseau),
+    // renvoyer l'état courant sans rien recréer.
+    if (user.onboardingCompleted && user.tenantId) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: user.tenantId },
+      });
       return {
         success: true,
         alreadyCompleted: true,
         tenant,
-        user: { ...safeUser },
+        user: { ...this.sanitizeUser(user), role: 'owner' },
       };
     }
 
-    const data = (user.onboardingData as Record<string, any>) ?? {};
-    const accountType = user.accountType || data.accountType;
-
-    // Multi-Manager / Franchise → pas de restaurant à créer, juste finaliser le compte
-    if (accountType && accountType !== 'OWNER') {
-      const updatedUser = await this.prisma.user.update({
-        where: { id: userId },
-        data: { onboardingCompleted: true, onboardingStep: 5 },
-      });
-
-      const access_token = this.buildAccessToken(updatedUser);
-      const refresh_token = await this.issueRefreshToken(userId);
-      const { password: _pwd, onboardingData: _od, ...safeUser } = updatedUser;
-
-      return {
-        success: true,
-        access_token,
-        refresh_token,
-        tenant: null,
-        user: { ...safeUser, role: null },
-      };
-    }
-
-    // Propriétaire → restaurant obligatoire
-    if (!data.slug || !data.restaurantName) {
-      throw new BadRequestException(
-        "Données d'onboarding incomplètes. Veuillez compléter toutes les étapes.",
-      );
-    }
-
-    const existingTenant = await this.prisma.tenant.findUnique({
-      where: { slug: data.slug },
+    // Vérification d'unicité du slug hors transaction (feedback d'erreur rapide).
+    // L'unicité réelle est garantie par l'index partiel `WHERE deletedAt IS NULL`.
+    const existingTenant = await this.prisma.tenant.findFirst({
+      where: { slug: dto.slug, deletedAt: null },
     });
     if (existingTenant) throw new ConflictException('Ce slug est déjà utilisé');
 
@@ -255,16 +197,16 @@ export class OnboardingService {
         async (tx) => {
           const tenant = await tx.tenant.create({
             data: {
-              name: data.restaurantName as string,
-              slug: data.slug as string,
-              plan: ((data.plan as string) || 'free') as any,
+              name: dto.restaurantName,
+              slug: dto.slug,
+              plan: (dto.plan || 'free') as any,
               status: 'active' as any,
-              country: (data.country as string) || null,
-              currency: (data.currency as string) || 'EUR',
-              timezone: (data.timezone as string) || 'Europe/Paris',
-              cuisineType: (data.cuisineType as string) || null,
+              country: dto.country || null,
+              currency: dto.currency || 'EUR',
+              timezone: dto.timezone || 'Europe/Paris',
+              cuisineType: dto.cuisineType || null,
               onboardingCompleted: true,
-              settings: { create: { name: data.restaurantName as string } },
+              settings: { create: { name: dto.restaurantName } },
             },
           });
 
@@ -286,7 +228,6 @@ export class OnboardingService {
             data: {
               tenantId: tenant.id,
               onboardingCompleted: true,
-              onboardingStep: 5,
             },
           });
 
@@ -300,20 +241,19 @@ export class OnboardingService {
       });
       const refresh_token = await this.issueRefreshToken(userId);
 
-      const { password: _pwd, onboardingData: _od, ...safeUser } = updatedUser;
       return {
         success: true,
         access_token,
         refresh_token,
         tenant,
-        user: { ...safeUser, tenantId: tenant.id, role: 'owner' },
+        user: {
+          ...this.sanitizeUser(updatedUser),
+          tenantId: tenant.id,
+          role: 'owner',
+        },
       };
     } catch (error) {
-      if (
-        error instanceof ConflictException ||
-        error instanceof BadRequestException
-      )
-        throw error;
+      if (error instanceof ConflictException) throw error;
       this.logger.error(
         'completeOnboarding error',
         error instanceof Error ? error.message : String(error),
@@ -322,25 +262,10 @@ export class OnboardingService {
     }
   }
 
-  async getOnboardingState(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        onboardingStep: true,
-        onboardingCompleted: true,
-        onboardingData: true,
-        accountType: true,
-        firstName: true,
-        lastName: true,
-        email: true,
-      },
-    });
-    if (!user) throw new NotFoundException('Utilisateur non trouvé');
-    return user;
-  }
-
   async checkSlugAvailability(slug: string) {
-    const existing = await this.prisma.tenant.findUnique({ where: { slug } });
+    const existing = await this.prisma.tenant.findFirst({
+      where: { slug, deletedAt: null },
+    });
     return { available: !existing };
   }
 }

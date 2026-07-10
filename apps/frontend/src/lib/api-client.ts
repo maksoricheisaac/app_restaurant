@@ -30,7 +30,11 @@ async function tryRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
-async function fetchWithInterceptor(endpoint: string, options: RequestOptions = {}): Promise<unknown> {
+// Returns `any`, not `unknown`: API responses are consumed as `any` throughout
+// src/services/*.ts and src/hooks/api/*.ts (see eslint.config.mjs). `unknown` here forced a
+// manual cast/narrowing at every single call site for no real safety gain, since none of those
+// call sites were actually narrowing the type — they were just accessing properties straight through.
+async function fetchWithInterceptor(endpoint: string, options: RequestOptions = {}): Promise<any> {
   const { params, _retry = false, _requestId, ...init } = options;
 
   let url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;

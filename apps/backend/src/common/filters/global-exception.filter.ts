@@ -55,7 +55,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
     const requestId = (request as any).requestId as string | undefined;
 
-    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Une erreur interne est survenue';
     let code = 'INTERNAL_ERROR';
 

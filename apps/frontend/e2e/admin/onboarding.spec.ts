@@ -1,14 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Tests du flow d'onboarding complet.
+ * Tests du flow d'onboarding (wizard 4 étapes).
  *
- * L'onboarding est multi-étapes :
- * 1. Création compte (email + mot de passe)
- * 2. Type de compte (OWNER / MULTI_MANAGER)
- * 3. Infos restaurant (nom, type cuisine, pays)
- * 4. Sélection plan
- * 5. Finalisation → dashboard
+ * Aucune donnée métier n'est écrite en base avant la finalisation :
+ * 1. Création compte (prénom, nom, email, mot de passe) → ouvre la session
+ * 2. Infos restaurant (nom, slug, pays, devise, fuseau) — état client
+ * 3. Sélection plan — état client
+ * 4. Finalisation → transaction unique (tenant + membership + catégories) → dashboard
  */
 test.describe('Onboarding — Registration flow', () => {
   test('page register se charge', async ({ page }) => {

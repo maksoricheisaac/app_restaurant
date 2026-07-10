@@ -260,7 +260,7 @@ export default function OnboardingPage() {
               <div>
                 <h2 className="text-lg font-bold">Votre premier plat</h2>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Créez une catégorie et ajoutez votre premier plat. Vous pourrez en ajouter d'autres depuis le menu.
+                  Créez une catégorie et ajoutez votre premier plat. Vous pourrez en ajouter d&apos;autres depuis le menu.
                 </p>
               </div>
               <Form {...form2}>

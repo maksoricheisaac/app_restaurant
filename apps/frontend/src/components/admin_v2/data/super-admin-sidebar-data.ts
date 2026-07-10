@@ -6,8 +6,7 @@ import {
   CreditCard,
   ShieldCheck,
   Sparkles,
-  Globe,
-  Bell
+  Globe
 } from 'lucide-react'
 import { type SidebarData } from '../types'
 

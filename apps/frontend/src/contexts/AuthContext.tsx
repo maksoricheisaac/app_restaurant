@@ -1,5 +1,6 @@
 "use client"
 import { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 export interface User {
   id: string;
@@ -11,8 +12,6 @@ export interface User {
   platformRole?: 'super_admin' | 'support' | 'user' | string;
   tenantId?: string | null;
   image?: string | null;
-  accountType?: string | null;
-  onboardingStep?: number;
   onboardingCompleted?: boolean;
 }
 
@@ -34,25 +33,25 @@ async function apiFetch(path: string, init?: RequestInit) {
 }
 
 /**
- * Sets session + tenant cookies as httpOnly via the /api/session Next.js route.
- * document.cookie cannot set httpOnly — only a server-side Set-Cookie header can.
- * Fire-and-forget: the proxy redirect is a UX optimization, not a security gate.
+ * Synchronise le `tenantId` de session (httpOnly cookie via /api/session +
+ * localStorage pour l'api-client). AuthContext ne gère QUE le tenantId : il le
+ * connaît de façon fiable depuis le profil / la réponse de login.
  *
- * Also persists tenantId to localStorage so the client-side api-client can read it
- * synchronously on the next request (no async round-trip needed).
+ * Le `tenantSlug` est délibérément géré par TenantContext (source de vérité
+ * unique, via persistTenant après résolution du tenant). Historiquement,
+ * AuthContext passait `tenantSlug=null` en dur ici, ce qui effaçait le slug
+ * fraîchement posé par TenantContext à chaque checkAuth/login/setUser — bug
+ * corrigé en ne touchant plus du tout au slug.
+ *
+ * /api/session (POST) ne pose/écrase un cookie que s'il est présent dans le
+ * body : n'envoyer que `tenantId` laisse donc le cookie `tenantSlug` intact.
  */
-async function setSessionCookies(tenantId?: string | null, tenantSlug?: string | null): Promise<void> {
-  // Sync localStorage immediately so the next client-side API call has the value
+async function setSessionCookies(tenantId?: string | null): Promise<void> {
   if (typeof window !== 'undefined') {
     if (tenantId) {
       localStorage.setItem('tenantId', tenantId);
     } else {
       localStorage.removeItem('tenantId');
-    }
-    if (tenantSlug) {
-      localStorage.setItem('tenantSlug', tenantSlug);
-    } else {
-      localStorage.removeItem('tenantSlug');
     }
   }
 
@@ -60,10 +59,7 @@ async function setSessionCookies(tenantId?: string | null, tenantSlug?: string |
     await fetch('/api/session', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tenantId: tenantId ?? undefined,
-        tenantSlug: tenantSlug ?? undefined,
-      }),
+      body: JSON.stringify({ tenantId: tenantId ?? undefined }),
     });
   } catch { /* non-blocking */ }
 }
@@ -81,6 +77,7 @@ async function clearSessionCookies(): Promise<void> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -103,8 +100,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (res.ok) {
           const profile = await res.json();
           setUserState(profile);
-          // Synchronise les cookies httpOnly + localStorage via /api/session
-          await setSessionCookies(profile?.tenantId, null);
+          // Synchronise le cookie tenantId httpOnly + localStorage (le slug
+          // reste géré par TenantContext).
+          await setSessionCookies(profile?.tenantId);
         } else {
           await clearSessionCookies();
           setUserState(null);
@@ -122,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUserState(u);
     // Sync httpOnly cookies + localStorage — fire-and-forget
     if (u) {
-      void setSessionCookies(u.tenantId, null);
+      void setSessionCookies(u.tenantId);
     } else {
       void clearSessionCookies();
     }
@@ -147,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       const loggedUser: User = data.user;
       setUserState(loggedUser);
-      await setSessionCookies(loggedUser?.tenantId, null);
+      await setSessionCookies(loggedUser?.tenantId);
       return loggedUser;
     } finally {
       setIsLoading(false);
@@ -160,6 +158,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch { /* ignore */ }
     setUserState(null);
     await clearSessionCookies();
+    // Purge tout le cache React Query — sur un appareil partagé (tablette
+    // caisse/cuisine), les données du tenant précédent (commandes, clients,
+    // stats) ne doivent jamais pouvoir s'afficher pour le compte suivant,
+    // même brièvement le temps du premier refetch.
+    queryClient.clear();
   };
 
   const value = useMemo(

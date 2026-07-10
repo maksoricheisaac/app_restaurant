@@ -7,7 +7,6 @@ import { Badge } from "@/components/ui/badge";
 import { safeFormat } from "@/lib/utils";
 import { fr } from "date-fns/locale";
 import { Download, Printer } from "lucide-react";
-import { generateReceiptPdf } from "@/lib/pdf/receipt";
 import type { PaymentLike } from "@/lib/pdf/receipt";
 import { useTenant } from "@/contexts/TenantContext";
 import { useSettings } from "@/hooks/api/useSettings";
@@ -33,6 +32,7 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
 
   const generatePDF = async () => {
     try {
+      const { generateReceiptPdf } = await import("@/lib/pdf/receipt");
       await generateReceiptPdf(payment, { restaurant: restaurantInfo });
     } catch (error) {
       console.error("Erreur lors de la génération du PDF:", error);
@@ -41,6 +41,7 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
 
   const printReceipt = async () => {
     try {
+      const { generateReceiptPdf } = await import("@/lib/pdf/receipt");
       await generateReceiptPdf(payment, { openInsteadOfDownload: true, restaurant: restaurantInfo });
     } catch (error) {
       console.error("Erreur lors de l'ouverture du PDF pour impression:", error);

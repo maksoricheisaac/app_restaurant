@@ -12,7 +12,7 @@
 import { execSync } from 'child_process';
 import * as path from 'path';
 
-export default async function globalSetup() {
+export default function globalSetup() {
   const testDb = process.env.TEST_DATABASE_URL;
 
   if (!testDb) {

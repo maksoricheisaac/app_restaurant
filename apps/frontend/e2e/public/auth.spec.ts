@@ -21,9 +21,11 @@ test.describe('Auth — Login / Logout', () => {
 
     // HTML5 validation ou validation Zod
     const emailInput = page.getByLabel(/email/i);
-    await expect(emailInput).toBeFocused().or(
-      expect(page.getByText(/email.*requis|obligatoire/i)).toBeVisible()
-    );
+    const validationText = page.getByText(/email.*requis|obligatoire/i);
+    const hasValidationText = await validationText.isVisible().catch(() => false);
+    if (!hasValidationText) {
+      await expect(emailInput).toBeFocused();
+    }
   });
 
   test('accès /admin/dashboard sans auth redirige vers /auth/login', async ({ page }) => {

@@ -2,6 +2,7 @@ import { Controller, Get, HttpCode } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../common/redis/redis.service';
 
 @Controller('health')
 @Public()
@@ -9,7 +10,10 @@ import { PrismaService } from '../prisma/prisma.service';
 export class HealthController {
   private readonly startTime = Date.now();
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redis: RedisService,
+  ) {}
 
   /** Kubernetes liveness probe — is the process alive? */
   @Get('live')
@@ -50,7 +54,28 @@ export class HealthController {
       dbStatus = 'error';
     }
 
-    const healthy = dbStatus === 'ok';
+    // Redis est structurant pour le throttling distribué, la diffusion
+    // Socket.io multi-instance et l'idempotence des webhooks (ADR-005). Un
+    // Redis configuré mais injoignable dégrade silencieusement l'app en
+    // mode single-instance — ça doit être visible ici, pas invisible du
+    // load balancer / du HEALTHCHECK Docker. Un Redis simplement non
+    // configuré (dev/single-instance assumé) n'est en revanche pas une
+    // dégradation : c'est un mode de fonctionnement normal et documenté.
+    let redisStatus: 'ok' | 'error' | 'not_configured' = 'not_configured';
+    let redisLatencyMs: number | null = null;
+    const redisClient = this.redis.getClient();
+    if (redisClient) {
+      try {
+        const t0 = Date.now();
+        await redisClient.ping();
+        redisLatencyMs = Date.now() - t0;
+        redisStatus = 'ok';
+      } catch {
+        redisStatus = 'error';
+      }
+    }
+
+    const healthy = dbStatus === 'ok' && redisStatus !== 'error';
 
     return {
       status: healthy ? 'ok' : 'degraded',
@@ -60,6 +85,10 @@ export class HealthController {
         database: {
           status: dbStatus,
           latencyMs: dbLatencyMs,
+        },
+        redis: {
+          status: redisStatus,
+          latencyMs: redisLatencyMs,
         },
         memory: {
           status: mem.heapUsed < 500 * 1024 * 1024 ? 'ok' : 'warn',

@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CustomersService } from '../customers/customers.service';
+import { MailService } from '../mail/mail.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { UpdateReservationStatusDto } from './dto/update-reservation-status.dto';
 
@@ -21,6 +22,7 @@ export class ReservationsService {
   constructor(
     private prisma: PrismaService,
     private customersService: CustomersService,
+    private mailService: MailService,
   ) {}
 
   async findAll(tenantId: string | undefined, filters: any) {
@@ -42,7 +44,7 @@ export class ReservationsService {
   }
 
   async create(tenantId: string, data: CreateReservationDto, userId?: string) {
-    return this.prisma.$transaction(async (tx) => {
+    const reservation = await this.prisma.$transaction(async (tx) => {
       // Protection contre les doubles réservations sur la même table au même créneau
       if (data.tableId && data.date && data.time) {
         const conflict = await tx.reservation.findFirst({
@@ -82,6 +84,25 @@ export class ReservationsService {
         },
       });
     });
+
+    // Best-effort, hors transaction : l'échec de l'email ne doit jamais
+    // faire échouer la réservation elle-même.
+    if (data.email) {
+      const tenant = await this.prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { name: true },
+      });
+      void this.mailService.sendReservationConfirmation({
+        to: data.email,
+        restaurantName: tenant?.name ?? 'Flash Menu',
+        customerName: data.customerName,
+        date: reservation.date.toISOString(),
+        time: data.time,
+        guests: data.guests,
+      });
+    }
+
+    return reservation;
   }
 
   async updateStatus(
@@ -93,7 +114,7 @@ export class ReservationsService {
 
     // Lire l'état actuel pour valider la transition
     const current = await this.prisma.reservation.findFirst({
-      where: { id, tenantId },
+      where: { id, tenantId, deletedAt: null },
       select: { status: true },
     });
 

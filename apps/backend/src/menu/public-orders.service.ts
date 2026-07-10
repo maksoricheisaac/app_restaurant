@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
 import { PlanLimitService } from '../plans/plans.service';
 import { MenuSessionService } from './menu-session.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { stripHtml } from '../common/utils/sanitize';
 import {
   IsArray,
@@ -56,6 +57,7 @@ export class PublicOrderService {
     private readonly eventsService: EventsService,
     private readonly planLimitService: PlanLimitService,
     private readonly menuSession: MenuSessionService,
+    private readonly inventoryService: InventoryService,
   ) {}
 
   async createOrder(
@@ -113,22 +115,55 @@ export class PublicOrderService {
 
     // Sanitize free-text fields to prevent stored-XSS in the admin dashboard
     const sanitizedNotes = stripHtml(dto.specialNotes);
-    const sanitizedName  = stripHtml(dto.customerName);
 
-    const order = await this.prisma.order.create({
-      data: {
-        tenantId: tenant.id,
-        type: dto.type,
-        status: 'pending',
-        total,
-        specialNotes: sanitizedNotes,
-        tableId: dto.tableId ?? null,
-        orderItems: { create: orderItemsData },
+    const { order, lowStockWarnings } = await this.prisma.$transaction(
+      async (tx) => {
+        // Un tableId doit appartenir au tenant résolu — sinon un visiteur
+        // public pourrait attacher l'UUID de table d'un autre restaurant à
+        // sa commande sans aucun contrôle serveur.
+        if (dto.tableId) {
+          const table = await tx.table.findFirst({
+            where: { id: dto.tableId, tenantId: tenant.id, deletedAt: null },
+            select: { id: true },
+          });
+          if (!table) {
+            throw new BadRequestException(
+              'Table introuvable pour ce restaurant',
+            );
+          }
+        }
+
+        const createdOrder = await tx.order.create({
+          data: {
+            tenantId: tenant.id,
+            type: dto.type,
+            status: 'pending',
+            total,
+            specialNotes: sanitizedNotes,
+            tableId: dto.tableId ?? null,
+            orderItems: { create: orderItemsData },
+          },
+          include: { orderItems: true, table: true },
+        });
+
+        const warnings = await this.inventoryService.decrementStockForOrder(
+          tx,
+          tenant.id,
+          createdOrder.id,
+          orderItemsData.map((i) => ({
+            menuItemId: i.menuItemId,
+            quantity: i.quantity,
+          })),
+        );
+
+        return { order: createdOrder, lowStockWarnings: warnings };
       },
-      include: { orderItems: true, table: true },
-    });
+    );
 
     this.eventsService.emitToTenant(tenant.id, 'new-order', order);
+    for (const warning of lowStockWarnings) {
+      this.eventsService.emitToTenant(tenant.id, 'low-stock-alert', warning);
+    }
 
     return { orderId: order.id, status: order.status, total: order.total };
   }

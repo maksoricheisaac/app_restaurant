@@ -4,7 +4,6 @@ import {
   Zap, Sparkles, Building2, Check,
   Users, TrendingUp, ArrowUpRight, MoreVertical,
 } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { StatsCard } from '@/components/ui/stats-card';
 import {
@@ -74,7 +73,7 @@ export default function PlansPage() {
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Forfaits</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
-            Gestion des plans d'abonnement et de leur configuration.
+            Gestion des plans d&apos;abonnement et de leur configuration.
           </p>
         </div>
       </div>

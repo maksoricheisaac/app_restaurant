@@ -60,7 +60,7 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
   });
   
 
-  const { data: unpaidOrdersData, isLoading } = useUnpaidOrders();
+  const { data: unpaidOrdersData } = useUnpaidOrders();
   const processPaymentMutation = useProcessPayment();
 
   // Backend returns a plain array — cast from untyped query result

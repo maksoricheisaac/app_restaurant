@@ -168,6 +168,7 @@ export function CartDrawer() {
                           size="sm"
                           onClick={() => updateQuantity(item.id, item.quantity - 1)}
                           className="w-8 h-8 p-0"
+                          aria-label={`Diminuer la quantité de ${item.name}`}
                         >
                           <Minus className="w-3 h-3" />
                         </Button>
@@ -179,6 +180,7 @@ export function CartDrawer() {
                           size="sm"
                           onClick={() => updateQuantity(item.id, item.quantity + 1)}
                           className="w-8 h-8 p-0"
+                          aria-label={`Augmenter la quantité de ${item.name}`}
                         >
                           <Plus className="w-3 h-3" />
                         </Button>
@@ -190,6 +192,7 @@ export function CartDrawer() {
                         size="sm"
                         onClick={() => removeItem(item.id)}
                         className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                        aria-label={`Retirer ${item.name} du panier`}
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>

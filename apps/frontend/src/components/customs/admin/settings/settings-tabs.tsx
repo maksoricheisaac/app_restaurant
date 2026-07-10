@@ -9,6 +9,7 @@ import { LimitsForm } from "./limits-form";
 import { OpeningHoursForm } from "./opening-hours-form";
 import { SocialLinksForm } from "./social-links-form";
 import { PersonnelManagement } from "./personnel-management";
+import { PendingInvitesCard } from "./pending-invites-card";
 import { AdvancedPermissionsManagement } from "./advanced-permissions-management";
 
 export function SettingsTabs() {
@@ -46,8 +47,9 @@ export function SettingsTabs() {
       <TabsContent value="social-links">
         <SocialLinksForm />
       </TabsContent>
-      <TabsContent value="personnel">
+      <TabsContent value="personnel" className="space-y-6">
         <PersonnelManagement />
+        <PendingInvitesCard />
       </TabsContent>
       <TabsContent value="permissions">
         <AdvancedPermissionsManagement />

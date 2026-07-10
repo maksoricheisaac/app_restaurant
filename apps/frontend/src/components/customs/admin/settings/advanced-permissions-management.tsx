@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,12 +80,29 @@ export function AdvancedPermissionsManagement() {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+    // Toast déjà affiché ci-dessus — évite le doublon avec le filet de
+    // sécurité global (MutationCache.onError dans tanstack-query-provider).
+    meta: { skipGlobalErrorToast: true },
   });
 
   const { data: rolePermissionsData, isLoading: isLoadingPermissions } = useRolePermissions(selectedRole ?? '');
   const updateMutation = useUpdateRolePermissions();
 
   const currentPermissions = rolePermissionsData?.data?.permissions || [];
+
+  // Une fois les permissions persistées du rôle chargées, elles remplacent
+  // les valeurs par défaut posées par handleEditRole — sinon toute
+  // personnalisation déjà sauvegardée côté backend était silencieusement
+  // écrasée par ROLE_PERMISSIONS dès la sauvegarde suivante.
+  useEffect(() => {
+    if (!selectedRole || selectedUser || !rolePermissionsData) return;
+    const perms =
+      currentPermissions.length > 0
+        ? currentPermissions
+        : ROLE_PERMISSIONS[selectedRole] || [];
+    setEditingPermissions(new Set(perms));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rolePermissionsData, selectedRole, selectedUser]);
 
   // Mutation pour mettre à jour les permissions d'un rôle
   const updateRolePermissionsMutation = useMutation({
@@ -101,6 +118,7 @@ export function AdvancedPermissionsManagement() {
     onError: (error: Error) => {
       toast.error(error.message);
     },
+    meta: { skipGlobalErrorToast: true },
   });
 
   // Ouvrir le dialog d'édition pour un utilisateur
@@ -328,6 +346,11 @@ export function AdvancedPermissionsManagement() {
           </DialogHeader>
 
           <div className="space-y-6 py-4">
+            {selectedRole && !selectedUser && isLoadingPermissions && (
+              <p className="text-sm text-muted-foreground">
+                Chargement des permissions du rôle…
+              </p>
+            )}
             {/* Bouton de réinitialisation */}
             <div className="flex justify-between items-center">
               <p className="text-sm text-muted-foreground">

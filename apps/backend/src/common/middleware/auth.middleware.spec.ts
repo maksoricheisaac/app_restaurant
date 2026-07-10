@@ -30,7 +30,7 @@ describe('AuthMiddleware', () => {
 
   // ─── Token extraction ─────────────────────────────────────────────────────
 
-  it('extracts token from Authorization: Bearer header', async () => {
+  it('extracts token from Authorization: Bearer header', () => {
     const req = makeReq({ authHeader: 'Bearer valid.token.here' });
     mockJwtService.verify.mockReturnValue({
       sub: 'u1',
@@ -40,7 +40,7 @@ describe('AuthMiddleware', () => {
       tenantId: 't1',
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
 
     expect(mockJwtService.verify).toHaveBeenCalledWith('valid.token.here');
     expect(req.user).toEqual({
@@ -52,7 +52,7 @@ describe('AuthMiddleware', () => {
     });
   });
 
-  it('extracts token from cookie when no Authorization header', async () => {
+  it('extracts token from cookie when no Authorization header', () => {
     const req = makeReq({ cookie: 'cookie.token.here' });
     mockJwtService.verify.mockReturnValue({
       sub: 'u2',
@@ -62,13 +62,13 @@ describe('AuthMiddleware', () => {
       tenantId: 't2',
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
 
     expect(mockJwtService.verify).toHaveBeenCalledWith('cookie.token.here');
     expect(req.user.id).toBe('u2');
   });
 
-  it('prefers Authorization header over cookie', async () => {
+  it('prefers Authorization header over cookie', () => {
     const req = makeReq({
       authHeader: 'Bearer header.token',
       cookie: 'cookie.token',
@@ -81,60 +81,60 @@ describe('AuthMiddleware', () => {
       tenantId: null,
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
 
     expect(mockJwtService.verify).toHaveBeenCalledWith('header.token');
   });
 
   // ─── Invalid / missing tokens ─────────────────────────────────────────────
 
-  it('does not set req.user when no token is present', async () => {
+  it('does not set req.user when no token is present', () => {
     const req = makeReq();
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
 
     expect(mockJwtService.verify).not.toHaveBeenCalled();
     expect(req.user).toBeUndefined();
   });
 
-  it('does not throw and does not set req.user for invalid token', async () => {
+  it('does not throw and does not set req.user for invalid token', () => {
     const req = makeReq({ authHeader: 'Bearer invalid.token' });
     mockJwtService.verify.mockImplementation(() => {
       throw new Error('Invalid token');
     });
 
-    await expect(middleware.use(req, res, next)).resolves.toBeUndefined();
+    expect(() => middleware.use(req, res, next)).not.toThrow();
     expect(req.user).toBeUndefined();
   });
 
-  it('does not throw for expired token', async () => {
+  it('does not throw for expired token', () => {
     const req = makeReq({ cookie: 'expired.token' });
     mockJwtService.verify.mockImplementation(() => {
       throw new Error('TokenExpiredError');
     });
 
-    await expect(middleware.use(req, res, next)).resolves.toBeUndefined();
+    expect(() => middleware.use(req, res, next)).not.toThrow();
     expect(req.user).toBeUndefined();
   });
 
   // ─── Always calls next() ──────────────────────────────────────────────────
 
-  it('always calls next() — even with invalid token', async () => {
+  it('always calls next() — even with invalid token', () => {
     const req = makeReq({ authHeader: 'Bearer bad' });
     mockJwtService.verify.mockImplementation(() => {
       throw new Error();
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('always calls next() — even with no token', async () => {
+  it('always calls next() — even with no token', () => {
     const req = makeReq();
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
   });
 
-  it('always calls next() — even with valid token', async () => {
+  it('always calls next() — even with valid token', () => {
     const req = makeReq({ cookie: 'good.token' });
     mockJwtService.verify.mockReturnValue({
       sub: 'u1',
@@ -144,13 +144,13 @@ describe('AuthMiddleware', () => {
       tenantId: null,
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
     expect(next).toHaveBeenCalledTimes(1);
   });
 
   // ─── req.user shape ───────────────────────────────────────────────────────
 
-  it('maps JWT claims to correct req.user shape', async () => {
+  it('maps JWT claims to correct req.user shape', () => {
     const req = makeReq({ cookie: 'tok' });
     mockJwtService.verify.mockReturnValue({
       sub: 'user-uuid',
@@ -160,7 +160,7 @@ describe('AuthMiddleware', () => {
       tenantId: 'tenant-uuid',
     });
 
-    await middleware.use(req, res, next);
+    middleware.use(req, res, next);
 
     expect(req.user).toStrictEqual({
       id: 'user-uuid',

@@ -1,6 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { MessagesService } from './messages.service';
-import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
+import { createMockPrisma } from '../__tests__/prisma.mock';
 
 const T = 'tenant-1';
 const MSG = {

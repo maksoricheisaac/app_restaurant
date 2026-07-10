@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar, Printer } from "lucide-react";
 import { useBilan } from "@/hooks/api/useCashRegister";
-import { generateDailyCashSummaryPdf } from "@/lib/pdf/daily-cash-summary";
 import type { CashDailySummary as CashDailySummaryType } from "@/types/order";
 import { useTenant } from "@/contexts/TenantContext";
 import { useSettings } from "@/hooks/api/useSettings";
@@ -54,6 +53,9 @@ export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummar
   const onPrint = async () => {
     if (!summary) return;
     try {
+      // pdf-lib est lourd et n'est utile que sur ce clic ponctuel — chargé
+      // à la demande plutôt que dans le bundle initial de la page caisse.
+      const { generateDailyCashSummaryPdf } = await import("@/lib/pdf/daily-cash-summary");
       await generateDailyCashSummaryPdf(summary, {
         restaurant: tenant ? {
           name:         tenant.name,

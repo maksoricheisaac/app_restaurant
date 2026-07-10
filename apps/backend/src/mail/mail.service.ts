@@ -284,4 +284,128 @@ export class MailService {
 
     await this.send(opts.to, `Nouvelle commande — ${safeRestaurant}`, html);
   }
+
+  async sendReservationConfirmation(opts: {
+    to: string;
+    restaurantName: string;
+    customerName?: string;
+    date: string; // ISO date
+    time?: string;
+    guests?: number;
+  }) {
+    if (!this.transporter) {
+      this.logger.warn(
+        `[DEV] Reservation confirmation for ${opts.to}: ${opts.date} ${opts.time ?? ''}`,
+      );
+      return;
+    }
+
+    const safeRestaurant = escHtml(opts.restaurantName);
+    const safeName = escHtml(opts.customerName || 'Client');
+    const formattedDate = new Date(opts.date).toLocaleDateString('fr-FR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+    const safeDate = escHtml(formattedDate);
+    const safeTime = opts.time ? escHtml(opts.time) : null;
+    const safeGuests = opts.guests
+      ? `${opts.guests} personne${opts.guests > 1 ? 's' : ''}`
+      : null;
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head><meta charset="UTF-8"><title>Confirmation de réservation</title></head>
+      <body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,sans-serif">
+        <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+          <div style="background:#f97316;padding:32px 40px">
+            <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800">&#9889; Flash Menu</h1>
+          </div>
+          <div style="padding:40px">
+            <h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">Bonjour ${safeName},</h2>
+            <p style="color:#64748b;margin:0 0 24px;line-height:1.6">
+              Votre demande de réservation chez <strong>${safeRestaurant}</strong> a bien été reçue.
+              Elle sera confirmée par l'équipe du restaurant.
+            </p>
+            <div style="padding:16px 20px;background:#fff7ed;border-radius:12px;border-left:4px solid #f97316">
+              <p style="margin:0 0 4px;font-size:14px;color:#92400e"><strong>Date :</strong> ${safeDate}</p>
+              ${safeTime ? `<p style="margin:0 0 4px;font-size:14px;color:#92400e"><strong>Heure :</strong> ${safeTime}</p>` : ''}
+              ${safeGuests ? `<p style="margin:0;font-size:14px;color:#92400e"><strong>Convives :</strong> ${safeGuests}</p>` : ''}
+            </div>
+            <p style="color:#94a3b8;font-size:12px;margin:28px 0 0">
+              Le restaurant vous contactera si besoin pour confirmer les détails.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>`;
+
+    await this.send(
+      opts.to,
+      `Votre demande de réservation chez ${safeRestaurant}`,
+      html,
+    );
+  }
+
+  async sendMembershipInvite(opts: {
+    to: string;
+    restaurantName: string;
+    inviterName: string;
+    role: string;
+    acceptUrl: string;
+  }) {
+    if (!this.transporter) {
+      this.logger.warn(`[DEV] Invite link for ${opts.to}: ${opts.acceptUrl}`);
+      return;
+    }
+
+    const roleLabel: Record<string, string> = {
+      manager: 'Manager',
+      waiter: 'Serveur',
+      head_chef: 'Chef de cuisine',
+      chef: 'Cuisinier',
+      cashier: 'Caissier',
+    };
+
+    const safeRestaurant = escHtml(opts.restaurantName);
+    const safeInviter = escHtml(opts.inviterName);
+    const safeRole = escHtml(roleLabel[opts.role] ?? opts.role);
+    const safeUrl = escHtml(opts.acceptUrl);
+
+    const html = `
+      <!DOCTYPE html>
+      <html lang="fr">
+      <head><meta charset="UTF-8"><title>Invitation à rejoindre ${safeRestaurant}</title></head>
+      <body style="margin:0;padding:0;background:#f8fafc;font-family:Inter,sans-serif">
+        <div style="max-width:520px;margin:40px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08)">
+          <div style="background:#f97316;padding:32px 40px">
+            <h1 style="color:#fff;margin:0;font-size:22px;font-weight:800">&#9889; Flash Menu</h1>
+          </div>
+          <div style="padding:40px">
+            <h2 style="margin:0 0 12px;font-size:18px;color:#0f172a">Vous êtes invité(e) !</h2>
+            <p style="color:#64748b;margin:0 0 28px;line-height:1.6">
+              <strong>${safeInviter}</strong> vous invite à rejoindre l'équipe de
+              <strong>${safeRestaurant}</strong> sur Flash Menu, avec le rôle
+              <strong>${safeRole}</strong>.
+            </p>
+            <a href="${safeUrl}"
+               style="display:inline-block;background:#f97316;color:#fff;padding:14px 28px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px">
+              Accepter l'invitation &#8594;
+            </a>
+            <p style="color:#94a3b8;font-size:12px;margin:28px 0 0">
+              Ce lien expire dans 7 jours. Si vous ne vous attendiez pas à cette invitation, ignorez cet email.
+            </p>
+          </div>
+        </div>
+      </body>
+      </html>`;
+
+    await this.send(
+      opts.to,
+      `${safeInviter} vous invite à rejoindre ${safeRestaurant}`,
+      html,
+    );
+  }
 }

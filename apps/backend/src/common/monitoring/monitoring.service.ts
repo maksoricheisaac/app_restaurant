@@ -18,7 +18,7 @@ export class MonitoringService {
    * Capture an exception with structured context.
    * Sends to Sentry when enabled; always writes a structured log.
    */
-  captureError(error: Error | unknown, ctx?: ErrorContext): void {
+  captureError(error: unknown, ctx?: ErrorContext): void {
     const err = error instanceof Error ? error : new Error(String(error));
 
     this.logger.error(
@@ -37,10 +37,10 @@ export class MonitoringService {
     if (Sentry.isEnabled()) {
       Sentry.withScope((scope) => {
         if (ctx?.userId) scope.setUser({ id: ctx.userId });
-        if (ctx?.tenantId) scope.setTag('tenantId', ctx.tenantId!);
-        if (ctx?.context) scope.setTag('context', ctx.context!);
-        if (ctx?.extra) scope.setExtras(ctx.extra!);
-        if (ctx?.requestId) scope.setTag('requestId', ctx.requestId!);
+        if (ctx?.tenantId) scope.setTag('tenantId', ctx.tenantId);
+        if (ctx?.context) scope.setTag('context', ctx.context);
+        if (ctx?.extra) scope.setExtras(ctx.extra);
+        if (ctx?.requestId) scope.setTag('requestId', ctx.requestId);
         Sentry.captureException(err);
       });
     }
@@ -64,9 +64,9 @@ export class MonitoringService {
     if (Sentry.isEnabled()) {
       Sentry.withScope((scope) => {
         if (ctx?.userId) scope.setUser({ id: ctx.userId });
-        if (ctx?.tenantId) scope.setTag('tenantId', ctx.tenantId!);
-        if (ctx?.context) scope.setTag('context', ctx.context!);
-        if (ctx?.requestId) scope.setTag('requestId', ctx.requestId!);
+        if (ctx?.tenantId) scope.setTag('tenantId', ctx.tenantId);
+        if (ctx?.context) scope.setTag('context', ctx.context);
+        if (ctx?.requestId) scope.setTag('requestId', ctx.requestId);
         Sentry.captureMessage(message, 'warning');
       });
     }

@@ -3,9 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { fr } from "date-fns/locale";
-import { ChefHat, Clock, CheckCircle2, Loader2, Bell } from "lucide-react";
+import { ChefHat, Clock, CheckCircle2, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useKitchenOrders } from "@/hooks/api/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { useSocketEvent } from "@/hooks/useSocketEvent";
@@ -107,7 +106,7 @@ export default function KitchenPage() {
   const queryClient = useQueryClient();
   const updateStatus = useUpdateOrderStatus();
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [tick, setTick] = useState(0);
+  const [_tick, setTick] = useState(0);
 
   useEffect(() => {
     audioRef.current = new Audio("/notification.mp3");

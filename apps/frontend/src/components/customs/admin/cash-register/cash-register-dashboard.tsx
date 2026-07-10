@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Receipt } from "lucide-react";
 import { UnpaidOrdersList } from "./unpaid-orders-list";
 import { DailyCashSummary } from "./daily-cash-summary";
+import { CashSessionCard } from "./cash-session-card";
 import { useUnpaidOrders } from "@/hooks/api/useCashRegister";
 
 function today() {
@@ -24,6 +25,9 @@ export function CashRegisterDashboard() {
 
   return (
     <div className="space-y-6">
+      {/* Session de caisse (ouverture/fermeture/réconciliation) */}
+      <CashSessionCard />
+
       {/* Daily bilan */}
       <DailyCashSummary selectedDate={date} onDateChange={setDate} />
 

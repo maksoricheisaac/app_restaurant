@@ -59,6 +59,7 @@ export class BillingService {
     }
 
     const event = provider.parseWebhookEvent(payload);
+    event.providerName = provider.name;
 
     this.logger.log(
       `${provider.name} event: ${event.providerEventName} (id=${event.eventId})`,
@@ -116,8 +117,9 @@ export class BillingService {
       data: {
         plan: plan as any,
         status: 'active',
-        lemonSqueezyCustomerId: event.customerId ?? null,
-        lemonSqueezySubscriptionId: event.subscriptionId ?? null,
+        paymentProvider: event.providerName,
+        paymentCustomerId: event.customerId ?? null,
+        paymentSubscriptionId: event.subscriptionId ?? null,
         subscriptionStatus: event.status ?? 'active',
         subscriptionCurrentPeriodEnd: event.currentPeriodEnd ?? null,
         gracePeriodEndsAt: null,
@@ -131,7 +133,7 @@ export class BillingService {
 
   private async handleSubscriptionUpdated(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { lemonSqueezySubscriptionId: event.subscriptionId },
+      where: { paymentSubscriptionId: event.subscriptionId },
       select: { id: true },
     });
     // Fallback to custom_data in case of race on first subscription event
@@ -160,7 +162,7 @@ export class BillingService {
 
   private async handleSubscriptionCancelled(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { lemonSqueezySubscriptionId: event.subscriptionId },
+      where: { paymentSubscriptionId: event.subscriptionId },
       select: { id: true },
     });
     const tenantId = tenant?.id ?? event.tenantId;
@@ -172,7 +174,7 @@ export class BillingService {
         plan: 'free',
         status: 'active',
         subscriptionStatus: 'canceled',
-        lemonSqueezySubscriptionId: null,
+        paymentSubscriptionId: null,
         gracePeriodEndsAt: null,
       },
     });
@@ -184,7 +186,7 @@ export class BillingService {
 
   private async handlePaymentSucceeded(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { lemonSqueezySubscriptionId: event.subscriptionId },
+      where: { paymentSubscriptionId: event.subscriptionId },
       select: { id: true },
     });
     const tenantId = tenant?.id ?? event.tenantId;
@@ -206,7 +208,7 @@ export class BillingService {
 
   private async handlePaymentFailed(event: NormalizedPaymentEvent) {
     const tenant = await this.prisma.tenant.findFirst({
-      where: { lemonSqueezySubscriptionId: event.subscriptionId },
+      where: { paymentSubscriptionId: event.subscriptionId },
       select: { id: true, subscriptionStatus: true },
     });
     const tenantId = tenant?.id ?? event.tenantId;

@@ -26,10 +26,7 @@ export interface UserLike {
   platformRole: string;
   status: string;
   tenantId: string | null;
-  onboardingStep: number;
   onboardingCompleted: boolean;
-  accountType: string | null;
-  onboardingData: Record<string, unknown> | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,10 +45,7 @@ export const UserFactory = {
       platformRole: 'user',
       status: 'active',
       tenantId: null,
-      onboardingStep: 5,
       onboardingCompleted: true,
-      accountType: 'OWNER',
-      onboardingData: null,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       ...overrides,
@@ -61,7 +55,6 @@ export const UserFactory = {
   unverified(overrides: Partial<UserLike> = {}): UserLike {
     return UserFactory.create({
       emailVerified: false,
-      onboardingStep: 1,
       onboardingCompleted: false,
       ...overrides,
     });
@@ -85,8 +78,9 @@ export interface TenantLike {
   currency: string;
   timezone: string;
   onboardingCompleted: boolean;
-  lemonSqueezyCustomerId: string | null;
-  lemonSqueezySubscriptionId: string | null;
+  paymentProvider: string | null;
+  paymentCustomerId: string | null;
+  paymentSubscriptionId: string | null;
   subscriptionStatus: string | null;
   gracePeriodEndsAt: Date | null;
   createdAt: Date;
@@ -107,8 +101,9 @@ export const TenantFactory = {
       currency: 'XAF',
       timezone: 'Africa/Brazzaville',
       onboardingCompleted: true,
-      lemonSqueezyCustomerId: null,
-      lemonSqueezySubscriptionId: null,
+      paymentProvider: null,
+      paymentCustomerId: null,
+      paymentSubscriptionId: null,
       subscriptionStatus: null,
       gracePeriodEndsAt: null,
       createdAt: new Date('2026-01-01'),
@@ -120,7 +115,8 @@ export const TenantFactory = {
   pro(overrides: Partial<TenantLike> = {}): TenantLike {
     return TenantFactory.create({
       plan: 'pro',
-      lemonSqueezySubscriptionId: `${seq()}`,
+      paymentProvider: 'stripe',
+      paymentSubscriptionId: `${seq()}`,
       subscriptionStatus: 'active',
       ...overrides,
     });

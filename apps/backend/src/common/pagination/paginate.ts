@@ -24,7 +24,12 @@ export function getSkipTake(page?: number, limit?: number) {
   );
   const safePage = Math.max(Number(page) || 1, 1);
 
-  return { skip: (safePage - 1) * safeLimit, take: safeLimit, page: safePage, limit: safeLimit };
+  return {
+    skip: (safePage - 1) * safeLimit,
+    take: safeLimit,
+    page: safePage,
+    limit: safeLimit,
+  };
 }
 
 export function toPaginated<T>(

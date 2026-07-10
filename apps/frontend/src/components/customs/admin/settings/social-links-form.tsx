@@ -25,7 +25,7 @@ export function SocialLinksForm() {
     },
   });
 
-  const { data: socialData, isLoading } = useSocialLinks();
+  const { data: socialData } = useSocialLinks();
   const updateMutation = useUpdateSocialLinks();
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export function SocialLinksForm() {
     try {
       await updateMutation.mutateAsync(data);
       toast.success("Réseaux sociaux mis à jour");
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la mise à jour");
     }
   };

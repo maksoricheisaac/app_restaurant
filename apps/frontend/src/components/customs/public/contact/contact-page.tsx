@@ -406,7 +406,7 @@ export default function ContactPageClient() {
                     Envoyez-nous un message
                   </h2>
                   <p className="text-muted-foreground text-sm mt-1">
-                    Tous les champs marqués d'un <span className="text-primary font-semibold">*</span> sont obligatoires.
+                    Tous les champs marqués d&apos;un <span className="text-primary font-semibold">*</span> sont obligatoires.
                   </p>
                 </div>
                 <ContactForm />

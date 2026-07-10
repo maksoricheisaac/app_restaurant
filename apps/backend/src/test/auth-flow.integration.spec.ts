@@ -108,7 +108,12 @@ describe('Auth Flow Integration', () => {
         emailVerified: false,
         memberships: [],
       });
-      // Make bcrypt.compare return true for this test
+      // Make bcrypt.compare return true for this test.
+      // Deliberately `require()`, not a static import: jest.spyOn needs a
+      // writable property, and the ESM namespace object from `import * as
+      // bcrypt` is non-configurable here, which throws
+      // "TypeError: Cannot redefine property: compare" at runtime.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const bcrypt = require('bcrypt');
       jest.spyOn(bcrypt, 'compare').mockResolvedValueOnce(true);
 

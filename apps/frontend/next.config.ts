@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "images.pexels.com",
       },
+      // Landing-page hero stock photo (src/components/customs/public/saas/hero.tsx)
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
       // Vercel Blob storage — wildcard covers all store IDs (present and future)
       {
         protocol: "https",

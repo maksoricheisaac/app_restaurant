@@ -7,6 +7,7 @@ import { GatewayModule } from '../gateway/gateway.module';
 import { PlansModule } from '../plans/plans.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
     PlansModule,
     CustomersModule,
     FeatureFlagsModule,
+    InventoryModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService],

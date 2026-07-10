@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import dynamic from 'next/dynamic';
 import { LoadingState } from '@/components/ui/loading-state';
 import { ProtectedRoute } from '@/components/admin/ProtectedRoute';
 import { Permission } from '@/types/permissions';
@@ -11,14 +11,25 @@ import {
   HeaderSection,
   KeyMetrics,
   SalesReport,
-  RevenueChart,
   ExportButtons,
 } from '@/components/customs/admin/reports';
-
-import { 
-  useReportMetrics, 
-  useReportChartData 
+import {
+  useReportMetrics,
+  useReportChartData,
 } from '@/hooks/api/useReports';
+
+// chart.js/react-chartjs-2 ne sont utiles que sur cette page et
+// n'ont pas besoin d'être dans le bundle initial de l'admin — chargé à la
+// demande, seulement quand la page rapports est réellement visitée.
+const RevenueChart = dynamic(
+  () => import('@/components/customs/admin/reports/revenue-chart').then((m) => m.RevenueChart),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-64 w-full animate-pulse rounded-xl bg-muted" />
+    ),
+  },
+);
 
 export default function AdminReports() {
   const [selectedPeriod, setSelectedPeriod] = useState<any>('monthly');

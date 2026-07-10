@@ -21,7 +21,7 @@ export function LimitsForm() {
     },
   });
 
-  const { data: limitsData, isLoading } = useLimits();
+  const { data: limitsData } = useLimits();
   const updateMutation = useUpdateLimits();
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export function LimitsForm() {
     try {
       await updateMutation.mutateAsync(data);
       toast.success("Limites mises à jour");
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la mise à jour");
     }
   };

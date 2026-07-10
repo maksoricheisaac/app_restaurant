@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import {
   ShoppingCart, Plus, Minus, Trash2, UtensilsCrossed,
@@ -322,7 +323,9 @@ export default function OrderPage({ params }: { params: Promise<{ slug: string }
 
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {restaurant?.logo ? (
-              <img src={restaurant.logo} alt={restaurant.name} className="h-9 w-9 rounded-xl object-cover flex-shrink-0" />
+              <div className="relative h-9 w-9 rounded-xl overflow-hidden flex-shrink-0">
+                <Image src={restaurant.logo} alt={restaurant.name} fill className="object-cover" sizes="36px" />
+              </div>
             ) : (
               <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}18` }}>
                 <UtensilsCrossed className="h-4 w-4" style={{ color }} />
@@ -415,7 +418,9 @@ export default function OrderPage({ params }: { params: Promise<{ slug: string }
             <div className="flex items-center gap-3 mb-4">
               <div className="h-1.5 w-5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
               {cat.imageUrl && (
-                <img src={cat.imageUrl} alt={cat.name} className="h-8 w-8 rounded-lg object-cover flex-shrink-0" />
+                <div className="relative h-8 w-8 rounded-lg overflow-hidden flex-shrink-0">
+                  <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover" sizes="32px" />
+                </div>
               )}
               <h2 className="text-xl font-black text-slate-900 leading-none">{cat.name}</h2>
               <span className="text-xs text-slate-400 font-medium">{cat.items.length}</span>
@@ -436,7 +441,7 @@ export default function OrderPage({ params }: { params: Promise<{ slug: string }
                     <div className="flex">
                       <div className="relative flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-slate-100 overflow-hidden">
                         {item.image ? (
-                          <img src={item.image} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                          <Image src={item.image} alt={item.name} fill className="object-cover" sizes="128px" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
                             <UtensilsCrossed className="h-8 w-8 opacity-25" style={{ color }} />
@@ -549,9 +554,9 @@ export default function OrderPage({ params }: { params: Promise<{ slug: string }
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
               {cart.map((item) => (
                 <div key={item.id} className="flex items-center gap-3 py-1">
-                  <div className="h-14 w-14 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
+                  <div className="relative h-14 w-14 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
                     {item.image
-                      ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                      ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="56px" />
                       : <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
                           <UtensilsCrossed className="h-5 w-5 opacity-30" style={{ color }} />
                         </div>

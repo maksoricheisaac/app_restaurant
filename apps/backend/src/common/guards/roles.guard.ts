@@ -34,6 +34,17 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
+    // Un rôle plateforme explicitement autorisé sur CETTE route (ex:
+    // 'support' sur les routes de lecture de tenants) accède sans avoir de
+    // TenantMembership — ces rôles plateforme n'en ont naturellement pas.
+    // Contrairement à super_admin, ce bypass n'est PAS inconditionnel : il
+    // ne s'applique que si le rôle figure explicitement dans @Roles(...)
+    // de la route, donc jamais sur des routes tenant-scopées (owner,
+    // manager, ...) qui ne le listent pas.
+    if (user.platformRole && requiredRoles.includes(user.platformRole)) {
+      return true;
+    }
+
     if (!membership) {
       throw new ForbiddenException('Membership not found');
     }

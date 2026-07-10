@@ -1,7 +1,6 @@
 import {
   Controller,
   Post,
-  Patch,
   Get,
   Body,
   Query,
@@ -15,9 +14,7 @@ import { OnboardingService } from './onboarding.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { Public } from '../common/decorators/public.decorator';
 import { InitiateRegistrationDto } from './dto/initiate-registration.dto';
-import { AccountTypeDto } from './dto/account-type.dto';
-import { RestaurantInfoDto } from './dto/restaurant-info.dto';
-import { SelectPlanDto } from './dto/select-plan.dto';
+import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
 import { COOKIE_OPTS_BASE } from '../common/constants/cookie.constants';
 
 @Controller('/onboarding')
@@ -51,30 +48,16 @@ export class OnboardingController {
   }
 
   @UseGuards(AuthGuard)
-  @Patch('step/account-type')
-  saveAccountType(@Request() req, @Body() dto: AccountTypeDto) {
-    return this.onboardingService.saveAccountType(req.user.id, dto);
-  }
-
-  @UseGuards(AuthGuard)
-  @Patch('step/restaurant-info')
-  saveRestaurantInfo(@Request() req, @Body() dto: RestaurantInfoDto) {
-    return this.onboardingService.saveRestaurantInfo(req.user.id, dto);
-  }
-
-  @UseGuards(AuthGuard)
-  @Patch('step/plan')
-  savePlan(@Request() req, @Body() dto: SelectPlanDto) {
-    return this.onboardingService.savePlan(req.user.id, dto);
-  }
-
-  @UseGuards(AuthGuard)
   @Post('complete')
   async completeOnboarding(
     @Request() req,
+    @Body() dto: CompleteOnboardingDto,
     @Res({ passthrough: true }) res: express.Response,
   ) {
-    const result = await this.onboardingService.completeOnboarding(req.user.id);
+    const result = await this.onboardingService.completeOnboarding(
+      req.user.id,
+      dto,
+    );
 
     if (result.access_token && result.refresh_token) {
       res.cookie('token', result.access_token, {
@@ -91,12 +74,6 @@ export class OnboardingController {
 
     const { access_token: _a, refresh_token: _r, ...safeResult } = result;
     return safeResult;
-  }
-
-  @UseGuards(AuthGuard)
-  @Get('state')
-  getState(@Request() req) {
-    return this.onboardingService.getOnboardingState(req.user.id);
   }
 
   @Public()

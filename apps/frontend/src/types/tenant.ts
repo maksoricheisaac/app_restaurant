@@ -5,7 +5,10 @@ export interface Tenant {
   plan: 'free' | 'pro' | 'enterprise';
   status: 'active' | 'inactive';
   logo?: string | null;
+  bannerUrl?: string | null;
   primaryColor?: string;
+  cuisineType?: string | null;
+  currency?: string;
   createdAt: Date;
   updatedAt: Date;
 }

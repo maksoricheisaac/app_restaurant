@@ -1,5 +1,5 @@
 import api from '@/lib/api-client';
-import { Order, OrderStatus } from '@/types/order';
+import { OrderStatus } from '@/types/order';
 
 export const ordersService = {
   getOrders: async (filters: any) => {

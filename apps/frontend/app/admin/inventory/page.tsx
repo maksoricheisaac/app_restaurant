@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { LoadingState } from "@/components/ui/loading-state";
@@ -26,7 +25,6 @@ import { useCreateIngredient, useAddStockMovement } from "@/hooks/api/useInvento
 
 export default function InventoryV2Page() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-  const queryClient = useQueryClient();
 
   // Formulaire de création
   const [newProduct, setNewProduct] = useState({

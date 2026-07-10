@@ -1,9 +1,9 @@
 'use client';
 
 import {
-  Plus, Search, MoreVertical, ExternalLink, Store, Clock, Ban,
+  Plus, Search, MoreVertical, ExternalLink, Store, Ban,
   CheckCircle2, AlertCircle, RefreshCw, Loader2, Sparkles, Building2,
-  Eye, Edit, ChevronRight, X, Users, Calendar,
+  Eye, Users, Calendar,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

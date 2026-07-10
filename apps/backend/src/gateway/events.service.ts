@@ -7,8 +7,8 @@ const SENSITIVE_FIELDS = new Set([
   'tokenHash',
   'emailVerificationToken',
   'passwordResetToken',
-  'lemonSqueezyCustomerId',
-  'lemonSqueezySubscriptionId',
+  'paymentCustomerId',
+  'paymentSubscriptionId',
   'ipAddress',
 ]);
 

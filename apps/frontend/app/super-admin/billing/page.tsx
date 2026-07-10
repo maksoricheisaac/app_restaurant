@@ -1,6 +1,5 @@
 'use client';
 
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { CreditCard, Receipt, TrendingUp, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -30,7 +29,7 @@ export default function SuperAdminBillingPage() {
           <p className="font-semibold text-foreground text-base">Tableau de bord facturation</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-sm">
             Les métriques de facturation (MRR, abonnements actifs, transactions) seront
-            disponibles après connexion à l'API Lemon Squeezy.
+            disponibles une fois un fournisseur de paiement connecté.
           </p>
         </div>
         <div className="flex flex-wrap justify-center gap-6 pt-2 text-sm text-muted-foreground">

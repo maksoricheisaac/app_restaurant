@@ -1,77 +1,66 @@
 import { BadRequestException } from '@nestjs/common';
-import * as crypto from 'crypto';
 import { BillingService } from './billing.service';
 import { PaymentProviderFactory } from '../payments/payment-provider.factory';
+import {
+  NormalizedPaymentEvent,
+  PaymentProvider,
+  PaymentProviderName,
+} from '../payments/interfaces/payment-provider.interface';
 import { IdempotencyService } from '../common/redis/idempotency.service';
 import { RedisService } from '../common/redis/redis.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-// ─── Mock Lemon Squeezy SDK ───────────────────────────────────────────────
+/**
+ * BillingService doit rester totalement agnostique du fournisseur de
+ * paiement actif — ces tests l'exercent via un FakePaymentProvider plutôt
+ * que via un SDK concret, pour ne pas dépendre d'un fournisseur en
+ * particulier (aucun n'est implémenté à ce jour, voir apps/backend/src/payments).
+ */
+class FakePaymentProvider implements PaymentProvider {
+  readonly name: PaymentProviderName = 'stripe';
+  configured = true;
+  validSignature = true;
+  checkoutUrl = 'https://pay.example.com/checkout/xxx';
+  nextEvent: NormalizedPaymentEvent = {
+    type: 'unhandled',
+    eventId: 'evt-1',
+    providerEventName: 'unhandled',
+  };
 
-jest.mock('@lemonsqueezy/lemonsqueezy.js', () => ({
-  lemonSqueezySetup: jest.fn(),
-  createCheckout: jest.fn(),
-}));
+  isConfigured(): boolean {
+    return this.configured;
+  }
 
-import { createCheckout } from '@lemonsqueezy/lemonsqueezy.js';
+  createCheckoutSession() {
+    if (!this.configured) {
+      throw new BadRequestException('not configured');
+    }
+    return Promise.resolve({ url: this.checkoutUrl });
+  }
 
-// ─── Mock config ──────────────────────────────────────────────────────────
+  verifyWebhookSignature(): boolean {
+    return this.validSignature;
+  }
 
-const WEBHOOK_SECRET = 'test-webhook-secret-32chars-long!!';
-
-const mockConfig = {
-  get: jest.fn().mockImplementation((key: string) => {
-    const cfg: Record<string, string> = {
-      LEMON_SQUEEZY_API_KEY: 'test_live_key',
-      LEMON_SQUEEZY_WEBHOOK_SECRET: WEBHOOK_SECRET,
-      LEMON_SQUEEZY_STORE_ID: '1',
-      LEMON_SQUEEZY_PRO_VARIANT_ID: '100',
-      LEMON_SQUEEZY_ENTERPRISE_VARIANT_ID: '101',
-      FRONTEND_URL: 'http://localhost:4000',
-    };
-    return cfg[key];
-  }),
-};
-
-// ─── Payload helpers ──────────────────────────────────────────────────────
-
-let _wid = 0;
-
-function makePayload(
-  eventName: string,
-  data: Record<string, unknown>,
-  customData: Record<string, string> = {},
-): Buffer {
-  return Buffer.from(
-    JSON.stringify({
-      meta: {
-        event_name: eventName,
-        webhook_id: `wh-${eventName}-${++_wid}`,
-        custom_data: customData,
-      },
-      data,
-    }),
-    'utf8',
-  );
+  parseWebhookEvent(): NormalizedPaymentEvent {
+    return this.nextEvent;
+  }
 }
-
-function sign(payload: Buffer, secret = WEBHOOK_SECRET): string {
-  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
-}
-
-// ─── Suite ────────────────────────────────────────────────────────────────
 
 describe('BillingService', () => {
   let service: BillingService;
   let prisma: MockPrisma;
+  let fakeProvider: FakePaymentProvider;
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    const paymentProviders = new PaymentProviderFactory(mockConfig as any);
+    fakeProvider = new FakePaymentProvider();
+    const paymentProviders = {
+      getProvider: () => fakeProvider,
+    } as unknown as PaymentProviderFactory;
     const redisService = { getClient: () => null } as unknown as RedisService;
     const idempotency = new IdempotencyService(redisService);
     service = new BillingService(prisma as any, paymentProviders, idempotency);
-    jest.clearAllMocks();
   });
 
   // ─── getStatus ────────────────────────────────────────────────────────
@@ -128,18 +117,10 @@ describe('BillingService', () => {
   // ─── createCheckoutSession ────────────────────────────────────────────
 
   describe('createCheckoutSession', () => {
-    it('returns a checkout URL for pro plan', async () => {
+    it('returns the checkout URL from the active provider', async () => {
       prisma.tenant.findUnique.mockResolvedValue({
         id: 'tenant-1',
         name: 'Test',
-      });
-      (createCheckout as jest.Mock).mockResolvedValue({
-        data: {
-          data: {
-            attributes: { url: 'https://checkout.lemonsqueezy.com/buy/xxx' },
-          },
-        },
-        error: null,
       });
 
       const result = await service.createCheckoutSession(
@@ -148,51 +129,14 @@ describe('BillingService', () => {
         'http://localhost:4000',
       );
 
-      expect(result).toEqual({
-        url: 'https://checkout.lemonsqueezy.com/buy/xxx',
-      });
-      expect(createCheckout).toHaveBeenCalledWith(
-        1, // storeId as number
-        100, // pro variantId as number
-        expect.objectContaining({
-          checkoutData: expect.objectContaining({
-            custom: { tenant_id: 'tenant-1', plan: 'pro' },
-          }),
-        }),
-      );
+      expect(result).toEqual({ url: fakeProvider.checkoutUrl });
     });
 
-    it('uses enterprise variant for enterprise plan', async () => {
+    it('rejects when the active provider is not configured', async () => {
+      fakeProvider.configured = false;
       prisma.tenant.findUnique.mockResolvedValue({
         id: 'tenant-1',
         name: 'Test',
-      });
-      (createCheckout as jest.Mock).mockResolvedValue({
-        data: {
-          data: {
-            attributes: { url: 'https://checkout.lemonsqueezy.com/buy/yyy' },
-          },
-        },
-        error: null,
-      });
-
-      await service.createCheckoutSession(
-        'tenant-1',
-        'enterprise',
-        'http://localhost:4000',
-      );
-
-      expect(createCheckout).toHaveBeenCalledWith(1, 101, expect.anything());
-    });
-
-    it('throws when Lemon Squeezy returns an error', async () => {
-      prisma.tenant.findUnique.mockResolvedValue({
-        id: 'tenant-1',
-        name: 'Test',
-      });
-      (createCheckout as jest.Mock).mockResolvedValue({
-        data: null,
-        error: new Error('LS API error'),
       });
 
       await expect(
@@ -203,59 +147,60 @@ describe('BillingService', () => {
         ),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
+
+    it('rejects when the tenant does not exist', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createCheckoutSession(
+          'missing',
+          'pro',
+          'http://localhost:4000',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 
   // ─── handleWebhook — signature validation ────────────────────────────
 
   describe('handleWebhook — signature validation', () => {
-    it('accepts a valid HMAC-SHA256 signature', async () => {
-      const payload = makePayload('order_created', { id: '1', attributes: {} });
+    it('rejects an invalid signature', async () => {
+      fakeProvider.validSignature = false;
       await expect(
-        service.handleWebhook(payload, sign(payload)),
-      ).resolves.not.toThrow();
-    });
-
-    it('rejects an incorrect signature', async () => {
-      const payload = makePayload('order_created', { id: '1', attributes: {} });
-      await expect(
-        service.handleWebhook(payload, 'a'.repeat(64)),
+        service.handleWebhook(Buffer.from('{}'), 'bad-sig'),
       ).rejects.toBeInstanceOf(BadRequestException);
     });
 
-    it('rejects a missing (empty) signature', async () => {
-      const payload = makePayload('order_created', { id: '1', attributes: {} });
-      await expect(service.handleWebhook(payload, '')).rejects.toBeInstanceOf(
-        BadRequestException,
-      );
+    it('processes the event when the signature is valid', async () => {
+      fakeProvider.nextEvent = {
+        type: 'unhandled',
+        eventId: 'evt-ok',
+        providerEventName: 'noop',
+      };
+      await expect(
+        service.handleWebhook(Buffer.from('{}'), 'good-sig'),
+      ).resolves.not.toThrow();
     });
   });
 
   // ─── handleWebhook — idempotency ─────────────────────────────────────
 
   describe('handleWebhook — idempotency', () => {
-    it('skips duplicate webhook delivery (same webhook_id)', async () => {
-      prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-1' });
+    it('skips duplicate webhook delivery (same eventId)', async () => {
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'subscription_created',
+        eventId: 'evt-dup',
+        providerEventName: 'subscription_created',
+        tenantId: 'tenant-1',
+        plan: 'pro',
+        customerId: '100',
+        subscriptionId: '42',
+        status: 'active',
+      };
 
-      const body = JSON.parse(
-        makePayload(
-          'subscription_created',
-          {
-            id: '42',
-            attributes: {
-              customer_id: 100,
-              status: 'active',
-              renews_at: '2026-07-01T00:00:00Z',
-            },
-          },
-          { tenant_id: 'tenant-1', plan: 'pro' },
-        ).toString(),
-      );
-      const fixed = Buffer.from(JSON.stringify(body), 'utf8');
-      const sig = sign(fixed);
-
-      await service.handleWebhook(fixed, sig);
-      await service.handleWebhook(fixed, sig); // second delivery — same webhook_id
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
+      await service.handleWebhook(Buffer.from('{}'), 'sig'); // same eventId
 
       expect(prisma.tenant.update).toHaveBeenCalledTimes(1);
     });
@@ -264,45 +209,45 @@ describe('BillingService', () => {
   // ─── subscription_created ─────────────────────────────────────────────
 
   describe('handleWebhook — subscription_created', () => {
-    it('activates plan and stores Lemon Squeezy IDs', async () => {
+    it('activates the plan and stores generic payment provider IDs', async () => {
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'subscription_created',
+        eventId: 'evt-1',
+        providerEventName: 'subscription_created',
+        tenantId: 'tenant-1',
+        plan: 'pro',
+        customerId: '100',
+        subscriptionId: '42',
+        status: 'active',
+      };
 
-      const payload = makePayload(
-        'subscription_created',
-        {
-          id: '42',
-          attributes: {
-            customer_id: 100,
-            status: 'active',
-            renews_at: '2026-07-01T00:00:00Z',
-          },
-        },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       expect(prisma.tenant.update).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
         data: expect.objectContaining({
           plan: 'pro',
           status: 'active',
-          lemonSqueezyCustomerId: '100',
-          lemonSqueezySubscriptionId: '42',
+          paymentProvider: 'stripe',
+          paymentCustomerId: '100',
+          paymentSubscriptionId: '42',
           subscriptionStatus: 'active',
           gracePeriodEndsAt: null,
         }),
       });
     });
 
-    it('ignores event with no tenant_id in custom_data', async () => {
-      const payload = makePayload(
-        'subscription_created',
-        { id: '42', attributes: { customer_id: 100, status: 'active' } },
-        {}, // no tenant_id
-      );
+    it('ignores event with no tenantId', async () => {
+      fakeProvider.nextEvent = {
+        type: 'subscription_created',
+        eventId: 'evt-2',
+        providerEventName: 'subscription_created',
+        customerId: '100',
+        status: 'active',
+      };
 
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       expect(prisma.tenant.update).not.toHaveBeenCalled();
     });
@@ -314,17 +259,17 @@ describe('BillingService', () => {
     it('updates plan and clears grace period when status is active', async () => {
       prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-1' });
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'subscription_updated',
+        eventId: 'evt-3',
+        providerEventName: 'subscription_updated',
+        tenantId: 'tenant-1',
+        plan: 'pro',
+        subscriptionId: '42',
+        status: 'active',
+      };
 
-      const payload = makePayload(
-        'subscription_updated',
-        {
-          id: '42',
-          attributes: { status: 'active', renews_at: '2026-08-01T00:00:00Z' },
-        },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       expect(prisma.tenant.update).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
@@ -343,14 +288,16 @@ describe('BillingService', () => {
     it('downgrades tenant to free plan on cancellation', async () => {
       prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-1' });
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'subscription_cancelled',
+        eventId: 'evt-4',
+        providerEventName: 'subscription_cancelled',
+        tenantId: 'tenant-1',
+        subscriptionId: '42',
+        status: 'cancelled',
+      };
 
-      const payload = makePayload(
-        'subscription_cancelled',
-        { id: '42', attributes: { status: 'cancelled' } },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       expect(prisma.tenant.update).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
@@ -358,42 +305,27 @@ describe('BillingService', () => {
           plan: 'free',
           status: 'active',
           subscriptionStatus: 'canceled',
-          lemonSqueezySubscriptionId: null,
+          paymentSubscriptionId: null,
         }),
       });
     });
-
-    it('also handles subscription_expired the same way', async () => {
-      prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-1' });
-      prisma.tenant.update.mockResolvedValue({});
-
-      const payload = makePayload(
-        'subscription_expired',
-        { id: '42', attributes: { status: 'expired' } },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
-
-      const call = prisma.tenant.update.mock.calls[0][0];
-      expect(call.data.plan).toBe('free');
-    });
   });
 
-  // ─── subscription_payment_success ────────────────────────────────────
+  // ─── payment_succeeded ────────────────────────────────────────────────
 
-  describe('handleWebhook — subscription_payment_success', () => {
+  describe('handleWebhook — payment_succeeded', () => {
     it('reactivates tenant and clears grace period', async () => {
       prisma.tenant.findFirst.mockResolvedValue({ id: 'tenant-1' });
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'payment_succeeded',
+        eventId: 'evt-5',
+        providerEventName: 'payment_succeeded',
+        tenantId: 'tenant-1',
+        subscriptionId: '42',
+      };
 
-      const payload = makePayload(
-        'subscription_payment_success',
-        { id: 'inv-1', attributes: { subscription_id: 42 } },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       expect(prisma.tenant.update).toHaveBeenCalledWith({
         where: { id: 'tenant-1' },
@@ -406,23 +338,24 @@ describe('BillingService', () => {
     });
   });
 
-  // ─── subscription_payment_failed ─────────────────────────────────────
+  // ─── payment_failed ───────────────────────────────────────────────────
 
-  describe('handleWebhook — subscription_payment_failed', () => {
+  describe('handleWebhook — payment_failed', () => {
     it('sets grace period on first failure (status was active)', async () => {
       prisma.tenant.findFirst.mockResolvedValue({
         id: 'tenant-1',
         subscriptionStatus: 'active',
       });
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'payment_failed',
+        eventId: 'evt-6',
+        providerEventName: 'payment_failed',
+        tenantId: 'tenant-1',
+        subscriptionId: '42',
+      };
 
-      const payload = makePayload(
-        'subscription_payment_failed',
-        { id: 'inv-1', attributes: { subscription_id: 42 } },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       const call = prisma.tenant.update.mock.calls[0][0];
       expect(call.data.subscriptionStatus).toBe('past_due');
@@ -436,14 +369,15 @@ describe('BillingService', () => {
         subscriptionStatus: 'past_due',
       });
       prisma.tenant.update.mockResolvedValue({});
+      fakeProvider.nextEvent = {
+        type: 'payment_failed',
+        eventId: 'evt-7',
+        providerEventName: 'payment_failed',
+        tenantId: 'tenant-1',
+        subscriptionId: '42',
+      };
 
-      const payload = makePayload(
-        'subscription_payment_failed',
-        { id: 'inv-2', attributes: { subscription_id: 42 } },
-        { tenant_id: 'tenant-1', plan: 'pro' },
-      );
-
-      await service.handleWebhook(payload, sign(payload));
+      await service.handleWebhook(Buffer.from('{}'), 'sig');
 
       const call = prisma.tenant.update.mock.calls[0][0];
       expect(call.data.status).toBe('suspended');

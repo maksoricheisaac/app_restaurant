@@ -55,7 +55,7 @@ describe('ErrorBoundary', () => {
   });
 
   it('resets and re-renders children after "Réessayer" click', async () => {
-    const { rerender } = render(
+    render(
       <ErrorBoundary>
         <ThrowingComponent shouldThrow />
       </ErrorBoundary>,

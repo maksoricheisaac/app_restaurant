@@ -2,7 +2,6 @@
 
 import { Button } from "@/components/ui/button";
 import { FileText, FileSpreadsheet } from "lucide-react";
-import { generateSalesReportPdf } from "@/lib/pdf/report";
 import { useTenant } from "@/contexts/TenantContext";
 import { useSettings } from "@/hooks/api/useSettings";
 import { toast } from "sonner";
@@ -33,6 +32,7 @@ export function ExportButtons({ data, chartData, formatPrice }: ExportButtonsPro
   const exportToPDF = async () => {
     try {
       toast.loading('Génération du PDF en cours...');
+      const { generateSalesReportPdf } = await import("@/lib/pdf/report");
       await generateSalesReportPdf(data, chartData, formatPrice, tenant ? {
         name:         tenant.name,
         logoUrl:      tenant.logo,

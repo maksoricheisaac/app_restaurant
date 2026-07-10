@@ -1,8 +1,9 @@
 import { notFound } from "next/navigation";
 import { Metadata } from "next";
+import Image from "next/image";
 import {
   UtensilsCrossed, Phone, Mail, MapPin, Globe,
-  Facebook, Instagram, Twitter, ChevronRight, Sparkles,
+  Facebook, Instagram, Twitter, ChevronRight, Sparkles, CalendarCheck,
 } from "lucide-react";
 import Link from "next/link";
 import { CategoryNav } from "./_components/category-nav";
@@ -131,10 +132,13 @@ export default async function PublicMenuPage({
 
         {tenant.bannerUrl ? (
           <>
-            <img
+            <Image
               src={tenant.bannerUrl}
               alt={`Bannière ${tenant.name}`}
-              className="absolute inset-0 w-full h-full object-cover"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-black/5" />
           </>
@@ -155,9 +159,11 @@ export default async function PublicMenuPage({
         <div className="relative max-w-2xl mx-auto w-full px-5 pt-12 sm:pt-20 pb-8 sm:pb-10 space-y-4 sm:space-y-5">
           {/* Logo */}
           {tenant.logo ? (
-            <img
+            <Image
               src={tenant.logo}
               alt={tenant.name}
+              width={80}
+              height={80}
               className="h-20 w-20 rounded-2xl object-cover shadow-2xl ring-2 ring-white/20"
             />
           ) : (
@@ -209,6 +215,14 @@ export default async function PublicMenuPage({
             Commander maintenant
             <ChevronRight className="h-4 w-4" />
           </Link>
+
+          <Link
+            href={`/menu/${slug}/reservation`}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-white/90 hover:text-white transition-colors"
+          >
+            <CalendarCheck className="h-4 w-4" />
+            Réserver une table
+          </Link>
         </div>
       </div>
 
@@ -240,9 +254,11 @@ export default async function PublicMenuPage({
                   style={{ backgroundColor: color }}
                 />
                 {category.imageUrl ? (
-                  <img
+                  <Image
                     src={category.imageUrl}
                     alt={category.name}
+                    width={36}
+                    height={36}
                     className="h-9 w-9 rounded-xl object-cover flex-shrink-0 shadow-sm"
                   />
                 ) : null}
@@ -265,10 +281,12 @@ export default async function PublicMenuPage({
                     <div className="relative h-48 bg-slate-100 overflow-hidden">
                       {item.image ? (
                         <>
-                          <img
+                          <Image
                             src={item.image}
                             alt={item.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                            fill
+                            sizes="(max-width: 640px) 100vw, 640px"
+                            className="object-cover group-hover:scale-105 transition-transform duration-700"
                             loading="lazy"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
@@ -342,7 +360,7 @@ export default async function PublicMenuPage({
           {/* Identity */}
           <div className="flex items-start gap-4">
             {tenant.logo ? (
-              <img src={tenant.logo} alt={tenant.name} className="h-16 w-16 rounded-2xl object-cover flex-shrink-0 shadow-lg" />
+              <Image src={tenant.logo} alt={tenant.name} width={64} height={64} className="h-16 w-16 rounded-2xl object-cover flex-shrink-0 shadow-lg" />
             ) : (
               <div
                 className="h-16 w-16 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg"

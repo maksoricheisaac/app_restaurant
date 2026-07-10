@@ -129,6 +129,42 @@ describe('TenantsService', () => {
       expect(call.where.id).toBe('tenant-1');
       expect(call.include.memberships).toBeDefined();
     });
+
+    it('returns null when tenant does not exist', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(null);
+      expect(await service.findOne('missing')).toBeNull();
+    });
+
+    it('flags isDeleted=false for an active tenant', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(TENANT);
+      const result = await service.findOne('tenant-1');
+      expect(result!.isDeleted).toBe(false);
+    });
+
+    it('flags isDeleted=true for a soft-deleted tenant instead of hiding it silently', async () => {
+      prisma.tenant.findUnique.mockResolvedValue({
+        ...TENANT,
+        deletedAt: new Date(),
+      });
+      const result = await service.findOne('tenant-1');
+      expect(result!.isDeleted).toBe(true);
+    });
+  });
+
+  // ─── findAllPublicSlugs ───────────────────────────────────────────────────
+
+  describe('findAllPublicSlugs', () => {
+    it('queries only active, non-deleted tenants, selecting slug and updatedAt', async () => {
+      prisma.tenant.findMany.mockResolvedValue([
+        { slug: 'le-maquis', updatedAt: new Date() },
+      ]);
+
+      await service.findAllPublicSlugs();
+
+      const call = prisma.tenant.findMany.mock.calls[0][0];
+      expect(call.where).toEqual({ deletedAt: null, status: 'active' });
+      expect(call.select).toEqual({ slug: true, updatedAt: true });
+    });
   });
 
   // ─── resolveBySlug ────────────────────────────────────────────────────────
@@ -155,8 +191,16 @@ describe('TenantsService', () => {
   // ─── remove (soft delete) ─────────────────────────────────────────────────
 
   describe('remove', () => {
+    beforeEach(() => {
+      // remove() écrit dans une transaction — router tx vers le même mock
+      // que celui utilisé dans les assertions (pattern déjà en place dans
+      // memberships.service.spec.ts pour transferOwnership).
+      prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
+    });
+
     it('sets deletedAt instead of hard-deleting', async () => {
       prisma.tenant.findUnique.mockResolvedValue(TENANT);
+      prisma.domain.deleteMany.mockResolvedValue({ count: 0 });
       prisma.tenant.update.mockResolvedValue({
         ...TENANT,
         deletedAt: new Date(),
@@ -167,6 +211,21 @@ describe('TenantsService', () => {
       const call = prisma.tenant.update.mock.calls[0][0];
       expect(call.where.id).toBe('tenant-1');
       expect(call.data.deletedAt).toBeInstanceOf(Date);
+    });
+
+    it('deletes the tenant custom domains so the domain name can be reused', async () => {
+      prisma.tenant.findUnique.mockResolvedValue(TENANT);
+      prisma.domain.deleteMany.mockResolvedValue({ count: 1 });
+      prisma.tenant.update.mockResolvedValue({
+        ...TENANT,
+        deletedAt: new Date(),
+      });
+
+      await service.remove('tenant-1');
+
+      expect(prisma.domain.deleteMany).toHaveBeenCalledWith({
+        where: { tenantId: 'tenant-1' },
+      });
     });
 
     it('throws NotFoundException when tenant does not exist', async () => {

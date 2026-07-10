@@ -1,5 +1,20 @@
+/**
+ * Fournisseurs de paiement reconnus par l'application. Tous sont, pour
+ * l'instant, des placeholders inertes (voir providers/*) — aucun n'est
+ * implémenté.
+ *
+ * Pour ajouter un nouveau fournisseur (ex: Moneroo, PawaPay, CinetPay) :
+ *   1. Ajouter son nom à cette union.
+ *   2. Créer providers/<nom>/<nom>.provider.ts implémentant PaymentProvider
+ *      (s'inspirer de providers/stripe pour la forme d'un placeholder, ou
+ *      d'une vraie implémentation avec SDK/appels HTTP une fois les
+ *      identifiants disponibles).
+ *   3. L'enregistrer dans PaymentProviderFactory (une ligne).
+ * Aucune autre couche (BillingService, BillingController, DTOs) n'a besoin
+ * d'être modifiée : elles ne parlent qu'à l'interface PaymentProvider et à
+ * NormalizedPaymentEvent.
+ */
 export type PaymentProviderName =
-  | 'lemonsqueezy'
   | 'stripe'
   | 'paddle'
   | 'flutterwave'
@@ -38,6 +53,12 @@ export interface NormalizedPaymentEvent {
   eventId: string;
   /** Nom brut de l'événement chez le fournisseur (utile pour les logs/debug). */
   providerEventName: string;
+  /**
+   * Renseigné par BillingService juste après l'appel à parseWebhookEvent
+   * (pas par le provider lui-même) — identifie quel PaymentProvider a
+   * généré l'événement, pour traçabilité sur Tenant.paymentProvider.
+   */
+  providerName?: PaymentProviderName;
   tenantId?: string;
   plan?: string;
   subscriptionId?: string;
@@ -47,9 +68,9 @@ export interface NormalizedPaymentEvent {
 }
 
 /**
- * Contrat commun à tous les fournisseurs de paiement (Lemon Squeezy, Stripe,
- * Paddle, Flutterwave, Paystack...). Permet à BillingService de rester
- * agnostique du fournisseur sélectionné via PaymentProviderFactory.
+ * Contrat commun à tous les fournisseurs de paiement (Stripe, Paddle,
+ * Flutterwave, Paystack, et bientôt Moneroo...). Permet à BillingService de
+ * rester agnostique du fournisseur sélectionné via PaymentProviderFactory.
  */
 export interface PaymentProvider {
   readonly name: PaymentProviderName;
@@ -61,6 +82,13 @@ export interface PaymentProvider {
     params: CheckoutSessionParams,
   ): Promise<CheckoutSessionResult>;
 
+  /**
+   * DOIT retourner false si le secret de vérification n'est pas configuré
+   * (ne jamais calculer un HMAC avec une clé vide). Utiliser
+   * `verifyHmacSignature` de `payments/utils/verify-hmac-signature.ts`, qui
+   * échoue fermé par construction, plutôt que de réimplémenter la
+   * comparaison de signature dans chaque provider.
+   */
   verifyWebhookSignature(payload: Buffer, signature: string): boolean;
 
   parseWebhookEvent(payload: Buffer): NormalizedPaymentEvent;

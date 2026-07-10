@@ -17,6 +17,7 @@ import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
 import { PageQueryDto } from '../common/dto/page-query.dto';
 import type { Tenant } from '@prisma/client';
@@ -47,24 +48,33 @@ export class TenantsController {
     return this.tenantsService.resolveBySlug(slug);
   }
 
+  // Utilisé par app/sitemap.ts (frontend) pour générer un sitemap réel avec
+  // les vraies pages /menu/[slug] plutôt que des routes statiques génériques.
+  @Public()
+  @Throttle({ short: { limit: 10, ttl: 60_000 } })
+  @Get('public-slugs')
+  findAllPublicSlugs() {
+    return this.tenantsService.findAllPublicSlugs();
+  }
+
   // Returns current tenant profile for any authenticated member.
   // Must be declared BEFORE :id to avoid Express matching "me" as a param.
   @UseGuards(AuthGuard, TenantGuard)
   @Get('me')
   getMe(@CurrentTenant() tenant: Tenant) {
     return {
-      id:           tenant.id,
-      name:         tenant.name,
-      slug:         tenant.slug,
-      plan:         tenant.plan,
-      status:       tenant.status,
-      logo:         tenant.logo,
-      bannerUrl:    (tenant as any).bannerUrl   ?? null,
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      plan: tenant.plan,
+      status: tenant.status,
+      logo: tenant.logo,
+      bannerUrl: (tenant as any).bannerUrl ?? null,
       primaryColor: tenant.primaryColor,
-      cuisineType:  tenant.cuisineType,
-      currency:     tenant.currency,
-      createdAt:    tenant.createdAt,
-      updatedAt:    tenant.updatedAt,
+      cuisineType: tenant.cuisineType,
+      currency: tenant.currency,
+      createdAt: tenant.createdAt,
+      updatedAt: tenant.updatedAt,
     };
   }
 

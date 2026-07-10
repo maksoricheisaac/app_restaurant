@@ -74,11 +74,7 @@ describe('ReportsService', () => {
       const result = await service.getChartData(T, 'monthly', '2026-06-15');
 
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
-      expect(result.labels).toEqual([
-        '2026-06-01',
-        '2026-06-02',
-        '2026-06-03',
-      ]);
+      expect(result.labels).toEqual(['2026-06-01', '2026-06-02', '2026-06-03']);
       expect(result.revenue).toEqual([150, 50, 0]);
       expect(result.orders).toEqual([3, 0, 1]);
     });

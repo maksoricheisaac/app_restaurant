@@ -1,5 +1,7 @@
 import { MetadataRoute } from 'next';
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4000';
+
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -8,15 +10,16 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/admin/',
-          '/login',
-          '/register',
+          '/super-admin/',
+          '/auth/',
+          '/invite/',
+          '/pending-invite',
           '/api/',
           '/_next/',
-          '/favicon.ico',
         ],
       },
     ],
-    sitemap: 'https://restaurant-africain.com/sitemap.xml',
-    host: 'https://restaurant-africain.com',
+    sitemap: `${APP_URL}/sitemap.xml`,
+    host: APP_URL,
   };
-} 
+}

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
 import { Permission } from "@/types/permissions";
@@ -26,7 +25,6 @@ import {
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 export default function TablesPage() {
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [isAvailable, setIsAvailable] = useState<boolean | undefined>();
   const [location, setLocation] = useState<string>();

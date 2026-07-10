@@ -10,7 +10,7 @@ import { getSkipTake, toPaginated } from '../common/pagination/paginate';
 const NOT_DELETED = { deletedAt: null };
 
 export interface MessageFilters {
-  period?: 'today' | 'week' | 'month' | 'all' | string;
+  period?: string;
   date?: string;
   status?: string;
   page?: number;

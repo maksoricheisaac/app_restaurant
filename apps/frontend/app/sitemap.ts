@@ -1,44 +1,64 @@
 import { MetadataRoute } from 'next';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://restaurant-africain.com';
-  
-  return [
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:4000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+
+interface PublicTenantSlug {
+  slug: string;
+  updatedAt: string;
+}
+
+async function fetchPublicTenantSlugs(): Promise<PublicTenantSlug[]> {
+  try {
+    const res = await fetch(`${API_URL}/tenants/public-slugs`, {
+      // Le sitemap n'a pas besoin d'être seconde par seconde à jour.
+      next: { revalidate: 3600 },
+    });
+    if (!res.ok) return [];
+    return res.json();
+  } catch {
+    // Le sitemap ne doit jamais faire échouer le build si le backend est
+    // indisponible au moment de la génération — on retombe sur les pages
+    // statiques uniquement.
+    return [];
+  }
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const staticPages: MetadataRoute.Sitemap = [
     {
-      url: baseUrl,
+      url: APP_URL,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 1,
     },
     {
-      url: `${baseUrl}/menu`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${baseUrl}/about`,
+      url: `${APP_URL}/about`,
       lastModified: new Date(),
       changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/contact`,
-      lastModified: new Date(),
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${baseUrl}/gallery`,
-      lastModified: new Date(),
-      changeFrequency: 'weekly',
-      priority: 0.7,
-    },
-    {
-      url: `${baseUrl}/order-tracking`,
-      lastModified: new Date(),
-      changeFrequency: 'daily',
       priority: 0.6,
     },
+    {
+      url: `${APP_URL}/contact`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    {
+      url: `${APP_URL}/pricing`,
+      lastModified: new Date(),
+      changeFrequency: 'monthly',
+      priority: 0.7,
+    },
   ];
-} 
+
+  const tenants = await fetchPublicTenantSlugs();
+  const tenantPages: MetadataRoute.Sitemap = tenants.map((t) => ({
+    url: `${APP_URL}/menu/${t.slug}`,
+    lastModified: new Date(t.updatedAt),
+    changeFrequency: 'weekly',
+    priority: 0.9,
+  }));
+
+  return [...staticPages, ...tenantPages];
+}

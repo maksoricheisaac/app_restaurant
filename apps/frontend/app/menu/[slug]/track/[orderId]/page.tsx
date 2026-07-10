@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
+import Image from "next/image";
 import {
   CheckCircle2, Clock, ChefHat, BellRing, XCircle,
   Loader2, ArrowLeft, UtensilsCrossed, RefreshCw, Receipt,
@@ -181,7 +182,9 @@ export default function TrackOrderPage({
           {/* Restaurant identity */}
           <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {tracking.tenant.logo ? (
-              <img src={tracking.tenant.logo} alt={tracking.tenant.name} className="h-8 w-8 rounded-lg object-cover flex-shrink-0" loading="lazy" />
+              <div className="relative h-8 w-8 rounded-lg overflow-hidden flex-shrink-0">
+                <Image src={tracking.tenant.logo} alt={tracking.tenant.name} fill className="object-cover" sizes="32px" />
+              </div>
             ) : (
               <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}18` }}>
                 <UtensilsCrossed className="h-4 w-4" style={{ color }} />
@@ -215,7 +218,7 @@ export default function TrackOrderPage({
             <div>
               <p className="text-xl font-black text-slate-900">Commande annulée</p>
               <p className="text-sm text-slate-400 mt-1 leading-relaxed">
-                Cette commande a été annulée. N'hésitez pas à en passer une nouvelle.
+                Cette commande a été annulée. N&apos;hésitez pas à en passer une nouvelle.
               </p>
             </div>
             <a
@@ -303,9 +306,9 @@ export default function TrackOrderPage({
           <div className="px-5 py-3 divide-y divide-slate-50">
             {tracking.orderItems.map((item) => (
               <div key={item.id} className="flex items-center gap-3 py-3">
-                <div className="h-11 w-11 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
+                <div className="relative h-11 w-11 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
                   {item.image
-                    ? <img src={item.image} alt={item.name} className="w-full h-full object-cover" loading="lazy" />
+                    ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="44px" />
                     : <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
                         <UtensilsCrossed className="h-4 w-4 opacity-30" style={{ color }} />
                       </div>

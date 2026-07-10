@@ -1,11 +1,12 @@
 "use client";
 
 import { useRef, useState } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 import { Upload, Trash2, ImageIcon, Store, Loader2 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   useUploadTenantLogo,
   useDeleteTenantLogo,
@@ -106,10 +107,11 @@ function ImageUploadZone({
       >
         {/* Current image */}
         {currentUrl && (
-          <img
+          <Image
             src={currentUrl}
             alt={label}
-            className="absolute inset-0 w-full h-full object-cover"
+            fill
+            className="object-cover"
           />
         )}
 
@@ -198,7 +200,7 @@ export function BrandingForm() {
       <CardHeader>
         <CardTitle>Identité visuelle</CardTitle>
         <CardDescription>
-          Le logo et la bannière s'affichent sur la page menu publique de votre restaurant.
+          Le logo et la bannière s&apos;affichent sur la page menu publique de votre restaurant.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">

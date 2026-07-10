@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Zap, ArrowRight, ArrowLeft, Loader2, Sparkles, Building } from 'lucide-react';
+import { Check, Zap, ArrowRight, ArrowLeft, Sparkles, Building } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { onboardingService } from '@/services/onboarding.service';
 import type { OnboardingData } from '@/types/onboarding';
 import { PLANS } from '@/config/plans';
 import type { PlanId } from '@/config/plans';
@@ -41,22 +40,12 @@ const PLAN_UI: Record<PlanId, {
   },
 };
 
-export default function StepPlanSelection({ onNext, onBack, data }: Props) {
+export default function StepPlanSelection({ onNext, onBack, data: _data }: Props) {
   const [selected, setSelected] = useState<PlanId>('pro');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  const handleContinue = async () => {
-    setIsLoading(true);
-    setError('');
-    try {
-      await onboardingService.savePlan({ plan: selected });
-      onNext({ plan: selected });
-    } catch (err: any) {
-      setError(err.message || 'Une erreur est survenue');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleContinue = () => {
+    // Aucune écriture en base : on accumule le plan choisi dans l'état du wizard.
+    onNext({ plan: selected });
   };
 
   return (
@@ -155,12 +144,6 @@ export default function StepPlanSelection({ onNext, onBack, data }: Props) {
         Les plans payants seront activés après configuration de votre moyen de paiement.
       </p>
 
-      {error && (
-        <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
-          {error}
-        </p>
-      )}
-
       <div className="flex gap-3">
         <Button
           type="button"
@@ -172,18 +155,11 @@ export default function StepPlanSelection({ onNext, onBack, data }: Props) {
         </Button>
         <Button
           type="button"
-          disabled={isLoading}
           onClick={handleContinue}
           className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <>
-              Créer mon restaurant
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
-          )}
+          Créer mon restaurant
+          <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </div>
     </div>

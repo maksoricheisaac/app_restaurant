@@ -114,7 +114,7 @@ export function OpeningHoursForm() {
     try {
       await updateMutation.mutateAsync(data.openingHours);
       toast.success("Horaires mis à jour");
-    } catch (error) {
+    } catch {
       toast.error("Erreur lors de la mise à jour");
     }
   };

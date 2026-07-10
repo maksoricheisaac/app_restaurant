@@ -1,7 +1,7 @@
-/* eslint-disable react/no-unescaped-entities */
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Zap, ShoppingBag, TrendingUp, Clock } from "lucide-react"
 import Link from "next/link"
+import Image from "next/image"
 
 const STATS = [
   { value: "2 min", label: "Délai d'activation" },
@@ -104,10 +104,13 @@ export const SaasHero = () => {
                     app.flashmenu.app/admin
                   </div>
                 </div>
-                <img
+                <Image
                   src="https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?q=80&w=2070&auto=format&fit=crop"
                   alt="Tableau de bord Flash Menu"
-                  className="rounded-lg shadow-sm w-full"
+                  width={2070}
+                  height={1380}
+                  className="rounded-lg shadow-sm w-full h-auto"
+                  priority
                 />
                 {/* Floating notification */}
                 <div className="absolute -bottom-4 -left-4 bg-white rounded-xl shadow-lg border px-3 py-2.5 flex items-center gap-2.5">

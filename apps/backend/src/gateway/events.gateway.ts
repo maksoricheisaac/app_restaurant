@@ -6,7 +6,6 @@ import {
   SubscribeMessage,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 
@@ -32,14 +31,13 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private jwtService: JwtService,
   ) {}
 
-  async handleConnection(client: Socket) {
+  handleConnection(client: Socket) {
     try {
       // Token resolution order:
       //   1. Authorization: Bearer <token> header (explicit API clients)
       //   2. auth.token from socket handshake (explicit socket clients)
       //   3. `token` httpOnly cookie (browser clients with withCredentials: true)
-      const cookieHeader =
-        (client.handshake.headers.cookie as string | undefined) ?? '';
+      const cookieHeader = client.handshake.headers.cookie ?? '';
       const cookieToken = cookieHeader
         .split(';')
         .map((c) => c.trim())

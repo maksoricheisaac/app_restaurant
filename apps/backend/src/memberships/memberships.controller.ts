@@ -35,8 +35,35 @@ export class MembershipsController {
 
   @Post('invite')
   @Roles('owner', 'manager')
-  invite(@CurrentTenant() tenant: Tenant, @Body() body: InviteMemberDto) {
-    return this.membershipsService.invite(tenant.id, body.email, body.role);
+  invite(
+    @CurrentTenant() tenant: Tenant,
+    @CurrentUser() user: { id: string },
+    @Body() body: InviteMemberDto,
+  ) {
+    return this.membershipsService.invite(
+      tenant.id,
+      user.id,
+      body.email,
+      body.role,
+    );
+  }
+
+  @Get('invites')
+  @Roles('owner', 'manager')
+  listInvites(@CurrentTenant() tenant: Tenant) {
+    return this.membershipsService.listInvites(tenant.id);
+  }
+
+  @Delete('invites/:id')
+  @Roles('owner', 'manager')
+  revokeInvite(@CurrentTenant() tenant: Tenant, @Param('id') id: string) {
+    return this.membershipsService.revokeInvite(tenant.id, id);
+  }
+
+  @Post('invites/:id/resend')
+  @Roles('owner', 'manager')
+  resendInvite(@CurrentTenant() tenant: Tenant, @Param('id') id: string) {
+    return this.membershipsService.resendInvite(tenant.id, id);
   }
 
   @Patch(':id/role')

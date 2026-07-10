@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Printer } from "lucide-react";
-import { generateOrderTicketPdf } from "@/lib/pdf/order-ticket";
 import {
   Select,
   SelectContent,
@@ -74,6 +73,7 @@ export function OrderTicketPreview({
 
   const handlePrintPDF = async () => {
     try {
+      const { generateOrderTicketPdf } = await import("@/lib/pdf/order-ticket");
       await generateOrderTicketPdf({
         order,
         paperWidth,

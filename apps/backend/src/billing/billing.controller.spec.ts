@@ -48,9 +48,9 @@ describe('BillingController', () => {
   // ─── createCheckout ──────────────────────────────────────────────────────
 
   describe('createCheckout', () => {
-    it('creates a Lemon Squeezy checkout for pro plan', async () => {
+    it('creates a checkout for pro plan', async () => {
       mockBillingService.createCheckoutSession.mockResolvedValue({
-        url: 'https://checkout.lemonsqueezy.com/buy/pro123',
+        url: 'https://pay.example.com/checkout/buy/pro123',
       });
 
       const result = await controller.createCheckout(mockTenant as any, 'pro');
@@ -61,13 +61,13 @@ describe('BillingController', () => {
         'http://localhost:4000',
       );
       expect(result).toEqual({
-        url: 'https://checkout.lemonsqueezy.com/buy/pro123',
+        url: 'https://pay.example.com/checkout/buy/pro123',
       });
     });
 
     it('defaults to pro plan when plan is not specified', async () => {
       mockBillingService.createCheckoutSession.mockResolvedValue({
-        url: 'https://checkout.lemonsqueezy.com/x',
+        url: 'https://pay.example.com/checkout/x',
       });
       await controller.createCheckout(mockTenant as any, undefined as any);
       expect(mockBillingService.createCheckoutSession).toHaveBeenCalledWith(
@@ -79,7 +79,7 @@ describe('BillingController', () => {
 
     it('creates a checkout for enterprise plan', async () => {
       mockBillingService.createCheckoutSession.mockResolvedValue({
-        url: 'https://checkout.lemonsqueezy.com/e',
+        url: 'https://pay.example.com/checkout/e',
       });
       await controller.createCheckout(mockTenant as any, 'enterprise');
       expect(mockBillingService.createCheckoutSession).toHaveBeenCalledWith(
@@ -114,18 +114,18 @@ describe('BillingController', () => {
   // ─── handleWebhook ───────────────────────────────────────────────────────
 
   describe('handleWebhook', () => {
-    it('processes a valid Lemon Squeezy webhook (X-Signature header)', async () => {
+    it('processes a valid webhook (X-Signature header)', async () => {
       mockBillingService.handleWebhook.mockResolvedValue(undefined);
       const rawBody = Buffer.from(
         '{"meta":{"event_name":"subscription_created"}}',
       );
       const req: any = { rawBody };
 
-      const result = await controller.handleWebhook(req, 'ls_sig_abc123');
+      const result = await controller.handleWebhook(req, 'provider_sig_abc123');
 
       expect(mockBillingService.handleWebhook).toHaveBeenCalledWith(
         rawBody,
-        'ls_sig_abc123',
+        'provider_sig_abc123',
       );
       expect(result).toEqual({ received: true });
     });

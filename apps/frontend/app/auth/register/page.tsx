@@ -8,7 +8,6 @@ import { Store } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
 import StepAccountCreation from '@/components/onboarding/StepAccountCreation';
-import StepAccountType from '@/components/onboarding/StepAccountType';
 import StepRestaurantInfo from '@/components/onboarding/StepRestaurantInfo';
 import StepPlanSelection from '@/components/onboarding/StepPlanSelection';
 import StepFinalization from '@/components/onboarding/StepFinalization';
@@ -16,7 +15,42 @@ import type { OnboardingData } from '@/types/onboarding';
 
 export type { OnboardingData };
 
-const STEP_LABELS = ['Compte', 'Profil', 'Restaurant', 'Forfait', 'Finalisation'];
+// Wizard à 4 étapes. La création de compte (étape 0) ouvre la session ; les
+// étapes Restaurant/Forfait n'accumulent que du state client ; la Finalisation
+// envoie tout au backend en une transaction unique.
+const STEP_LABELS = ['Compte', 'Restaurant', 'Forfait', 'Finalisation'];
+
+// Brouillon (draft) — permet de reprendre l'onboarding après un rechargement
+// ou une fermeture d'onglet SANS jamais persister de données définitives en base.
+const DRAFT_KEY = 'flashmenu_onboarding_draft';
+
+function loadDraft(): Partial<OnboardingData> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? (JSON.parse(raw) as Partial<OnboardingData>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveDraft(data: Partial<OnboardingData>) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(data));
+  } catch {
+    /* quota / mode privé — non bloquant */
+  }
+}
+
+function clearDraft() {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(DRAFT_KEY);
+  } catch {
+    /* non bloquant */
+  }
+}
 
 const variants = {
   enter: (dir: number) => ({
@@ -33,46 +67,59 @@ const variants = {
   }),
 };
 
+// Indices d'étapes (lisibilité)
+const STEP_ACCOUNT = 0;
+const STEP_RESTAURANT = 1;
+const STEP_PLAN = 2;
+const STEP_FINALIZE = 3;
+
 export default function RegisterPage() {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(STEP_ACCOUNT);
   const [dir, setDir] = useState(1);
   const [data, setData] = useState<Partial<OnboardingData>>({});
   const { user, isLoading } = useAuth();
   const router = useRouter();
   // Guard: prevent the redirect from firing more than once per mount.
-  // Without this, a stale auth state can create an infinite loop between
-  // /auth/register and /admin/dashboard when the server-side profile (DB)
-  // and the client-side auth state disagree briefly after login.
   const hasRedirected = useRef(false);
 
-  // Redirect or resume if already authenticated
+  // Reprise du brouillon au montage (données client uniquement).
+  useEffect(() => {
+    const draft = loadDraft();
+    if (Object.keys(draft).length > 0) {
+      setData((prev) => ({ ...draft, ...prev }));
+    }
+  }, []);
+
+  // Persiste le brouillon à chaque changement (hors étape de finalisation).
+  useEffect(() => {
+    if (step !== STEP_FINALIZE) saveDraft(data);
+  }, [data, step]);
+
+  // Redirection / reprise si déjà authentifié
   useEffect(() => {
     if (isLoading) return;
     if (!user) return;
-    // StepFinalization (step 4) gère sa propre redirection après l'animation.
-    if (step === 4) return;
+    // StepFinalization gère sa propre redirection après l'animation.
+    if (step === STEP_FINALIZE) return;
     if (user.onboardingCompleted) {
       if (!hasRedirected.current) {
         hasRedirected.current = true;
+        clearDraft();
         router.replace('/admin/dashboard');
       }
       return;
     }
-    // Resume from the saved step
-    const savedStep = user.onboardingStep ?? 0;
-    if (savedStep > 0 && step === 0) {
-      setStep(Math.min(savedStep, 4));
+    // Compte déjà créé (session ouverte) mais onboarding non terminé :
+    // reprendre directement à l'étape Restaurant.
+    if (step === STEP_ACCOUNT) {
+      setDir(1);
+      setStep(STEP_RESTAURANT);
     }
-  }, [user, isLoading, step]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, isLoading, step, router]);
 
   const goNext = (stepData: Partial<OnboardingData>) => {
     setData((prev) => ({ ...prev, ...stepData }));
     setDir(1);
-    // Multi-Manager / Franchise : pas de restaurant à créer, sauter au step de finalisation
-    if (step === 1 && stepData.accountType && stepData.accountType !== 'OWNER') {
-      setStep(4);
-      return;
-    }
     setStep((prev) => prev + 1);
   };
 
@@ -91,22 +138,25 @@ export default function RegisterPage() {
 
   const renderStep = () => {
     switch (step) {
-      case 0:
+      case STEP_ACCOUNT:
         return <StepAccountCreation onNext={goNext} />;
-      case 1:
-        return <StepAccountType onNext={goNext} onBack={goBack} />;
-      case 2:
+      case STEP_RESTAURANT:
         return <StepRestaurantInfo onNext={goNext} onBack={goBack} data={data} />;
-      case 3:
+      case STEP_PLAN:
         return <StepPlanSelection onNext={goNext} onBack={goBack} data={data} />;
-      case 4:
-        return <StepFinalization data={data as OnboardingData} />;
+      case STEP_FINALIZE:
+        return (
+          <StepFinalization
+            data={data as OnboardingData}
+            onComplete={clearDraft}
+          />
+        );
       default:
         return null;
     }
   };
 
-  const showProgress = step < 4;
+  const showProgress = step < STEP_FINALIZE;
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -171,11 +221,11 @@ export default function RegisterPage() {
           </div>
 
           {/* Footer note */}
-          {step === 0 && (
+          {step === STEP_ACCOUNT && (
             <p className="mt-4 text-center text-xs text-slate-400">
               En continuant, vous acceptez nos{' '}
               <Link href="#" className="text-slate-600 hover:underline">
-                Conditions d'utilisation
+                Conditions d&apos;utilisation
               </Link>{' '}
               et notre{' '}
               <Link href="#" className="text-slate-600 hover:underline">

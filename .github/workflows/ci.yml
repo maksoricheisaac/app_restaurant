@@ -11,7 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  PNPM_VERSION: "9"
+  # pnpm 10 : les pnpm-workspace.yaml des apps portent la config
+  # `onlyBuiltDependencies` (syntaxe pnpm 10). En pnpm 9, un pnpm-workspace.yaml
+  # sans champ `packages:` échoue avec « packages field missing or empty ».
+  PNPM_VERSION: "10"
   NODE_VERSION: "22"
 
 jobs:

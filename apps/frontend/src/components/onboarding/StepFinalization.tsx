@@ -10,17 +10,22 @@ import type { OnboardingData } from '@/types/onboarding';
 
 interface Props {
   data: OnboardingData;
-  /** Appelé une fois la finalisation réussie (ex: purge du brouillon localStorage). */
+  /** Appelé une fois l'inscription réussie (ex: purge du brouillon localStorage). */
   onComplete?: () => void;
 }
 
 const STEPS = [
-  { label: 'Création de votre espace restaurant', delay: 0 },
-  { label: 'Configuration de votre menu', delay: 900 },
-  { label: 'Mise en place de votre tableau de bord', delay: 1800 },
-  { label: 'Finalisation de votre compte', delay: 2700 },
+  { label: 'Création de votre compte', delay: 0 },
+  { label: 'Création de votre espace restaurant', delay: 900 },
+  { label: 'Configuration de votre menu', delay: 1800 },
+  { label: 'Mise en place de votre tableau de bord', delay: 2700 },
 ];
 
+/**
+ * Finalisation du plan GRATUIT — les plans payants passent par `StepPayment`.
+ * C'est ici (plan gratuit) que l'inscription complète (compte + restaurant) est
+ * réellement créée, en une transaction unique via `register`.
+ */
 export default function StepFinalization({ data, onComplete }: Props) {
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [currentLabel, setCurrentLabel] = useState(0);
@@ -28,11 +33,9 @@ export default function StepFinalization({ data, onComplete }: Props) {
   const [isDone, setIsDone] = useState(false);
   const { setUser } = useAuth();
   const router = useRouter();
-  // Garde-fou : la finalisation ne doit partir qu'UNE fois, même si React
+  // Garde-fou : l'inscription ne doit partir qu'UNE fois, même si React
   // (strict mode en dev, ou un remount) ré-exécute l'effet. Sans cela, deux
-  // appels concurrents à /onboarding/complete se courent après → 409 sur le
-  // slug. L'idempotence backend couvre le cas déjà terminé ; ce ref élimine
-  // la course à la source, côté client.
+  // appels concurrents à /onboarding/register se courent après → 409.
   const startedRef = useRef(false);
 
   useEffect(() => {
@@ -41,7 +44,7 @@ export default function StepFinalization({ data, onComplete }: Props) {
 
     const run = async () => {
       try {
-        // Start the animation sequence
+        // Séquence d'animation (purement cosmétique).
         STEPS.forEach((step, i) => {
           setTimeout(() => {
             setCurrentLabel(i);
@@ -49,57 +52,54 @@ export default function StepFinalization({ data, onComplete }: Props) {
           }, step.delay);
         });
 
-        // Provisionnement complet en une transaction (backend) — on envoie
-        // toutes les données accumulées par le wizard.
-        const result = await onboardingService.complete({
+        // Inscription complète (compte + restaurant) en UNE transaction backend
+        // — premier et seul moment où quoi que ce soit est écrit.
+        const result = await onboardingService.register({
+          firstName: data.firstName,
+          lastName: data.lastName,
+          email: data.email,
+          password: data.password,
           restaurantName: data.restaurantName,
           slug: data.slug,
           country: data.country,
           currency: data.currency,
           timezone: data.timezone,
           cuisineType: data.cuisineType,
-          plan: data.plan,
         });
 
-        if (result.success) {
-          // Update auth context (role='owner' + tenantId frais, sans reconnexion)
-          setUser(result.user as any);
+        if (!result.success) return;
 
-          // Store tenant info in localStorage (client-side api-client) AND as
-          // httpOnly cookies via /api/session (SSR proxy + layout).
-          if (result.tenant) {
-            if (typeof window !== 'undefined') {
-              localStorage.setItem('tenantId', result.tenant.id);
-              localStorage.setItem('tenantSlug', result.tenant.slug);
-            }
-            await fetch('/api/session', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                tenantId: result.tenant.id,
-                tenantSlug: result.tenant.slug,
-              }),
-            });
-          }
+        // Session immédiatement cohérente (role=owner + tenantId frais).
+        setUser(result.user as any);
 
-          // Onboarding réussi → purge du brouillon.
-          onComplete?.();
-
-          // Wait for animation to finish before redirect.
-          setTimeout(() => {
-            setIsDone(true);
-            setTimeout(() => {
-              // router.refresh() force le re-render du layout serveur /admin
-              // (Server Component) avec le profil/tenant à jour AVANT la
-              // navigation — élimine tout rendu périmé (permissions/sidebar)
-              // au premier affichage du dashboard, sans refresh manuel.
-              router.refresh();
-              router.push('/admin/dashboard');
-            }, 800);
-          }, 3600);
+        if (result.tenant && typeof window !== 'undefined') {
+          localStorage.setItem('tenantId', result.tenant.id);
+          localStorage.setItem('tenantSlug', result.tenant.slug);
+          await fetch('/api/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              tenantId: result.tenant.id,
+              tenantSlug: result.tenant.slug,
+            }),
+          });
         }
+
+        // Inscription réussie → purge du brouillon.
+        onComplete?.();
+
+        // Fin de l'animation puis redirection dashboard.
+        setTimeout(() => {
+          setIsDone(true);
+          setTimeout(() => {
+            // router.refresh() force le re-render du layout serveur /admin
+            // avec le profil/tenant à jour AVANT la navigation.
+            router.refresh();
+            router.push('/admin/dashboard');
+          }, 800);
+        }, 3600);
       } catch (err: any) {
-        setError(err.message || 'Une erreur est survenue lors de la finalisation');
+        setError(err.message || "Une erreur est survenue lors de l'inscription");
       }
     };
 
@@ -114,7 +114,7 @@ export default function StepFinalization({ data, onComplete }: Props) {
           <span className="text-2xl">⚠️</span>
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Erreur de finalisation</h2>
+          <h2 className="text-xl font-bold text-slate-900">Erreur lors de l&apos;inscription</h2>
           <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">{error}</p>
         </div>
         <button
@@ -162,7 +162,7 @@ export default function StepFinalization({ data, onComplete }: Props) {
           transition={{ delay: 0.2 }}
         >
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            {isDone ? `Bienvenue sur Flash Menu !` : 'Préparation de votre espace…'}
+            {isDone ? 'Bienvenue sur Flash Menu !' : 'Préparation de votre espace…'}
           </h1>
           {isDone && data.restaurantName && (
             <p className="mt-1 text-sm text-slate-500">

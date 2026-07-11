@@ -10,11 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { stepAccountCreationSchema, type StepAccountCreationInput } from '@/schemas/validation';
 import { onboardingService } from '@/services/onboarding.service';
-import { useAuth } from '@/contexts/AuthContext';
 import type { OnboardingData } from '@/types/onboarding';
 
 interface Props {
   onNext: (data: Partial<OnboardingData>) => void;
+  data: Partial<OnboardingData>;
 }
 
 const passwordRequirements = [
@@ -24,27 +24,38 @@ const passwordRequirements = [
   { label: 'Un chiffre', test: (v: string) => /\d/.test(v) },
 ];
 
-export default function StepAccountCreation({ onNext }: Props) {
+export default function StepAccountCreation({ onNext, data }: Props) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState('');
-  const { setUser } = useAuth();
 
   const form = useForm<StepAccountCreationInput>({
     resolver: zodResolver(stepAccountCreationSchema),
-    defaultValues: { firstName: '', lastName: '', email: '', password: '' },
+    defaultValues: {
+      firstName: (data.firstName as string) || '',
+      lastName: (data.lastName as string) || '',
+      email: (data.email as string) || '',
+      password: (data.password as string) || '',
+    },
     mode: 'onChange',
   });
 
   const password = form.watch('password');
 
+  // Aucune écriture en base ici : on vérifie seulement (lecture seule) que
+  // l'email n'est pas déjà pris pour donner un retour immédiat, puis on
+  // accumule les données du compte dans l'état du wizard. La création réelle
+  // du compte n'aura lieu qu'à la toute fin (transaction unique).
   const onSubmit = async (values: StepAccountCreationInput) => {
     setIsLoading(true);
     setApiError('');
     try {
-      const result = await onboardingService.initiate(values);
-      setUser(result.user as any);
-      onNext({ firstName: values.firstName, lastName: values.lastName, email: values.email });
+      const { available } = await onboardingService.checkEmail(values.email);
+      if (!available) {
+        setApiError('Cet email est déjà utilisé');
+        return;
+      }
+      onNext(values);
     } catch (err: any) {
       setApiError(err.message || 'Une erreur est survenue');
     } finally {

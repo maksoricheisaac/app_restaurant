@@ -1,4 +1,4 @@
-import type { CompleteOnboardingPayload } from '@/types/onboarding';
+import type { RegisterPayload } from '@/types/onboarding';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
 
@@ -18,35 +18,14 @@ async function handleResponse<T>(res: Response): Promise<T> {
   return data as T;
 }
 
-export interface InitiateRegistrationPayload {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-}
-
 export const onboardingService = {
   /**
-   * Étape 1 — crée le compte et ouvre une session (cookies posés par le backend).
-   * Seul appel « écrivant » du wizard avant la finalisation.
+   * Inscription complète en UN seul appel : le backend crée le compte ET le
+   * restaurant dans une transaction unique, puis ouvre la session (cookies).
+   * C'est le SEUL appel « écrivant » du parcours — rien n'est persisté avant.
    */
-  async initiate(payload: InitiateRegistrationPayload) {
-    const res = await apiFetch('/onboarding/initiate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-    return handleResponse<{ user: Record<string, unknown> }>(res);
-  },
-
-  /**
-   * Étape finale — envoie l'intégralité des données du restaurant. Le backend
-   * crée tenant + settings + membership + catégories en une transaction unique
-   * et renvoie les tokens frais (cookies), rendant la session immédiatement
-   * cohérente sans reconnexion.
-   */
-  async complete(payload: CompleteOnboardingPayload) {
-    const res = await apiFetch('/onboarding/complete', {
+  async register(payload: RegisterPayload) {
+    const res = await apiFetch('/onboarding/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -61,6 +40,12 @@ export const onboardingService = {
   /** Lecture seule — vérifie la disponibilité d'un slug (aucune écriture). */
   async checkSlug(slug: string): Promise<{ available: boolean }> {
     const res = await apiFetch(`/onboarding/check-slug?slug=${encodeURIComponent(slug)}`);
+    return handleResponse<{ available: boolean }>(res);
+  },
+
+  /** Lecture seule — vérifie qu'un email n'est pas déjà pris (aucune écriture). */
+  async checkEmail(email: string): Promise<{ available: boolean }> {
+    const res = await apiFetch(`/onboarding/check-email?email=${encodeURIComponent(email)}`);
     return handleResponse<{ available: boolean }>(res);
   },
 };

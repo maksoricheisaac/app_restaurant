@@ -58,9 +58,19 @@ test.describe('RBAC — API layer', () => {
       expect([400, 401]).toContain(res.status());
     });
 
-    test('POST /api/v1/onboarding/initiate — mot de passe trop faible → 400', async ({ request }) => {
-      const res = await request.post(`${API_BASE}/onboarding/initiate`, {
-        data: { firstName: 'Test', lastName: 'User', email: 'test@test.com', password: '123' },
+    test('POST /api/v1/onboarding/register — mot de passe trop faible → 400', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/onboarding/register`, {
+        data: {
+          firstName: 'Test',
+          lastName: 'User',
+          email: 'test@test.com',
+          password: '123',
+          restaurantName: 'Test Resto',
+          slug: 'test-resto',
+          country: 'FR',
+          currency: 'EUR',
+          timezone: 'Europe/Paris',
+        },
       });
       expect(res.status()).toBe(400);
     });

@@ -183,29 +183,31 @@ describe('Flash Menu E2E', () => {
   // ─── Onboarding initiation ────────────────────────────────────────────────
 
   describe('Onboarding', () => {
-    it('POST /api/v1/onboarding/initiate — 409 for existing email', async () => {
+    const validRegisterBody = {
+      firstName: 'Alice',
+      lastName: 'D',
+      email: 'exists@test.com',
+      password: 'Password@1',
+      restaurantName: 'Le Maquis',
+      slug: 'le-maquis',
+      country: 'FR',
+      currency: 'EUR',
+      timezone: 'Europe/Paris',
+    };
+
+    it('POST /api/v1/onboarding/register — 409 for existing email', async () => {
       prismaMock.user.findUnique.mockResolvedValue({ id: 'existing' });
 
       await request(app.getHttpServer())
-        .post('/api/v1/onboarding/initiate')
-        .send({
-          firstName: 'Alice',
-          lastName: 'D',
-          email: 'exists@test.com',
-          password: 'Password@1',
-        })
+        .post('/api/v1/onboarding/register')
+        .send(validRegisterBody)
         .expect(409);
     });
 
-    it('POST /api/v1/onboarding/initiate — 400 for weak password', async () => {
+    it('POST /api/v1/onboarding/register — 400 for weak password', async () => {
       await request(app.getHttpServer())
-        .post('/api/v1/onboarding/initiate')
-        .send({
-          firstName: 'Alice',
-          lastName: 'D',
-          email: 'alice@test.com',
-          password: 'weak',
-        })
+        .post('/api/v1/onboarding/register')
+        .send({ ...validRegisterBody, password: 'weak' })
         .expect(400);
     });
   });

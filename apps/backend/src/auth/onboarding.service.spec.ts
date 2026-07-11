@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { ConflictException } from '@nestjs/common';
 import { OnboardingService } from './onboarding.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
@@ -52,15 +52,42 @@ describe('OnboardingService', () => {
     onboardingCompleted: false,
   };
 
-  const completeDto = {
+  const registerDto = {
+    firstName: 'Alice',
+    lastName: 'Dupont',
+    email: 'alice@test.com',
+    password: 'Password@1',
     restaurantName: 'Le Maquis',
     slug: 'le-maquis',
     country: 'CG',
     currency: 'XAF',
     timezone: 'Africa/Brazzaville',
     cuisineType: 'Africaine',
-    plan: 'pro',
   };
+
+  /**
+   * Helper — câble un $transaction mock qui capture tous les appels effectués
+   * dans le callback (user.create → tenant.create → membership → catégories →
+   * user.update) et renvoie le tenant/user attendus.
+   */
+  function wireTransaction() {
+    const createdTenant = { id: 't1', slug: 'le-maquis', name: 'Le Maquis' };
+    const tx = {
+      user: {
+        create: jest.fn().mockResolvedValue({ ...baseUser }),
+        update: jest.fn().mockResolvedValue({
+          ...baseUser,
+          tenantId: 't1',
+          onboardingCompleted: true,
+        }),
+      },
+      tenant: { create: jest.fn().mockResolvedValue(createdTenant) },
+      tenantMembership: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
+      menuCategory: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
+    };
+    prisma.$transaction.mockImplementation((cb: any) => cb(tx));
+    return { tx, createdTenant };
+  }
 
   beforeEach(() => {
     prisma = createMockPrisma();
@@ -70,169 +97,52 @@ describe('OnboardingService', () => {
     mockMailService.sendEmailVerification.mockResolvedValue(undefined);
   });
 
-  // ─── initiateRegistration ──────────────────────────────────────────────────
+  // ─── register — provisionnement transactionnel unique ──────────────────────
 
-  describe('initiateRegistration', () => {
-    const dto = {
-      firstName: 'Alice',
-      lastName: 'Dupont',
-      email: 'alice@test.com',
-      password: 'Password@1',
-    };
-
-    it('creates user with emailVerified: false', async () => {
-      prisma.user.findUnique.mockResolvedValue(null); // no existing
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      await service.initiateRegistration(dto);
-
-      const createCall = prisma.user.create.mock.calls[0][0];
-      expect(createCall.data.emailVerified).toBe(false);
-    });
-
-    it('does NOT persist any restaurant/onboarding data at account creation', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      await service.initiateRegistration(dto);
-
-      const createCall = prisma.user.create.mock.calls[0][0];
-      // Aucune donnée d'onboarding intermédiaire ne doit être écrite ici.
-      expect(createCall.data.onboardingCompleted).toBe(false);
-      expect(createCall.data).not.toHaveProperty('accountType');
-      expect(createCall.data).not.toHaveProperty('onboardingStep');
-      expect(createCall.data).not.toHaveProperty('onboardingData');
-    });
-
-    it('creates user with emailVerificationToken', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      await service.initiateRegistration(dto);
-
-      const createCall = prisma.user.create.mock.calls[0][0];
-      expect(createCall.data.emailVerificationToken).toBeDefined();
-      expect(typeof createCall.data.emailVerificationToken).toBe('string');
-    });
-
-    it('sends verification email', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      await service.initiateRegistration(dto);
-
-      expect(mockMailService.sendEmailVerification).toHaveBeenCalledWith(
-        expect.objectContaining({ to: 'alice@test.com' }),
-      );
-    });
-
-    it('returns access_token and refresh_token', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      const result = await service.initiateRegistration(dto);
-
-      expect(result.access_token).toBeDefined();
-      expect(result.refresh_token).toBeDefined();
-      expect(result.user.email).toBe('alice@test.com');
-    });
-
-    it('throws ConflictException when email already exists', async () => {
+  describe('register', () => {
+    it('throws ConflictException when email already exists (no write attempted)', async () => {
       prisma.user.findUnique.mockResolvedValue(baseUser);
 
-      await expect(service.initiateRegistration(dto)).rejects.toThrow(
+      await expect(service.register(registerDto)).rejects.toThrow(
         ConflictException,
       );
-      expect(prisma.user.create).not.toHaveBeenCalled();
-    });
-
-    it('concatenates firstName + lastName for name field', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      await service.initiateRegistration({
-        ...dto,
-        firstName: 'Jean',
-        lastName: 'Martin',
-      });
-
-      const createCall = prisma.user.create.mock.calls[0][0];
-      expect(createCall.data.name).toBe('Jean Martin');
-    });
-
-    it('does NOT include password in returned user', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
-      prisma.refreshToken.findMany.mockResolvedValue([]);
-      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
-
-      const result = await service.initiateRegistration(dto);
-
-      expect((result.user as any).password).toBeUndefined();
-    });
-  });
-
-  // ─── completeOnboarding — provisionnement transactionnel ───────────────────
-
-  describe('completeOnboarding', () => {
-    it('throws NotFoundException when user not found', async () => {
-      prisma.user.findUnique.mockResolvedValue(null);
-      await expect(
-        service.completeOnboarding('ghost', completeDto),
-      ).rejects.toThrow(NotFoundException);
-    });
-
-    it('rejects a slug already used by an active tenant (before any write)', async () => {
-      prisma.user.findUnique.mockResolvedValue(baseUser);
-      prisma.tenant.findFirst.mockResolvedValue({ id: 'other-tenant' });
-
-      await expect(
-        service.completeOnboarding('u1', completeDto),
-      ).rejects.toThrow(ConflictException);
-      // Rien ne doit être créé si le slug est pris.
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
 
-    it('creates tenant + settings + owner membership + default categories in ONE transaction', async () => {
-      prisma.user.findUnique.mockResolvedValue(baseUser);
+    it('throws ConflictException when slug already taken (no write attempted)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.tenant.findFirst.mockResolvedValue({ id: 'other-tenant' });
+
+      await expect(service.register(registerDto)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('creates user + tenant + settings + owner membership + default categories in ONE transaction', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
       prisma.tenant.findFirst.mockResolvedValue(null);
       prisma.refreshToken.findMany.mockResolvedValue([]);
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+      const { tx, createdTenant } = wireTransaction();
 
-      const createdTenant = { id: 't1', slug: 'le-maquis', name: 'Le Maquis' };
-      const tx = {
-        tenant: { create: jest.fn().mockResolvedValue(createdTenant) },
-        tenantMembership: { create: jest.fn().mockResolvedValue({ id: 'm1' }) },
-        menuCategory: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
-        user: {
-          update: jest
-            .fn()
-            .mockResolvedValue({ ...baseUser, tenantId: 't1', onboardingCompleted: true }),
-        },
-      };
-      prisma.$transaction.mockImplementation((cb: any) => cb(tx));
+      const result = await service.register(registerDto);
 
-      const result = await service.completeOnboarding('u1', completeDto);
+      // Compte créé DANS la transaction (pas avant), non vérifié, sans tenant.
+      const userCreate = tx.user.create.mock.calls[0][0];
+      expect(userCreate.data.email).toBe('alice@test.com');
+      expect(userCreate.data.name).toBe('Alice Dupont');
+      expect(userCreate.data.emailVerified).toBe(false);
+      expect(userCreate.data.emailVerificationToken).toBeDefined();
+      expect(userCreate.data.onboardingCompleted).toBe(false);
 
-      // Tenant créé avec settings imbriqués + plan/devise/slug corrects
+      // Tenant TOUJOURS créé sur le plan free (upgrade payant via /billing).
       expect(tx.tenant.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             name: 'Le Maquis',
             slug: 'le-maquis',
-            plan: 'pro',
+            plan: 'free',
             currency: 'XAF',
             onboardingCompleted: true,
             settings: { create: { name: 'Le Maquis' } },
@@ -263,18 +173,45 @@ describe('OnboardingService', () => {
       expect(result.refresh_token).toBeDefined();
     });
 
-    it('is idempotent: returns current state without recreating when already completed', async () => {
-      prisma.user.findUnique.mockResolvedValue({
-        ...baseUser,
-        onboardingCompleted: true,
-        tenantId: 't1',
-      });
-      prisma.tenant.findUnique.mockResolvedValue({ id: 't1', slug: 'le-maquis' });
+    it('sends a verification email after successful registration', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.tenant.findFirst.mockResolvedValue(null);
+      prisma.refreshToken.findMany.mockResolvedValue([]);
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+      wireTransaction();
 
-      const result = await service.completeOnboarding('u1', completeDto);
+      await service.register(registerDto);
 
-      expect(result.alreadyCompleted).toBe(true);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(mockMailService.sendEmailVerification).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'alice@test.com' }),
+      );
+    });
+
+    it('still succeeds when the verification email fails (mail is best-effort)', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.tenant.findFirst.mockResolvedValue(null);
+      prisma.refreshToken.findMany.mockResolvedValue([]);
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+      wireTransaction();
+      mockMailService.sendEmailVerification.mockRejectedValueOnce(
+        new Error('SMTP down'),
+      );
+
+      const result = await service.register(registerDto);
+
+      expect(result.success).toBe(true);
+    });
+
+    it('does NOT include password in the returned user', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      prisma.tenant.findFirst.mockResolvedValue(null);
+      prisma.refreshToken.findMany.mockResolvedValue([]);
+      prisma.refreshToken.create.mockResolvedValue({ id: 'rt1' });
+      wireTransaction();
+
+      const result = await service.register(registerDto);
+
+      expect((result.user as any).password).toBeUndefined();
     });
   });
 
@@ -302,12 +239,28 @@ describe('OnboardingService', () => {
     });
   });
 
+  // ─── checkEmailAvailability ───────────────────────────────────────────────
+
+  describe('checkEmailAvailability', () => {
+    it('returns { available: true } when email is free', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+      const result = await service.checkEmailAvailability('new@test.com');
+      expect(result).toEqual({ available: true });
+    });
+
+    it('returns { available: false } when email is already used', async () => {
+      prisma.user.findUnique.mockResolvedValue(baseUser);
+      const result = await service.checkEmailAvailability('alice@test.com');
+      expect(result).toEqual({ available: false });
+    });
+  });
+
   // ─── Refresh token management ─────────────────────────────────────────────
 
   describe('refresh token management', () => {
     it('deletes oldest tokens when limit of 5 is reached', async () => {
       prisma.user.findUnique.mockResolvedValue(null);
-      prisma.user.create.mockResolvedValue(baseUser);
+      prisma.tenant.findFirst.mockResolvedValue(null);
       // Simulate 5 existing tokens (limit is 5 → should delete oldest)
       prisma.refreshToken.findMany.mockResolvedValue([
         { id: 'rt-old-1' },
@@ -318,13 +271,9 @@ describe('OnboardingService', () => {
       ]);
       prisma.refreshToken.deleteMany.mockResolvedValue({ count: 1 });
       prisma.refreshToken.create.mockResolvedValue({ id: 'rt-new' });
+      wireTransaction();
 
-      await service.initiateRegistration({
-        firstName: 'Alice',
-        lastName: 'Dupont',
-        email: 'alice@test.com',
-        password: 'Password@1',
-      });
+      await service.register(registerDto);
 
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalled();
     });

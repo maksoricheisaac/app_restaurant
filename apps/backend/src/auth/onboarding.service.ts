@@ -3,16 +3,15 @@ import {
   ConflictException,
   InternalServerErrorException,
   Logger,
-  NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { InitiateRegistrationDto } from './dto/initiate-registration.dto';
-import { CompleteOnboardingDto } from './dto/complete-onboarding.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class OnboardingService {
@@ -84,18 +83,46 @@ export class OnboardingService {
   }
 
   /**
-   * Étape 1 — Création du compte.
+   * Inscription complète — UNIQUE point d'écriture de tout le parcours.
    *
-   * C'est le SEUL point de l'onboarding qui écrit en base pendant l'assistant :
-   * il faut bien créer le User pour pouvoir l'authentifier immédiatement (le
-   * reste du wizard se fait sous session). Aucune donnée « restaurant » n'est
-   * persistée ici — elle reste côté client jusqu'à `completeOnboarding`.
+   * Reçoit l'intégralité des données du wizard (compte + restaurant), accumulées
+   * côté client, et provisionne TOUT en une transaction Prisma unique et
+   * atomique :
+   *   User + Tenant + RestaurantSettings + TenantMembership(owner) + catégories.
+   *
+   * Aucune donnée — le compte inclus — n'existe en base tant que l'utilisateur
+   * n'a pas terminé le wizard. En cas d'échec à n'importe quelle étape →
+   * rollback complet, aucune trace partielle (pas de compte « fantôme »).
+   *
+   * Le tenant est créé sur le plan `free`. La souscription à un plan payant est
+   * gérée juste après par le checkout `/billing/*` (upgrade via webhook), afin
+   * de ne jamais accorder l'accès à un plan payant avant paiement effectif.
    */
-  async initiateRegistration(dto: InitiateRegistrationDto) {
-    const { firstName, lastName, email, password } = dto;
+  async register(dto: RegisterDto) {
+    const {
+      firstName,
+      lastName,
+      email,
+      password,
+      restaurantName,
+      slug,
+      country,
+      currency,
+      timezone,
+      cuisineType,
+    } = dto;
 
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) throw new ConflictException('Cet email est déjà utilisé');
+    // Feedback rapide (hors transaction) — l'unicité réelle reste garantie par
+    // les contraintes d'unicité (email) / index partiel (slug) plus bas.
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (existingUser) throw new ConflictException('Cet email est déjà utilisé');
+
+    const existingTenant = await this.prisma.tenant.findFirst({
+      where: { slug, deletedAt: null },
+    });
+    if (existingTenant) throw new ConflictException('Ce slug est déjà utilisé');
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const fullName = `${firstName} ${lastName}`;
@@ -109,137 +136,80 @@ export class OnboardingService {
     verificationExpiry.setHours(verificationExpiry.getHours() + 24);
 
     try {
-      const user = await this.prisma.user.create({
-        data: {
+      const { tenant, user } = await this.prisma.$transaction(async (tx) => {
+        const user = await tx.user.create({
+          data: {
+            name: fullName,
+            firstName,
+            lastName,
+            email,
+            password: hashedPassword,
+            emailVerified: false,
+            emailVerificationToken: verificationTokenHash,
+            emailVerificationExpiry: verificationExpiry,
+            onboardingCompleted: false,
+          },
+        });
+
+        const tenant = await tx.tenant.create({
+          data: {
+            name: restaurantName,
+            slug,
+            plan: 'free' as any,
+            status: 'active' as any,
+            country: country || null,
+            currency: currency || 'EUR',
+            timezone: timezone || 'Europe/Paris',
+            cuisineType: cuisineType || null,
+            onboardingCompleted: true,
+            settings: { create: { name: restaurantName } },
+          },
+        });
+
+        await tx.tenantMembership.create({
+          data: { tenantId: tenant.id, userId: user.id, role: 'owner' },
+        });
+
+        await tx.menuCategory.createMany({
+          data: [
+            { name: 'Entrées', tenantId: tenant.id },
+            { name: 'Plats', tenantId: tenant.id },
+            { name: 'Desserts', tenantId: tenant.id },
+            { name: 'Boissons', tenantId: tenant.id },
+          ],
+        });
+
+        const updatedUser = await tx.user.update({
+          where: { id: user.id },
+          data: { tenantId: tenant.id, onboardingCompleted: true },
+        });
+
+        return { tenant, user: updatedUser };
+      });
+
+      // Email de vérification — best-effort : la transaction est déjà validée,
+      // une panne mail ne doit pas faire échouer une inscription réussie.
+      try {
+        const frontendUrl =
+          this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4000';
+        const verifyUrl = `${frontendUrl}/auth/verify-email?token=${rawVerificationToken}`;
+        await this.mailService.sendEmailVerification({
+          to: email,
           name: fullName,
-          firstName,
-          lastName,
-          email,
-          password: hashedPassword,
-          emailVerified: false,
-          emailVerificationToken: verificationTokenHash,
-          emailVerificationExpiry: verificationExpiry,
-          onboardingCompleted: false,
-        },
-      });
-
-      const frontendUrl =
-        this.config.get<string>('FRONTEND_URL') ?? 'http://localhost:4000';
-      const verifyUrl = `${frontendUrl}/auth/verify-email?token=${rawVerificationToken}`;
-      await this.mailService.sendEmailVerification({
-        to: email,
-        name: fullName,
-        verifyUrl,
-      });
-
-      const access_token = this.buildAccessToken(user);
-      const refresh_token = await this.issueRefreshToken(user.id);
-
-      return {
-        access_token,
-        refresh_token,
-        user: { ...this.sanitizeUser(user), role: null },
-      };
-    } catch (error) {
-      if (error instanceof ConflictException) throw error;
-      this.logger.error(
-        'initiateRegistration error',
-        error instanceof Error ? error.message : String(error),
-      );
-      throw new InternalServerErrorException(
-        'Erreur lors de la création du compte',
-      );
-    }
-  }
-
-  /**
-   * Étape finale — Provisionnement complet du restaurant.
-   *
-   * Reçoit l'intégralité des données du wizard (accumulées côté client) et crée
-   * TOUT en une transaction Prisma unique et atomique :
-   *   Tenant + RestaurantSettings + TenantMembership(owner) + catégories par défaut.
-   * En cas d'échec à n'importe quelle étape → rollback complet, aucune donnée
-   * partielle ne subsiste. Un nouveau couple de tokens (avec le tenantId frais)
-   * est émis pour que la session soit immédiatement cohérente sans reconnexion.
-   *
-   * NB : le « type de compte » (OWNER) n'est plus un choix — tout utilisateur qui
-   * termine l'onboarding crée son restaurant et en devient OWNER. Le
-   * multi-restaurants / la franchise dépendront du plan (voir plans.config.ts,
-   * feature `multiSite`), pas d'un type de compte figé à l'inscription.
-   */
-  async completeOnboarding(userId: string, dto: CompleteOnboardingDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) throw new NotFoundException('Utilisateur non trouvé');
-
-    // Idempotence : si l'onboarding est déjà terminé (double-clic, retry réseau),
-    // renvoyer l'état courant sans rien recréer.
-    if (user.onboardingCompleted && user.tenantId) {
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: user.tenantId },
-      });
-      return {
-        success: true,
-        alreadyCompleted: true,
-        tenant,
-        user: { ...this.sanitizeUser(user), role: 'owner' },
-      };
-    }
-
-    // Vérification d'unicité du slug hors transaction (feedback d'erreur rapide).
-    // L'unicité réelle est garantie par l'index partiel `WHERE deletedAt IS NULL`.
-    const existingTenant = await this.prisma.tenant.findFirst({
-      where: { slug: dto.slug, deletedAt: null },
-    });
-    if (existingTenant) throw new ConflictException('Ce slug est déjà utilisé');
-
-    try {
-      const { tenant, updatedUser } = await this.prisma.$transaction(
-        async (tx) => {
-          const tenant = await tx.tenant.create({
-            data: {
-              name: dto.restaurantName,
-              slug: dto.slug,
-              plan: (dto.plan || 'free') as any,
-              status: 'active' as any,
-              country: dto.country || null,
-              currency: dto.currency || 'EUR',
-              timezone: dto.timezone || 'Europe/Paris',
-              cuisineType: dto.cuisineType || null,
-              onboardingCompleted: true,
-              settings: { create: { name: dto.restaurantName } },
-            },
-          });
-
-          await tx.tenantMembership.create({
-            data: { tenantId: tenant.id, userId, role: 'owner' },
-          });
-
-          await tx.menuCategory.createMany({
-            data: [
-              { name: 'Entrées', tenantId: tenant.id },
-              { name: 'Plats', tenantId: tenant.id },
-              { name: 'Desserts', tenantId: tenant.id },
-              { name: 'Boissons', tenantId: tenant.id },
-            ],
-          });
-
-          const updatedUser = await tx.user.update({
-            where: { id: userId },
-            data: {
-              tenantId: tenant.id,
-              onboardingCompleted: true,
-            },
-          });
-
-          return { tenant, updatedUser };
-        },
-      );
+          verifyUrl,
+        });
+      } catch (mailError) {
+        this.logger.error(
+          'register: échec envoi email de vérification (inscription conservée)',
+          mailError instanceof Error ? mailError.message : String(mailError),
+        );
+      }
 
       const access_token = this.buildAccessToken({
-        ...updatedUser,
+        ...user,
         tenantId: tenant.id,
       });
-      const refresh_token = await this.issueRefreshToken(userId);
+      const refresh_token = await this.issueRefreshToken(user.id);
 
       return {
         success: true,
@@ -247,18 +217,28 @@ export class OnboardingService {
         refresh_token,
         tenant,
         user: {
-          ...this.sanitizeUser(updatedUser),
+          ...this.sanitizeUser(user),
           tenantId: tenant.id,
           role: 'owner',
         },
       };
     } catch (error) {
       if (error instanceof ConflictException) throw error;
+      // Course sur une contrainte d'unicité (email/slug) entre le pré-check et
+      // le commit — renvoyer un 409 explicite plutôt qu'un 500 opaque.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictException('Cet email ou ce slug est déjà utilisé');
+      }
       this.logger.error(
-        'completeOnboarding error',
+        'register error',
         error instanceof Error ? error.message : String(error),
       );
-      throw new InternalServerErrorException('Erreur lors de la finalisation');
+      throw new InternalServerErrorException(
+        "Erreur lors de la création du compte",
+      );
     }
   }
 
@@ -266,6 +246,11 @@ export class OnboardingService {
     const existing = await this.prisma.tenant.findFirst({
       where: { slug, deletedAt: null },
     });
+    return { available: !existing };
+  }
+
+  async checkEmailAvailability(email: string) {
+    const existing = await this.prisma.user.findUnique({ where: { email } });
     return { available: !existing };
   }
 }

@@ -1,8 +1,7 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Zap, ArrowRight, ArrowLeft, Sparkles, Building } from 'lucide-react';
+import { Check, Zap, ArrowLeft, ArrowRight, Sparkles, Building, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { OnboardingData } from '@/types/onboarding';
 import { PLANS } from '@/config/plans';
@@ -18,34 +17,34 @@ const PLAN_UI: Record<PlanId, {
   icon: typeof Zap;
   iconBg: string;
   iconColor: string;
-  borderSelected: string;
+  hoverBorder: string;
 }> = {
   free: {
     icon: Zap,
     iconBg: 'bg-slate-100',
     iconColor: 'text-slate-600',
-    borderSelected: 'border-slate-400',
+    hoverBorder: 'hover:border-slate-400',
   },
   pro: {
     icon: Sparkles,
     iconBg: 'bg-primary/10',
     iconColor: 'text-primary',
-    borderSelected: 'border-primary',
+    hoverBorder: 'hover:border-primary',
   },
   enterprise: {
     icon: Building,
     iconBg: 'bg-violet-50',
     iconColor: 'text-violet-600',
-    borderSelected: 'border-violet-400',
+    hoverBorder: 'hover:border-violet-400',
   },
 };
 
-export default function StepPlanSelection({ onNext, onBack, data: _data }: Props) {
-  const [selected, setSelected] = useState<PlanId>('pro');
-
-  const handleContinue = () => {
-    // Aucune écriture en base : on accumule le plan choisi dans l'état du wizard.
-    onNext({ plan: selected });
+export default function StepPlanSelection({ onNext, onBack }: Props) {
+  // Choisir un plan = valider directement l'étape : on redirige aussitôt vers
+  // la suite (finalisation pour le plan gratuit, page de paiement pour un plan
+  // payant). Aucune écriture en base — seul le plan choisi est accumulé.
+  const handleSelect = (plan: PlanId) => {
+    onNext({ plan });
   };
 
   return (
@@ -55,7 +54,7 @@ export default function StepPlanSelection({ onNext, onBack, data: _data }: Props
           Choisissez votre forfait
         </h1>
         <p className="text-sm text-slate-500">
-          Changez de plan à tout moment. Sans engagement.
+          Sélectionnez un plan pour continuer. Changez à tout moment, sans engagement.
         </p>
       </div>
 
@@ -63,8 +62,8 @@ export default function StepPlanSelection({ onNext, onBack, data: _data }: Props
         {PLANS.map((plan, i) => {
           const ui = PLAN_UI[plan.id];
           const Icon = ui.icon;
-          const isSelected = selected === plan.id;
           const isDisabled = !!plan.comingSoon;
+          const isPaid = plan.monthlyPrice > 0;
 
           return (
             <motion.button
@@ -72,14 +71,12 @@ export default function StepPlanSelection({ onNext, onBack, data: _data }: Props
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.07 }}
-              onClick={() => !isDisabled && setSelected(plan.id)}
+              onClick={() => !isDisabled && handleSelect(plan.id)}
               disabled={isDisabled}
-              className={`relative w-full text-left rounded-xl border-2 p-4 transition-all duration-200 ${
+              className={`group relative w-full text-left rounded-xl border-2 p-4 transition-all duration-200 ${
                 isDisabled
                   ? 'border-dashed border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
-                  : isSelected
-                  ? `${ui.borderSelected} bg-white shadow-md`
-                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
+                  : `border-slate-200 bg-white hover:shadow-md ${ui.hoverBorder}`
               }`}
             >
               {plan.comingSoon ? (
@@ -121,19 +118,25 @@ export default function StepPlanSelection({ onNext, onBack, data: _data }: Props
                       </div>
                     ))}
                   </div>
-                </div>
 
-                <div className={`mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 flex items-center justify-center transition-colors ${
-                  isSelected ? 'border-primary bg-primary' : 'border-slate-300'
-                }`}>
-                  {isSelected && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      className="h-1.5 w-1.5 rounded-full bg-white"
-                    />
+                  {!isDisabled && (
+                    <div className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-primary opacity-0 transition-opacity group-hover:opacity-100">
+                      {isPaid ? (
+                        <>
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Continuer vers le paiement
+                        </>
+                      ) : (
+                        <>
+                          Créer mon restaurant
+                          <ArrowRight className="h-3.5 w-3.5" />
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
+
+                <ArrowRight className={`mt-0.5 h-4 w-4 shrink-0 text-slate-300 transition-all group-hover:translate-x-0.5 ${isDisabled ? 'hidden' : 'group-hover:text-primary'}`} />
               </div>
             </motion.button>
           );
@@ -141,25 +144,18 @@ export default function StepPlanSelection({ onNext, onBack, data: _data }: Props
       </div>
 
       <p className="text-center text-xs text-slate-400">
-        Les plans payants seront activés après configuration de votre moyen de paiement.
+        Le plan gratuit démarre immédiatement. Les plans payants passent par un paiement sécurisé.
       </p>
 
-      <div className="flex gap-3">
+      <div className="flex">
         <Button
           type="button"
           variant="outline"
           onClick={onBack}
           className="h-11 px-4 border-slate-200 text-slate-600 hover:bg-slate-50"
         >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <Button
-          type="button"
-          onClick={handleContinue}
-          className="flex-1 h-11 bg-primary hover:bg-primary/90 text-white font-semibold shadow-lg shadow-primary/20 transition-all hover:-translate-y-0.5 active:translate-y-0"
-        >
-          Créer mon restaurant
-          <ArrowRight className="ml-2 h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Retour
         </Button>
       </div>
     </div>

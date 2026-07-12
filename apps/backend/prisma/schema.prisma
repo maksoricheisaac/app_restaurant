@@ -18,7 +18,11 @@ model Tenant {
   // au lieu de les squatter indéfiniment. Voir migration
   // add_tenant_soft_delete_partial_unique_constraints.
   slug         String       // Utilisé pour {slug}.flashmenu.app
-  plan         TenantPlan   @default(free)
+  // Clé du plan (Plan.key) — plus une enum figée : les plans sont désormais
+  // pilotés par les données (table Plan), administrables depuis le Super Admin.
+  // Couplage lâche par clé (pas de FK dure) pour qu'un plan puisse être
+  // désactivé/soft-deleted sans bloquer les tenants qui y sont rattachés.
+  plan         String       @default("free")
   status       TenantStatus @default(active)
   logo             String?
   logoPathname     String?   // Blob pathname for cleanup on replace/delete
@@ -75,6 +79,48 @@ model Tenant {
   userPermissions     UserPermission[]
 
   @@index([slug])
+  @@index([deletedAt])
+}
+
+/// Plan d'abonnement piloté par les données. Source de vérité UNIQUE des
+/// prix, limites, features et méta-marketing des offres. Administrable
+/// entièrement depuis le Super Admin (CRUD). Tenant.plan référence `key`.
+///
+/// Convention limites : `-1` = illimité. Le backend convertit vers le
+/// sentinel applicatif (UNLIMITED) au moment de la lecture.
+model Plan {
+  id           String  @id @default(uuid())
+  key          String  @unique // 'free' | 'pro' | 'enterprise' | clé custom
+  name         String
+  tagline      String?
+  description  String?
+
+  monthlyPrice Int     @default(0) // unités majeures de la devise (ex: euros)
+  annualPrice  Int     @default(0)
+  currency     String  @default("EUR")
+
+  // Limites (-1 = illimité)
+  maxMenuItems     Int @default(-1)
+  maxTables        Int @default(-1)
+  maxStaffMembers  Int @default(-1)
+  maxMonthlyOrders Int @default(-1)
+
+  // Fonctionnalités : map extensible { kds, advancedReports, apiAccess,
+  // multiSite, customBranding, ... }. JSON pour ajouter une feature sans
+  // migration de schéma.
+  features   Json     @default("{}")
+  highlights String[] // arguments marketing (page pricing / onboarding)
+
+  badge     String? // ex: "Le plus populaire"
+  isActive  Boolean @default(true) // souscriptible / applique ses limites
+  isPublic  Boolean @default(true) // visible pricing + onboarding
+  sortOrder Int     @default(0)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime? // Soft delete — un plan référencé n'est jamais supprimé physiquement
+
+  @@index([isActive, isPublic])
   @@index([deletedAt])
 }
 
@@ -636,12 +682,6 @@ model StockMovement {
   order      Order?     @relation(fields: [orderId], references: [id])
 
   @@index([tenantId])
-}
-
-enum TenantPlan {
-  free
-  pro
-  enterprise
 }
 
 enum TenantStatus {

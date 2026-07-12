@@ -22,7 +22,8 @@ export interface OnboardingData {
   currency: string;
   timezone: string;
   cuisineType?: string;
-  plan: 'free' | 'pro' | 'enterprise';
+  /** Clé du plan choisi (data-driven — voir /plans/catalog). */
+  plan: string;
 }
 
 /** Payload d'inscription envoyé au backend (compte + restaurant, sans le plan). */

@@ -1,10 +1,4 @@
-import {
-  IsString,
-  IsNotEmpty,
-  Matches,
-  IsEnum,
-  IsOptional,
-} from 'class-validator';
+import { IsString, IsNotEmpty, Matches, IsOptional } from 'class-validator';
 
 export class CreateTenantDto {
   @IsString()
@@ -18,7 +12,10 @@ export class CreateTenantDto {
   })
   slug: string;
 
+  // La clé du plan est validée dynamiquement contre la table Plan (data-driven),
+  // et non plus contre une enum figée.
   @IsOptional()
-  @IsEnum(['free', 'pro', 'enterprise'])
+  @IsString()
+  @Matches(/^[a-z0-9-]+$/, { message: 'Clé de plan invalide' })
   plan?: string;
 }

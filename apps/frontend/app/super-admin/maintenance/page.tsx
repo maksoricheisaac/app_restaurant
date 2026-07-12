@@ -1,172 +1,170 @@
 'use client';
 
-import { useState } from 'react';
 import {
-  ShieldCheck,
-  Database,
-  Zap,
-  RefreshCw,
-  Activity,
-  Cpu,
-  HardDrive,
-  Wifi,
-  Terminal,
-  Trash2,
-  Clock,
+  Database, Zap, Activity, Cpu, HardDrive, RefreshCw, Clock, CheckCircle2,
+  AlertTriangle, XCircle, Server, Loader2,
 } from 'lucide-react';
-import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
+import { useHealth } from '@/hooks/api/useHealth';
+
+type StatusKind = 'ok' | 'warn' | 'error' | 'muted';
+
+function StatusDot({ kind }: { kind: StatusKind }) {
+  const color =
+    kind === 'ok' ? 'bg-emerald-500'
+    : kind === 'warn' ? 'bg-amber-500'
+    : kind === 'error' ? 'bg-red-500'
+    : 'bg-slate-400';
+  return <span className={cn('h-2 w-2 rounded-full', color)} />;
+}
+
+function statusIcon(kind: StatusKind) {
+  if (kind === 'ok') return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+  if (kind === 'warn') return <AlertTriangle className="h-4 w-4 text-amber-500" />;
+  if (kind === 'error') return <XCircle className="h-4 w-4 text-red-500" />;
+  return <Clock className="h-4 w-4 text-muted-foreground" />;
+}
+
+function formatUptime(seconds: number) {
+  const d = Math.floor(seconds / 86400);
+  const h = Math.floor((seconds % 86400) / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  if (d > 0) return `${d}j ${h}h ${m}m`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
 
 export default function MaintenancePage() {
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [loading, setLoading] = useState<string | null>(null);
+  const { data: health, isLoading, refetch, isFetching } = useHealth();
 
-  const handleAction = async (action: string, label: string) => {
-    setLoading(action);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(null);
-    toast.success(`${label} effectué avec succès.`);
-  };
+  const dbKind: StatusKind = health?.checks.database.status === 'ok' ? 'ok' : 'error';
+  const redisKind: StatusKind =
+    health?.checks.redis.status === 'ok' ? 'ok'
+    : health?.checks.redis.status === 'error' ? 'error'
+    : 'muted';
+  const memKind: StatusKind = health?.checks.memory.status === 'ok' ? 'ok' : 'warn';
+
+  const services: { icon: typeof Zap; label: string; kind: StatusKind; detail: string }[] = [
+    {
+      icon: Database,
+      label: 'Base de données',
+      kind: dbKind,
+      detail: health?.checks.database.latencyMs != null ? `${health.checks.database.latencyMs} ms` : '—',
+    },
+    {
+      icon: HardDrive,
+      label: 'Redis',
+      kind: redisKind,
+      detail:
+        health?.checks.redis.status === 'not_configured'
+          ? 'Non configuré'
+          : health?.checks.redis.latencyMs != null
+          ? `${health.checks.redis.latencyMs} ms`
+          : '—',
+    },
+    {
+      icon: Cpu,
+      label: 'Mémoire',
+      kind: memKind,
+      detail: health ? `${health.checks.memory.heapUsedMb} / ${health.checks.memory.heapTotalMb} Mo` : '—',
+    },
+    {
+      icon: Server,
+      label: 'Processus API',
+      kind: 'ok',
+      detail: health ? `Node ${health.checks.process.nodeVersion}` : '—',
+    },
+  ];
+
+  const globalOk = health?.status === 'ok';
 
   return (
     <div className="space-y-6 pb-8">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight">Maintenance</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Surveillance du système et actions de maintenance.
+          <h2 className="text-2xl font-bold tracking-tight">Maintenance & Santé</h2>
+          <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-2">
+            {isLoading ? (
+              <>Chargement de l&apos;état…</>
+            ) : (
+              <>
+                <StatusDot kind={globalOk ? 'ok' : 'warn'} />
+                {globalOk ? 'Tous les services sont opérationnels.' : 'Un ou plusieurs services sont dégradés.'}
+              </>
+            )}
           </p>
         </div>
+        <button
+          onClick={() => refetch()}
+          disabled={isFetching}
+          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted/40 disabled:opacity-60"
+        >
+          <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+          Rafraîchir
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* État des services — placeholder en attendant l'API health */}
-        <div className="lg:col-span-2 space-y-3">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            État des services
-          </p>
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex flex-col items-center justify-center py-14 gap-3 text-center px-6">
-              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                <Activity className="h-6 w-6 text-muted-foreground/40" />
-              </div>
-              <div>
-                <p className="font-semibold text-sm text-foreground">
-                  Monitoring bientôt disponible
-                </p>
-                <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                  Les statuts et latences en temps réel seront disponibles via
-                  l&apos;endpoint <span className="font-mono">/health</span> de l&apos;API.
-                </p>
-              </div>
-              <div className="flex flex-wrap justify-center gap-4 pt-1 text-[11px] text-muted-foreground">
-                {[
-                  { icon: Zap,      label: 'API Backend' },
-                  { icon: Database, label: 'Base de données' },
-                  { icon: HardDrive,label: 'CDN / Fichiers' },
-                  { icon: Wifi,     label: 'Service Email' },
-                  { icon: Activity, label: 'Paiements' },
-                  { icon: Cpu,      label: 'WebSockets' },
-                ].map(({ icon: Icon, label }) => (
-                  <div key={label} className="flex items-center gap-1.5">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground/60" />
-                    <span>{label}</span>
+      {isLoading ? (
+        <div className="flex items-center justify-center py-24">
+          <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+        </div>
+      ) : (
+        <>
+          {/* État des services — données réelles /health */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+              État des services
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {services.map((s) => {
+                const Icon = s.icon;
+                return (
+                  <div key={s.label} className="flex items-center justify-between rounded-xl border border-border bg-card px-4 py-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-muted">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">{s.label}</p>
+                        <p className="text-xs text-muted-foreground">{s.detail}</p>
+                      </div>
+                    </div>
+                    {statusIcon(s.kind)}
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Quick actions */}
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pt-2">
-            Actions rapides
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Métriques système réelles */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { id: 'cache',  label: 'Vider le cache',        icon: Trash2,   color: 'text-red-500' },
-              { id: 'db',     label: 'Sauvegarder la DB',     icon: Database, color: 'text-blue-500' },
-              { id: 'reload', label: 'Redémarrer les workers', icon: RefreshCw,color: 'text-violet-500' },
-            ].map((a) => {
-              const Icon = a.icon;
+              { icon: Clock, label: 'Uptime', value: health ? formatUptime(health.uptime) : '—' },
+              { icon: Activity, label: 'Environnement', value: health?.checks.process.env ?? '—' },
+              { icon: Cpu, label: 'RSS', value: health ? `${health.checks.memory.rssMb} Mo` : '—' },
+              { icon: Server, label: 'PID', value: health ? String(health.checks.process.pid) : '—' },
+            ].map((m) => {
+              const Icon = m.icon;
               return (
-                <button
-                  key={a.id}
-                  onClick={() => handleAction(a.id, a.label)}
-                  disabled={loading !== null}
-                  className="bg-card border border-border rounded-xl p-4 text-left hover:border-border/60 hover:shadow-sm transition-all group disabled:opacity-60"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    {loading === a.id
-                      ? <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
-                      : <Icon className={cn('h-4 w-4', a.color)} />
-                    }
+                <div key={m.label} className="rounded-xl border border-border bg-card px-4 py-3">
+                  <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className="text-[11px] uppercase tracking-wider font-medium">{m.label}</span>
                   </div>
-                  <p className="text-sm font-semibold text-foreground">{a.label}</p>
-                </button>
+                  <p className="text-lg font-bold text-foreground tabular-nums">{m.value}</p>
+                </div>
               );
             })}
           </div>
-        </div>
 
-        {/* Right column */}
-        <div className="space-y-4">
-          {/* Maintenance mode toggle */}
-          <div className="rounded-xl border border-border bg-card shadow-xs p-5">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className={cn(
-                  'p-2 rounded-lg',
-                  maintenanceMode ? 'bg-amber-50 dark:bg-amber-950/30' : 'bg-muted'
-                )}>
-                  <ShieldCheck className={cn(
-                    'h-5 w-5',
-                    maintenanceMode ? 'text-amber-600' : 'text-muted-foreground'
-                  )} />
-                </div>
-                <div>
-                  <p className="font-semibold text-foreground text-sm">Mode maintenance</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {maintenanceMode
-                      ? 'La plateforme est inaccessible aux clients.'
-                      : 'La plateforme est en ligne.'}
-                  </p>
-                </div>
-              </div>
-              <Switch
-                checked={maintenanceMode}
-                onCheckedChange={(v) => {
-                  setMaintenanceMode(v);
-                  toast[v ? 'warning' : 'success'](
-                    v ? 'Mode maintenance activé.' : 'Mode maintenance désactivé.'
-                  );
-                }}
-              />
-            </div>
-            {maintenanceMode && (
-              <div className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-100 dark:border-amber-900 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 font-medium">
-                ⚠️ Les restaurants ne peuvent plus recevoir de commandes.
-              </div>
-            )}
-          </div>
-
-          {/* Journal — placeholder */}
-          <div className="rounded-xl border border-border bg-card shadow-xs overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-              <Terminal className="h-4 w-4 text-muted-foreground" />
-              <p className="text-sm font-semibold text-foreground">Journal système</p>
-            </div>
-            <div className="flex flex-col items-center justify-center py-10 gap-2 text-center px-4">
-              <Clock className="h-6 w-6 text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground">
-                Le journal d&apos;événements sera disponible via
-                l&apos;endpoint <span className="font-mono">/admin/logs</span>.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+          {health && (
+            <p className="text-xs text-muted-foreground">
+              Dernière mesure : {new Date(health.timestamp).toLocaleString('fr-FR')} · actualisé automatiquement toutes les 15 s.
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }

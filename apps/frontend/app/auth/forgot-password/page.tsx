@@ -7,24 +7,10 @@ import { z } from 'zod';
 import api from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardFooter,
-} from '@/components/ui/card';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
-import { Mail, ArrowLeft, Loader2, CheckCircle } from 'lucide-react';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Mail, ArrowLeft, Loader2, CheckCircle2, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
+import { AuthShell } from '@/components/customs/public/auth/auth-shell';
 
 const schema = z.object({
   email: z.string().email('Email invalide'),
@@ -53,100 +39,81 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
-      <div className="w-full max-w-md space-y-8">
-        <div className="text-center space-y-2">
-          <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-primary/80 text-white shadow-lg shadow-primary/80 mb-4">
-            <Mail className="h-7 w-7" />
+    <AuthShell
+      backHref="/auth/login"
+      backLabel="Retour à la connexion"
+      panelTitle={<>Un oubli, ça arrive. <span className="font-display-italic text-gradient-warm">On vous rouvre la porte</span>.</>}
+      panelPoints={[
+        'Un lien sécurisé, valable quelques minutes',
+        "Aucune information révélée sur l’existence du compte",
+        'Support 7j/7 si vous restez bloqué',
+      ]}
+    >
+      {sent ? (
+        <div className="flex flex-col items-start gap-4 animate-slide-up">
+          <div className="h-14 w-14 rounded-2xl bg-success/12 flex items-center justify-center">
+            <CheckCircle2 className="h-7 w-7 text-success" />
           </div>
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight">Flash Menu</h1>
+          <div>
+            <h1 className="font-display text-3xl text-foreground">Email envoyé</h1>
+            <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+              Si un compte existe avec cet email, vous recevrez un lien de réinitialisation
+              dans quelques minutes. Pensez à vérifier vos spams.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="rounded-xl">
+            <Link href="/auth/login">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Retour à la connexion
+            </Link>
+          </Button>
         </div>
+      ) : (
+        <>
+          <div className="mb-8">
+            <h1 className="font-display text-3xl sm:text-4xl text-foreground tracking-tight">Mot de passe oublié</h1>
+            <p className="text-muted-foreground mt-2">
+              Entrez votre email pour recevoir un lien de réinitialisation.
+            </p>
+          </div>
 
-        <Card className="border-none shadow-xl shadow-slate-200/50 bg-white/80 backdrop-blur-sm">
-          <CardHeader className="bg-white pb-6 pt-8">
-            <CardTitle className="text-xl font-bold text-center">
-              Mot de passe oublié
-            </CardTitle>
-            <CardDescription className="text-center">
-              Entrez votre email pour recevoir un lien de réinitialisation
-            </CardDescription>
-          </CardHeader>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-sm font-medium text-foreground">Adresse e-mail</FormLabel>
+                    <FormControl>
+                      <div className="relative group">
+                        <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                        <Input
+                          type="email"
+                          inputMode="email"
+                          autoComplete="email"
+                          placeholder="votre@email.com"
+                          className="h-12 pl-11 rounded-xl bg-card"
+                          {...field}
+                        />
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type="submit" disabled={isLoading} className="w-full h-12 rounded-xl font-semibold shadow-lg shadow-primary/20">
+                {isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Envoyer le lien<ArrowRight className="ml-2 h-5 w-5" /></>}
+              </Button>
+            </form>
+          </Form>
 
-          <CardContent>
-            {sent ? (
-              <div className="flex flex-col items-center gap-4 py-4 text-center">
-                <CheckCircle className="h-12 w-12 text-green-500" />
-                <p className="font-semibold text-slate-800">Email envoyé !</p>
-                <p className="text-sm text-slate-500">
-                  Si un compte existe avec cet email, vous recevrez un lien de
-                  réinitialisation dans quelques minutes. Pensez à vérifier vos
-                  spams.
-                </p>
-                <Link
-                  href="/auth/login"
-                  className="text-sm text-primary font-bold hover:underline mt-2"
-                >
-                  Retour à la connexion
-                </Link>
-              </div>
-            ) : (
-              <Form {...form}>
-                <form
-                  onSubmit={form.handleSubmit(onSubmit)}
-                  className="space-y-5"
-                >
-                  <FormField
-                    control={form.control}
-                    name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                          Email
-                        </FormLabel>
-                        <FormControl>
-                          <div className="relative group">
-                            <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 group-focus-within:text-primary/90 transition-colors" />
-                            <Input
-                              type="email"
-                              placeholder="votre@email.com"
-                              className="pl-10 border-slate-200 focus-visible:ring-primary/80 bg-slate-50/50"
-                              {...field}
-                            />
-                          </div>
-                        </FormControl>
-                        <FormMessage className="text-[10px]" />
-                      </FormItem>
-                    )}
-                  />
-                  <Button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-primary/90 hover:bg-primary text-white font-black h-12 shadow-lg shadow-orange-100"
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin" />
-                    ) : (
-                      'Envoyer le lien'
-                    )}
-                  </Button>
-                </form>
-              </Form>
-            )}
-          </CardContent>
-
-          {!sent && (
-            <CardFooter className="bg-slate-50/50 border-t border-slate-100 flex justify-center py-6">
-              <Link
-                href="/auth/login"
-                className="flex items-center gap-1 text-xs text-slate-500 font-medium hover:text-primary transition-colors"
-              >
-                <ArrowLeft className="h-3 w-3" />
-                Retour à la connexion
-              </Link>
-            </CardFooter>
-          )}
-        </Card>
-      </div>
-    </div>
+          <p className="text-sm text-muted-foreground text-center mt-8">
+            <Link href="/auth/login" className="inline-flex items-center gap-1.5 text-primary font-medium hover:underline">
+              <ArrowLeft className="h-3.5 w-3.5" /> Retour à la connexion
+            </Link>
+          </p>
+        </>
+      )}
+    </AuthShell>
   );
 }

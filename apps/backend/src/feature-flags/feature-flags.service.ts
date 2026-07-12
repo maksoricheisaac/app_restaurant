@@ -1,10 +1,14 @@
 import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { getLimitsForPlan, PlanFeatures } from '../plans/plans.config';
+import { PlanFeatures } from '../plans/plans.config';
+import { PlansService } from '../plans/plans.catalog.service';
 
 @Injectable()
 export class FeatureFlagsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly plans: PlansService,
+  ) {}
 
   /**
    * Returns true if the feature is enabled for the tenant.
@@ -30,7 +34,7 @@ export class FeatureFlagsService {
       select: { plan: true },
     });
 
-    const limits = getLimitsForPlan(String(tenant?.plan ?? 'free'));
+    const limits = await this.plans.getLimits(String(tenant?.plan ?? 'free'));
     const planFeatures = limits.features as unknown as Record<string, boolean>;
     return planFeatures[featureKey] ?? false;
   }

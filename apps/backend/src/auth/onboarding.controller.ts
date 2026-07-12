@@ -38,7 +38,11 @@ export class OnboardingController {
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
 
-    return { success: result.success, user: result.user, tenant: result.tenant };
+    return {
+      success: result.success,
+      user: result.user,
+      tenant: result.tenant,
+    };
   }
 
   @Public()

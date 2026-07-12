@@ -1,68 +1,63 @@
-/* eslint-disable react/no-unescaped-entities */
-import { Sparkles, Star } from "lucide-react"
 import Image from "next/image"
+import { Reveal } from "@/components/motion/reveal"
+import { TextReveal } from "@/components/motion/text-reveal"
 
-export const Story = () => {
-    return (
-        <section id="story-content" className="py-16 sm:py-24 lg:py-32 bg-background">
-          <div className="w-full px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
-                <div className="order-2 lg:order-1 space-y-6">
-                  <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary rounded-full px-4 sm:px-6 py-2 sm:py-3 mb-6 sm:mb-8">
-                    <Sparkles className="h-4 sm:h-5 w-4 sm:w-5" />
-                    <span className="text-xs sm:text-sm font-semibold">Notre Vision</span>
-                  </div>
+export const AboutStory = () => {
+  return (
+    <section className="py-20 sm:py-28 bg-card">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Visuel */}
+          <Reveal x={-30} y={0} className="order-2 lg:order-1">
+            <div className="relative">
+              <div className="absolute -inset-4 -z-10 bg-gradient-to-tr from-primary/12 to-amber-200/25 blur-3xl rounded-[2.5rem]" />
+              <Image
+                src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=2070&auto=format&fit=crop"
+                alt="L'équipe Flash Menu au travail en salle"
+                width={2070}
+                height={1380}
+                className="rounded-3xl border border-border shadow-xl w-full h-auto object-cover"
+              />
+            </div>
+          </Reveal>
 
-                  <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-8 sm:mb-10">
-                    Digitaliser la <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80">Gastronomie</span>
-                  </h2>
+          {/* Texte */}
+          <div className="order-1 lg:order-2">
+            <Reveal as="div" y={12} className="inline-flex items-center gap-2.5 mb-5">
+              <span className="h-px w-8 bg-primary/60" />
+              <span className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                Notre histoire
+              </span>
+            </Reveal>
 
-                  <div className="space-y-6 text-base sm:text-lg text-muted-foreground">
-                    <p className="font-medium text-foreground">
-                      Flash Menu est né d'un constat simple : la technologie doit aider les restaurateurs à
-                      se concentrer sur leur métier passion plutôt que sur les contraintes logistiques.
-                    </p>
-                    <p>
-                      Lancée en 2023, notre plateforme SaaS a été conçue pour répondre aux défis modernes
-                      de la restauration : rapidité de service, expérience client digitale et optimisation opérationnelle.
-                    </p>
-                    <p>
-                      Nous croyons que chaque restaurant, quelle que soit sa taille, mérite des outils de
-                      gestion de classe mondiale, simples à utiliser et accessibles.
-                    </p>
-                  </div>
-                </div>
+            <TextReveal
+              as="h2"
+              className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-[1.05] text-foreground text-balance"
+            >
+              Née en salle, pas dans un{" "}
+              <span className="font-display-italic text-gradient-warm">open space</span>.
+            </TextReveal>
 
-                <div className="order-1 lg:order-2 relative">
-                  <div className="relative overflow-hidden rounded-3xl shadow-2xl transform rotate-2 hover:rotate-0 transition-transform duration-700">
-                    <Image
-                      width={1000}
-                      height={1000}
-                      src="https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg"
-                      alt="Histoire restaurant africain Brazzaville - Fondateurs Saveurs d'Afrique"
-                      className="w-full h-[300px] sm:h-[400px] lg:h-[500px] object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent"></div>
-                  </div>
-
-                  <div className="absolute -bottom-6 sm:-bottom-8 -right-6 sm:-right-8 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground p-6 sm:p-8 rounded-3xl shadow-2xl transform -rotate-2 hover:rotate-0 transition-transform duration-700">
-                    <div className="text-center">
-                      <div className="text-3xl sm:text-4xl font-bold mb-1 sm:mb-2">2023</div>
-                      <div className="text-xs sm:text-sm font-medium">Lancement</div>
-                    </div>
-                  </div>
-
-                  <div className="absolute -top-4 sm:-top-6 -left-4 sm:-left-6 bg-yellow-400 text-gray-900 p-4 sm:p-6 rounded-2xl shadow-xl transform rotate-12 hover:rotate-6 transition-transform duration-700">
-                    <div className="text-center">
-                      <Star className="h-6 sm:h-8 w-6 sm:w-8 mx-auto mb-1 sm:mb-2" />
-                      <div className="text-sm sm:text-lg font-bold">Excellence</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+            <div className="mt-6 space-y-4 text-muted-foreground leading-relaxed text-lg">
+              <Reveal as="p" delay={0.05}>
+                En 2023, après des années passées à jongler entre carnets de commandes,
+                logiciels de caisse incompatibles et menus réimprimés chaque semaine, nous
+                avons décidé de tout repenser depuis la salle.
+              </Reveal>
+              <Reveal as="p" delay={0.12}>
+                L’idée : réunir menu digital, commandes, cuisine, caisse et réservations
+                dans une seule interface, assez simple pour être adoptée en une après-midi,
+                assez robuste pour tenir un coup de feu.
+              </Reveal>
+              <Reveal as="p" delay={0.18} className="text-foreground font-medium">
+                Aujourd’hui, plus de 500 établissements pilotent leur activité avec Flash Menu.
+                Notre boussole n’a pas changé : votre temps appartient à vos clients, pas à
+                votre logiciel.
+              </Reveal>
             </div>
           </div>
-        </section>
-    )
+        </div>
+      </div>
+    </section>
+  )
 }

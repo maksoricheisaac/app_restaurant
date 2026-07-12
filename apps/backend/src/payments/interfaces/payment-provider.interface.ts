@@ -20,7 +20,12 @@ export type PaymentProviderName =
   | 'flutterwave'
   | 'paystack';
 
-export type SubscriptionPlan = 'pro' | 'enterprise';
+/**
+ * Clé du plan souscrit (Plan.key). Les plans étant désormais pilotés par les
+ * données (table Plan), ce n'est plus une union figée : chaque provider mappe
+ * cette clé vers son identifiant de prix/tarif interne.
+ */
+export type SubscriptionPlan = string;
 
 export interface CheckoutSessionParams {
   tenantId: string;

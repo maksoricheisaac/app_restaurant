@@ -1,66 +1,59 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Award, Clock, Heart, Users } from "lucide-react"
+import { Zap, ShieldCheck, HeartHandshake, Sparkles } from "lucide-react"
+import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { Stagger } from "@/components/motion/stagger"
 
-const values = [
-    {
-      icon: Heart,
-      title: 'Passion Culinaire',
-      description: 'Chaque plat est préparé avec amour selon les recettes traditionnelles transmises de génération en génération.'
-    },
-    {
-      icon: Users,
-      title: 'Accueil Chaleureux',
-      description: 'Notre équipe vous accueille comme en famille dans une ambiance conviviale typiquement africaine.'
-    },
-    {
-      icon: Award,
-      title: 'Qualité Authentique',
-      description: 'Nous sélectionnons les meilleurs ingrédients locaux pour vous garantir des saveurs authentiques.'
-    },
-    {
-      icon: Clock,
-      title: 'Service Rapide',
-      description: 'Malgré la préparation traditionnelle, nous nous engageons à vous servir dans les meilleurs délais.'
-    }
-  ];
+const VALUES = [
+  {
+    icon: Sparkles,
+    title: "La simplicité d’abord",
+    description:
+      "Chaque écran doit s’expliquer tout seul. Si une fonctionnalité a besoin d’un manuel, c’est qu’elle est mal conçue.",
+  },
+  {
+    icon: Zap,
+    title: "Le temps réel, vraiment",
+    description:
+      "Une commande, un paiement, une table qui se libère : tout se propage instantanément. Zéro double saisie, zéro décalage.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Vos données, à vous",
+    description:
+      "Isolation stricte entre établissements, chiffrement, hébergement européen, conformité RGPD. La confiance se gagne dans les détails.",
+  },
+  {
+    icon: HeartHandshake,
+    title: "Proches de nos clients",
+    description:
+      "Un support humain qui connaît le métier, des mises à jour chaque semaine, et une feuille de route dictée par vos retours.",
+  },
+]
 
-export const Values = () => {
-    return (
-        <section className="py-16 sm:py-24 lg:py-32 bg-muted/30">
-          <div className="w-full px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12 sm:mb-16 lg:mb-20">
-                <div className="inline-flex items-center space-x-2 bg-primary/15 text-primary rounded-full px-4 sm:px-6 py-2 sm:py-3 mb-4 sm:mb-6">
-                  <Award className="h-4 sm:h-5 w-4 sm:w-5" />
-                  <span className="text-xs sm:text-sm font-semibold">Nos Valeurs</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-6 sm:mb-8">
-                  Ce Qui Nous <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80">Guide</span>
-                </h2>
-                <p className="text-base sm:text-lg lg:text-xl text-muted-foreground max-w-4xl mx-auto leading-relaxed px-4">
-                  Les valeurs fondamentales qui nous guident au quotidien pour vous offrir la meilleure expérience culinaire africaine
-                </p>
+export const AboutValues = () => {
+  return (
+    <section className="py-20 sm:py-28 bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Nos valeurs"
+          title={<>Ce qui guide <span className="font-display-italic text-gradient-warm">chaque décision</span></>}
+          description="Quatre principes que nous ne négocions pas, du premier prototype à chaque nouvelle fonctionnalité."
+        />
+
+        <Stagger className="mt-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          {VALUES.map((v) => (
+            <div
+              key={v.title}
+              className="group bg-card border border-border rounded-3xl p-7 hover:shadow-lg transition-shadow duration-300"
+            >
+              <div className="h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center ring-1 ring-primary/10 mb-5 transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">
+                <v.icon className="h-5 w-5" strokeWidth={1.75} />
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 lg:gap-10">
-                {values.map((value, index) => (
-                  <Card key={index} className="text-center hover:shadow-2xl transition-all duration-500 border-0 shadow-xl bg-card transform hover:-translate-y-4 group">
-                    <CardContent className="p-6 sm:p-8 lg:p-10">
-                      <div className="bg-gradient-to-r from-primary to-primary/80 text-primary-foreground w-16 sm:w-20 lg:w-24 h-16 sm:h-20 lg:h-24 rounded-2xl flex items-center justify-center mx-auto mb-6 sm:mb-8 group-hover:scale-110 transition-transform duration-300 shadow-lg">
-                        <value.icon className="h-8 sm:h-10 lg:h-12 w-8 sm:w-10 lg:w-12" />
-                      </div>
-                      <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-4 sm:mb-6 group-hover:text-primary transition-colors duration-300">
-                        {value.title}
-                      </h3>
-                      <p className="text-sm sm:text-base lg:text-lg text-muted-foreground leading-relaxed">
-                        {value.description}
-                      </p>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              <h3 className="text-base font-semibold text-foreground mb-1.5">{v.title}</h3>
+              <p className="text-sm text-muted-foreground leading-relaxed">{v.description}</p>
             </div>
-          </div>
-        </section>
-    )
+          ))}
+        </Stagger>
+      </div>
+    </section>
+  )
 }

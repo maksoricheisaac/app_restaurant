@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { PaymentProviderFactory } from '../payments/payment-provider.factory';
 import { NormalizedPaymentEvent } from '../payments/interfaces/payment-provider.interface';
 import { IdempotencyService } from '../common/redis/idempotency.service';
+import { PlansService } from '../plans/plans.catalog.service';
 
 const GRACE_PERIOD_DAYS = 3;
 
@@ -18,15 +19,25 @@ export class BillingService {
     private readonly prisma: PrismaService,
     private readonly paymentProviders: PaymentProviderFactory,
     private readonly idempotency: IdempotencyService,
+    private readonly plans: PlansService,
   ) {}
 
   // ─── Checkout ─────────────────────────────────────────────────────────────
 
   async createCheckoutSession(
     tenantId: string,
-    plan: 'pro' | 'enterprise',
+    plan: string,
     returnUrl: string,
   ) {
+    // Le plan doit exister, être actif et payant (souscriptible). Empêche un
+    // checkout vers une clé inconnue, un plan « bientôt disponible » ou gratuit.
+    const planRow = await this.plans.assertSubscribable(plan);
+    if (planRow.monthlyPrice <= 0) {
+      throw new BadRequestException(
+        `Le plan "${plan}" est gratuit et ne nécessite pas de paiement`,
+      );
+    }
+
     const provider = this.paymentProviders.getProvider();
     if (!provider.isConfigured()) {
       throw new BadRequestException(

@@ -1,15 +1,64 @@
 import { ForbiddenException } from '@nestjs/common';
 import { PlanLimitService } from './plans.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
-import { PLAN_LIMITS, UNLIMITED } from './plans.config';
+import { PlanLimits, UNLIMITED } from './plans.config';
+
+// Limites de référence (auparavant codées en dur, désormais servies par
+// PlansService depuis la table Plan). On les mocke ici pour tester la logique
+// d'enforcement de PlanLimitService indépendamment de la base.
+const LIMITS: Record<string, PlanLimits> = {
+  free: {
+    maxMenuItems: 5,
+    maxTables: 3,
+    maxStaffMembers: 2,
+    maxMonthlyOrders: 10,
+    features: {
+      kds: false,
+      advancedReports: false,
+      apiAccess: false,
+      multiSite: false,
+      customBranding: false,
+    },
+  },
+  pro: {
+    maxMenuItems: UNLIMITED,
+    maxTables: 10,
+    maxStaffMembers: 5,
+    maxMonthlyOrders: UNLIMITED,
+    features: {
+      kds: true,
+      advancedReports: true,
+      apiAccess: false,
+      multiSite: false,
+      customBranding: true,
+    },
+  },
+  enterprise: {
+    maxMenuItems: UNLIMITED,
+    maxTables: UNLIMITED,
+    maxStaffMembers: UNLIMITED,
+    maxMonthlyOrders: UNLIMITED,
+    features: {
+      kds: true,
+      advancedReports: true,
+      apiAccess: true,
+      multiSite: true,
+      customBranding: true,
+    },
+  },
+};
 
 describe('PlanLimitService', () => {
   let service: PlanLimitService;
   let prisma: MockPrisma;
+  const mockPlans = {
+    getLimits: jest.fn(async (key: string) => LIMITS[key] ?? LIMITS.free),
+  };
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new PlanLimitService(prisma as any);
+    mockPlans.getLimits.mockClear();
+    service = new PlanLimitService(prisma as any, mockPlans as any);
   });
 
   // ─── assertMenuItemLimit ────────────────────────────────────────────────
@@ -246,36 +295,6 @@ describe('PlanLimitService', () => {
       expect(summary.usage.monthlyOrders.max).toBeNull();
       expect(summary.usage.tables.max).toBe(10);
       expect(summary.features.kds).toBe(true);
-    });
-  });
-
-  // ─── Plan config sanity checks ─────────────────────────────────────────
-
-  describe('PLAN_LIMITS config', () => {
-    it('FREE plan has all expected limits', () => {
-      const { free } = PLAN_LIMITS;
-      expect(free.maxMenuItems).toBe(5);
-      expect(free.maxTables).toBe(3);
-      expect(free.maxStaffMembers).toBe(2);
-      expect(free.maxMonthlyOrders).toBe(10);
-      expect(free.features.kds).toBe(false);
-      expect(free.features.advancedReports).toBe(false);
-    });
-
-    it('PRO plan has unlimited orders and menu items', () => {
-      const { pro } = PLAN_LIMITS;
-      expect(pro.maxMenuItems).toBe(UNLIMITED);
-      expect(pro.maxMonthlyOrders).toBe(UNLIMITED);
-      expect(pro.features.kds).toBe(true);
-    });
-
-    it('ENTERPRISE plan is fully unlimited', () => {
-      const { enterprise } = PLAN_LIMITS;
-      expect(enterprise.maxMenuItems).toBe(UNLIMITED);
-      expect(enterprise.maxTables).toBe(UNLIMITED);
-      expect(enterprise.maxStaffMembers).toBe(UNLIMITED);
-      expect(enterprise.maxMonthlyOrders).toBe(UNLIMITED);
-      expect(enterprise.features.apiAccess).toBe(true);
     });
   });
 });

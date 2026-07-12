@@ -44,4 +44,8 @@ export const dashboardService = {
   getTenants: async (options?: RequestOptions) => {
     return api.get('/tenants', options);
   },
+
+  getBillingStats: async (options?: RequestOptions) => {
+    return api.get('/dashboard/billing-stats', options);
+  },
 };

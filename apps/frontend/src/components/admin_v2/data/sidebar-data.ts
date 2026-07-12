@@ -42,6 +42,7 @@ export function getSidebarData(counts: {
             title: 'Cuisine (KDS)',
             url: '/admin/kitchen',
             icon: ChefHat,
+            feature: 'kds',
           },
           {
             title: 'Caisse',
@@ -99,6 +100,7 @@ export function getSidebarData(counts: {
             title: 'Rapports',
             url: '/admin/reports',
             icon: FileBarChart,
+            feature: 'advancedReports',
           },
           {
             title: 'Abonnement',

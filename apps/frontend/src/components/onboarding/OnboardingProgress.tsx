@@ -21,10 +21,10 @@ export default function OnboardingProgress({ currentStep, steps }: Props) {
               <motion.div
                 className={`relative flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors ${
                   isCompleted
-                    ? 'bg-primary text-white'
+                    ? 'bg-primary text-primary-foreground'
                     : isCurrent
-                    ? 'border-2 border-primary bg-white text-primary'
-                    : 'border-2 border-slate-200 bg-white text-slate-400'
+                    ? 'border-2 border-primary bg-card text-primary'
+                    : 'border-2 border-border bg-card text-muted-foreground'
                 }`}
                 initial={false}
                 animate={{ scale: isCurrent ? 1.1 : 1 }}
@@ -44,14 +44,14 @@ export default function OnboardingProgress({ currentStep, steps }: Props) {
               </motion.div>
               <span
                 className={`absolute -bottom-5 whitespace-nowrap text-[9px] font-medium hidden md:block ${
-                  isCurrent ? 'text-primary' : isCompleted ? 'text-slate-500' : 'text-slate-300'
+                  isCurrent ? 'text-primary' : isCompleted ? 'text-muted-foreground' : 'text-muted-foreground/50'
                 }`}
               >
                 {label}
               </span>
             </div>
             {index < steps.length - 1 && (
-              <div className="mx-1 h-px w-6 md:w-10 overflow-hidden bg-slate-200 rounded-full">
+              <div className="mx-1 h-px w-6 md:w-10 overflow-hidden bg-border rounded-full">
                 <motion.div
                   className="h-full bg-primary rounded-full"
                   initial={{ width: 0 }}

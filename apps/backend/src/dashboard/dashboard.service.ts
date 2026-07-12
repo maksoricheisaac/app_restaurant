@@ -133,6 +133,61 @@ export class DashboardService {
     };
   }
 
+  /**
+   * Statistiques de facturation plateforme (Super Admin) — agrégées côté
+   * serveur sur TOUS les tenants (pas seulement une page), en croisant la
+   * répartition réelle des plans avec leurs prix data-driven (table Plan).
+   */
+  async getBillingStats() {
+    const [plans, grouped] = await Promise.all([
+      this.prisma.plan.findMany({
+        where: { deletedAt: null },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.prisma.tenant.groupBy({
+        by: ['plan'],
+        where: { deletedAt: null },
+        _count: { id: true },
+      }),
+    ]);
+
+    const countByKey: Record<string, number> = {};
+    grouped.forEach((g) => {
+      countByKey[String(g.plan)] = g._count.id;
+    });
+
+    const breakdown = plans.map((p) => {
+      const count = countByKey[p.key] ?? 0;
+      return {
+        key: p.key,
+        name: p.name,
+        monthlyPrice: p.monthlyPrice,
+        annualPrice: p.annualPrice,
+        currency: p.currency,
+        isActive: p.isActive,
+        count,
+        mrr: p.monthlyPrice * count,
+      };
+    });
+
+    const totalTenants = Object.values(countByKey).reduce((s, n) => s + n, 0);
+    const mrr = breakdown.reduce((s, b) => s + b.mrr, 0);
+    const payingTenants = breakdown
+      .filter((b) => b.monthlyPrice > 0)
+      .reduce((s, b) => s + b.count, 0);
+    const conversion =
+      totalTenants > 0 ? Math.round((payingTenants / totalTenants) * 100) : 0;
+
+    return {
+      totalTenants,
+      payingTenants,
+      mrr,
+      arr: mrr * 12,
+      conversion,
+      breakdown,
+    };
+  }
+
   async getPlatformStats() {
     const [totalTenants, totalUsers, totalOrders, platformRevenue] =
       await Promise.all([

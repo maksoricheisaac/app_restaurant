@@ -19,10 +19,13 @@ describe('TenantsService', () => {
   let service: TenantsService;
   let prisma: MockPrisma;
 
+  const mockPlans = { keyExists: jest.fn(async () => true) };
+
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new TenantsService(prisma as any);
+    service = new TenantsService(prisma as any, mockPlans as any);
     jest.clearAllMocks();
+    mockPlans.keyExists.mockResolvedValue(true);
   });
 
   // ─── create ───────────────────────────────────────────────────────────────

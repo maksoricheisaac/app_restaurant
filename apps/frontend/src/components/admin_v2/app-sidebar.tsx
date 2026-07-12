@@ -12,6 +12,7 @@ import { NavGroup } from '@/components/admin_v2/nav-group'
 import { NavUser } from '@/components/admin_v2/nav-user'
 import { getSidebarData } from '@/components/admin_v2/data/sidebar-data'
 import { getSuperAdminSidebarData } from '@/components/admin_v2/data/super-admin-sidebar-data'
+import { usePlanUsage } from '@/hooks/api/usePlanUsage'
 import Link from 'next/link'
 import { ChefHat, Utensils, ShieldCheck } from 'lucide-react'
 
@@ -34,9 +35,25 @@ export function AppSidebar({ user, isSuperAdmin, counts, ...props }: AppSidebarP
   const { state } = useSidebar()
   const isCollapsed = state === 'collapsed'
 
+  // Entitlements du plan (features) — pour verrouiller les modules non inclus.
+  // Non appelé pour le Super Admin (pas de tenant courant).
+  const { data: planUsage } = usePlanUsage({ enabled: !isSuperAdmin })
+  const features = planUsage?.features
+
   const sidebarData = isSuperAdmin
     ? getSuperAdminSidebarData()
     : getSidebarData(counts ?? { pendingOrders: 0, unreadMessages: 0, pendingReservations: 0 })
+
+  // Marque comme verrouillé tout module dont la feature n'est pas dans le plan.
+  // Tant que les entitlements ne sont pas chargés, on ne verrouille rien (évite
+  // un flash de cadenas). Le Super Admin n'est jamais restreint.
+  if (!isSuperAdmin && features) {
+    for (const group of sidebarData.navGroups) {
+      for (const item of group.items) {
+        if (item.feature) item.locked = features[item.feature] === false
+      }
+    }
+  }
 
   return (
     <Sidebar collapsible='icon' variant='floating' {...props}>

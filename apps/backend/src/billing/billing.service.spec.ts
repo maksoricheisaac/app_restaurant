@@ -60,7 +60,20 @@ describe('BillingService', () => {
     } as unknown as PaymentProviderFactory;
     const redisService = { getClient: () => null } as unknown as RedisService;
     const idempotency = new IdempotencyService(redisService);
-    service = new BillingService(prisma as any, paymentProviders, idempotency);
+    // Plan payant valide par défaut (assertSubscribable OK, prix > 0).
+    const plans = {
+      assertSubscribable: jest.fn(async (key: string) => ({
+        key,
+        monthlyPrice: 29,
+        isActive: true,
+      })),
+    };
+    service = new BillingService(
+      prisma as any,
+      paymentProviders,
+      idempotency,
+      plans as any,
+    );
   });
 
   // ─── getStatus ────────────────────────────────────────────────────────

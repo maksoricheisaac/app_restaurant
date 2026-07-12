@@ -53,12 +53,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const tenants = await fetchPublicTenantSlugs();
-  const tenantPages: MetadataRoute.Sitemap = tenants.map((t) => ({
-    url: `${APP_URL}/menu/${t.slug}`,
-    lastModified: new Date(t.updatedAt),
-    changeFrequency: 'weekly',
-    priority: 0.9,
-  }));
+  const tenantPages: MetadataRoute.Sitemap = tenants.map((t) => {
+    // Le backend peut renvoyer une date absente/invalide : sans garde,
+    // `new Date(invalid).toISOString()` lève « Invalid time value » et fait
+    // échouer tout le build. On retombe sur « maintenant » en dernier recours.
+    const parsed = new Date(t.updatedAt);
+    const lastModified = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+    return {
+      url: `${APP_URL}/menu/${t.slug}`,
+      lastModified,
+      changeFrequency: 'weekly' as const,
+      priority: 0.9,
+    };
+  });
 
   return [...staticPages, ...tenantPages];
 }

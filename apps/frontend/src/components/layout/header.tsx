@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { label: 'Accueil',         href: '/' },
   { label: 'Fonctionnalités', href: '/#features' },
   { label: 'Tarifs',          href: '/pricing' },
+  { label: 'À propos',        href: '/about' },
   { label: 'Contact',         href: '/contact' },
 ] as const;
 
@@ -42,8 +43,8 @@ export function Header() {
       className={cn(
         'fixed inset-x-0 top-0 z-50 transition-all duration-300',
         scrolled
-          ? 'bg-white/95 dark:bg-card/95 backdrop-blur-md border-b border-border shadow-sm'
-          : 'bg-white/85 dark:bg-card/85 backdrop-blur-sm'
+          ? 'bg-background/85 backdrop-blur-xl border-b border-border shadow-sm'
+          : 'bg-background/60 backdrop-blur-sm border-b border-transparent'
       )}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -52,15 +53,15 @@ export function Header() {
           {/* ── Logo ── */}
           <Link href="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="relative">
-              <div className="bg-primary text-primary-foreground p-2 rounded-xl shadow-sm group-hover:scale-105 transition-transform duration-200">
-                <ChefHat className="h-5 w-5" />
+              <div className="bg-primary text-primary-foreground p-2 rounded-xl shadow-sm group-hover:scale-105 group-hover:-rotate-3 transition-transform duration-200">
+                <ChefHat className="h-5 w-5" strokeWidth={1.75} />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-amber-400 rounded-full border-2 border-white dark:border-card" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-warning rounded-full border-2 border-background" />
             </div>
             <div className="leading-none">
-              <span className="block font-bold text-[17px] text-foreground">Flash Menu</span>
+              <span className="block font-display text-[19px] text-foreground tracking-tight">Flash Menu</span>
               <span className="block text-[10px] text-muted-foreground font-medium tracking-wide mt-0.5">
-                Gestion restaurant SaaS
+                Gestion restaurant
               </span>
             </div>
           </Link>

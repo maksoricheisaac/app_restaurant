@@ -237,7 +237,7 @@ export class OnboardingService {
         error instanceof Error ? error.message : String(error),
       );
       throw new InternalServerErrorException(
-        "Erreur lors de la création du compte",
+        'Erreur lors de la création du compte',
       );
     }
   }

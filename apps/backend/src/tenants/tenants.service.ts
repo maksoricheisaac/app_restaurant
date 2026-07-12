@@ -3,23 +3,37 @@ import {
   InternalServerErrorException,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { getSkipTake, toPaginated } from '../common/pagination/paginate';
+import { PlansService } from '../plans/plans.catalog.service';
 
 @Injectable()
 export class TenantsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly plans: PlansService,
+  ) {}
+
+  /** Valide qu'une clé de plan existe réellement (data-driven). */
+  private async assertPlanKey(key: string) {
+    if (!(await this.plans.keyExists(key))) {
+      throw new BadRequestException(`Le plan "${key}" n'existe pas`);
+    }
+  }
 
   async create(createTenantDto: CreateTenantDto) {
+    const planKey = createTenantDto.plan || 'free';
+    await this.assertPlanKey(planKey);
     try {
       return await this.prisma.tenant.create({
         data: {
           name: createTenantDto.name,
           slug: createTenantDto.slug,
-          plan: (createTenantDto.plan || 'free') as any,
+          plan: planKey,
           status: 'active' as any,
         },
       });
@@ -104,6 +118,9 @@ export class TenantsService {
   }
 
   async update(id: string, updateTenantDto: UpdateTenantDto) {
+    if (updateTenantDto.plan) {
+      await this.assertPlanKey(updateTenantDto.plan);
+    }
     return this.prisma.tenant.update({
       where: { id },
       data: updateTenantDto as any,

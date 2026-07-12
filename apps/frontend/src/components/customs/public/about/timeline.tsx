@@ -1,88 +1,67 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Clock } from "lucide-react"
+import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { Reveal } from "@/components/motion/reveal"
 
-const timeline = [
-    {
-      year: '2020',
-      title: 'Ouverture du Restaurant',
-      description: 'Saveurs d\'Afrique ouvre ses portes au cœur de Brazzaville avec la mission de faire découvrir la vraie cuisine congolaise.'
-    },
-    {
-      year: '2021',
-      title: 'Reconnaissance Locale',
-      description: 'Le restaurant devient rapidement une référence pour la cuisine africaine authentique à Brazzaville.'
-    },
-    {
-      year: '2022',
-      title: 'Expansion du Menu',
-      description: 'Ajout de nouvelles spécialités régionales et élargissement de notre carte de boissons traditionnelles.'
-    },
-    {
-      year: '2023',
-      title: 'Équipe Agrandie',
-      description: 'Recrutement de nouveaux chefs spécialisés dans différentes cuisines d\'Afrique centrale.'
-    },
-    {
-      year: '2024',
-      title: 'Modernisation',
-      description: 'Rénovation complète du restaurant tout en préservant l\'ambiance traditionnelle africaine.'
-    }
-  ];
+const MILESTONES = [
+  {
+    year: "2023",
+    title: "Les premières lignes de code",
+    description: "Trois personnes, un prototype de menu QR testé dans un seul restaurant partenaire. Le déclic : les commandes arrivent en cuisine sans erreur.",
+  },
+  {
+    year: "2024",
+    title: "La plateforme prend forme",
+    description: "Kitchen Display, caisse et réservations rejoignent le menu. Les 100 premiers établissements adoptent Flash Menu.",
+  },
+  {
+    year: "2025",
+    title: "Passage à l’échelle",
+    description: "Architecture multi-tenant, rapports temps réel et paiements en ligne. Le cap des 300 restaurants est franchi.",
+  },
+  {
+    year: "2026",
+    title: "Plus de 500 restaurants",
+    description: "Onboarding en 2 minutes, support 7j/7 et une feuille de route dictée par la communauté. Et ce n’est qu’un début.",
+  },
+]
 
-export const Timeline = () => {
-    return (
-        <section className="py-16 sm:py-24 lg:py-32 bg-background">
-          <div className="w-full px-4 sm:px-6 lg:px-8">
-            <div className="max-w-7xl mx-auto">
-              <div className="text-center mb-12 sm:mb-16 lg:mb-20">
-                <div className="inline-flex items-center space-x-2 bg-primary/10 text-primary rounded-full px-4 sm:px-6 py-2 sm:py-3 mb-4 sm:mb-6">
-                  <Clock className="h-4 sm:h-5 w-4 sm:w-5" />
-                  <span className="text-xs sm:text-sm font-semibold">Notre Évolution</span>
-                </div>
-                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-6 sm:mb-8">
-                  Moments <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-primary/80">Clés</span>
-                </h2>
-                <p className="text-base sm:text-lg lg:text-xl text-muted-foreground max-w-4xl mx-auto leading-relaxed px-4">
-                  Retracez les moments clés de l&apos;histoire de Saveurs d&apos;Afrique, de notre ouverture à aujourd&apos;hui
-                </p>
-              </div>
+export const AboutTimeline = () => {
+  return (
+    <section className="py-20 sm:py-28 bg-card">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+        <SectionHeading
+          eyebrow="Le chemin parcouru"
+          title={<>De l’idée à <span className="font-display-italic text-gradient-warm">500 restaurants</span></>}
+        />
 
-              <div className="relative">
-                {/* Ligne verticale masquée sur mobile */}
-                <div className="hidden md:block absolute left-1/2 transform -translate-x-1/2 w-0.5 h-full bg-gradient-to-b from-primary/20 via-primary/40 to-primary/20"></div>
+        <div className="mt-16 relative">
+          {/* Ligne verticale */}
+          <div className="absolute left-[1.15rem] sm:left-1/2 sm:-translate-x-1/2 top-2 bottom-2 w-px bg-border" aria-hidden />
 
-                <div className="space-y-8 md:space-y-0">
-                  {timeline.map((event, index) => (
-                    <div key={index} className={`flex flex-col md:flex-row items-center ${index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'} md:mb-16 lg:mb-20`}>
-                      <div className={`w-full md:w-1/2 ${index % 2 === 0 ? 'md:pr-12 lg:pr-16 md:text-right' : 'md:pl-12 lg:pl-16'} mb-4 md:mb-0`}>
-                        <Card className="hover:shadow-2xl transition-all duration-500 border-0 shadow-xl bg-card transform hover:-translate-y-2">
-                          <CardContent className="p-6 sm:p-8">
-                            <div className="text-primary font-bold text-lg sm:text-xl lg:text-2xl mb-3 sm:mb-4 bg-primary/10 rounded-full px-3 sm:px-4 py-1 sm:py-2 inline-block">
-                              {event.year}
-                            </div>
-                            <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-foreground mb-3 sm:mb-4">
-                              {event.title}
-                            </h3>
-                            <p className="text-sm sm:text-base lg:text-lg text-muted-foreground leading-relaxed">
-                              {event.description}
-                            </p>
-                          </CardContent>
-                        </Card>
-                      </div>
+          <ol className="space-y-10">
+            {MILESTONES.map((m, i) => (
+              <li key={m.year} className="relative">
+                <Reveal
+                  y={24}
+                  delay={0.04 * i}
+                  className="relative sm:grid sm:grid-cols-2 sm:items-center"
+                >
+                  {/* Pastille */}
+                  <span className="absolute left-0 sm:left-1/2 sm:-translate-x-1/2 top-1 sm:top-1/2 sm:-translate-y-1/2 h-6 w-6 rounded-full bg-primary/15 ring-4 ring-background flex items-center justify-center z-10">
+                    <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                  </span>
 
-                      {/* Point central */}
-                      <div className="relative z-10 my-4 md:my-0">
-                        <div className="w-4 sm:w-6 md:w-8 h-4 sm:h-6 md:h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full border-4 border-background shadow-xl"></div>
-                      </div>
-
-                      {/* Espace réservé masqué sur mobile */}
-                      <div className="hidden md:block md:w-1/2"></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-    )
+                  {/* Carte — alternée gauche/droite en desktop */}
+                  <div className={`ml-12 sm:ml-0 ${i % 2 === 0 ? "sm:pr-12 sm:text-right" : "sm:col-start-2 sm:pl-12"}`}>
+                    <span className="font-display text-3xl text-gradient-warm">{m.year}</span>
+                    <h3 className="text-lg font-semibold text-foreground mt-1 mb-1.5">{m.title}</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed">{m.description}</p>
+                  </div>
+                </Reveal>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  )
 }

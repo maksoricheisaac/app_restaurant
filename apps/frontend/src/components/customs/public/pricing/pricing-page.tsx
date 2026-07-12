@@ -1,68 +1,63 @@
 'use client';
 
 import { useState } from 'react';
-import { motion, type Variants } from 'framer-motion';
 import Link from 'next/link';
 import {
   Check, X, Zap, Crown, ArrowRight, Shield, RefreshCcw,
-  HeartHandshake, ChevronDown, ChevronUp, CreditCard, Sparkles,
+  HeartHandshake, ChevronDown, CreditCard, Sparkles, Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { PLANS as PLANS_CONFIG } from '@/config/plans';
-import type { PlanId } from '@/config/plans';
-
-/* ─────────────────────────── types ─────────────────────────── */
+import {
+  FEATURE_LABELS, formatLimit, currencySymbol,
+  type PlanCatalog,
+} from '@/config/plans';
+import { usePlanCatalog } from '@/hooks/api/usePlans';
+import { SectionHeading } from '@/components/customs/public/saas/section-heading';
+import { Reveal } from '@/components/motion/reveal';
+import { Stagger } from '@/components/motion/stagger';
+import { TextReveal } from '@/components/motion/text-reveal';
+import { Magnetic } from '@/components/motion/magnetic';
 
 type BillingCycle = 'monthly' | 'annual';
 
-interface Feature {
-  label: string;
-  free: string | boolean;
-  pro: string | boolean;
-  enterprise: string | boolean;
+// Icône / CTA / lien dérivés de la nature du plan (pas d'une clé figée), afin
+// que tout nouveau plan créé dans le Super Admin s'affiche correctement.
+function planIcon(plan: PlanCatalog): typeof Zap | null {
+  if (plan.key === 'enterprise') return Crown;
+  if (plan.monthlyPrice > 0) return Zap;
+  return null;
+}
+function planHref(plan: PlanCatalog): string {
+  if (plan.comingSoon) return '/contact?subject=' + plan.key;
+  return plan.monthlyPrice > 0
+    ? `/auth/register?plan=${plan.key}`
+    : '/auth/register';
+}
+function planCta(plan: PlanCatalog): string {
+  if (plan.comingSoon) return "Contacter l'équipe vente";
+  return plan.monthlyPrice > 0 ? 'Choisir ce plan' : 'Commencer gratuitement';
 }
 
-/* ─── UI metadata propre à cette page (icônes, hrefs, CTAs) ─── */
-
-const PLAN_ICONS: Partial<Record<PlanId, typeof Zap>> = {
-  pro:        Zap,
-  enterprise: Crown,
-};
-
-const PLAN_HREFS: Record<PlanId, string> = {
-  free:       '/auth/register',
-  pro:        '/auth/register?plan=pro',
-  enterprise: '/contact?subject=enterprise',
-};
-
-const PLAN_CTAS: Record<PlanId, string> = {
-  free:       'Commencer gratuitement',
-  pro:        'Essayer 14 jours gratuit',
-  enterprise: 'Contacter l\'équipe vente',
-};
-
-/* Alias pour garder le reste du JSX inchangé */
-const PLANS = PLANS_CONFIG;
-
-const FEATURES: Feature[] = [
-  { label: 'Commandes / mois',         free: '10',        pro: 'Illimité',  enterprise: 'Illimité'  },
-  { label: 'Articles au menu',          free: '5',         pro: 'Illimité',  enterprise: 'Illimité'  },
-  { label: 'Tables + QR codes',         free: '3',         pro: '10',        enterprise: 'Illimité'  },
-  { label: 'Comptes staff',             free: '2',         pro: '5',         enterprise: 'Illimité'  },
-  { label: 'Kitchen Display System',    free: false,       pro: true,        enterprise: true        },
-  { label: 'Rapports & analytics',      free: 'Basique',   pro: 'Complets',  enterprise: 'Avancés'   },
-  { label: 'Notifications email',       free: false,       pro: true,        enterprise: true        },
-  { label: 'Notifications SMS',         free: false,       pro: false,       enterprise: true        },
-  { label: 'Multi-établissements',      free: false,       pro: false,       enterprise: true        },
-  { label: 'API & webhooks',            free: false,       pro: false,       enterprise: true        },
-  { label: 'Onboarding dédié',          free: false,       pro: false,       enterprise: true        },
-  { label: 'Support prioritaire',       free: 'Email',     pro: 'Chat + Email', enterprise: 'Dédié 24/7' },
-  { label: 'SLA de disponibilité',      free: false,       pro: '99,5 %',    enterprise: '99,9 %'    },
-  { label: 'Conformité RGPD',           free: true,        pro: true,        enterprise: true        },
-  { label: 'Intégration paiement',       free: false,       pro: true,        enterprise: true        },
-];
+/** Lignes du comparatif générées à partir des limites + features du catalogue. */
+function buildComparisonRows(plans: PlanCatalog[]) {
+  const limitRows: { label: string; get: (p: PlanCatalog) => string | boolean }[] = [
+    { label: 'Commandes / mois', get: (p) => formatLimit(p.limits.maxMonthlyOrders) },
+    { label: 'Articles au menu', get: (p) => formatLimit(p.limits.maxMenuItems) },
+    { label: 'Tables + QR codes', get: (p) => formatLimit(p.limits.maxTables) },
+    { label: 'Comptes staff', get: (p) => formatLimit(p.limits.maxStaffMembers) },
+  ];
+  // Toutes les features rencontrées dans le catalogue (connues d'abord).
+  const featureKeys = Array.from(
+    new Set(plans.flatMap((p) => Object.keys(p.features ?? {}))),
+  );
+  const featureRows = featureKeys.map((fk) => ({
+    label: FEATURE_LABELS[fk] ?? fk,
+    get: (p: PlanCatalog) => p.features?.[fk] === true,
+  }));
+  return [...limitRows, ...featureRows];
+}
 
 const FAQS = [
   {
@@ -70,8 +65,8 @@ const FAQS = [
     a: 'Oui. Vous pouvez upgrader instantanément depuis votre tableau de bord. En cas de downgrade, le changement prend effet à la fin de la période en cours.',
   },
   {
-    q: 'Comment fonctionne l\'essai gratuit 14 jours ?',
-    a: 'Vous accédez à toutes les fonctionnalités du plan Pro pendant 14 jours, sans carte de crédit requise. À la fin de l\'essai, vous choisissez un plan ou passez au Gratuit.',
+    q: "Comment fonctionne l'essai gratuit 14 jours ?",
+    a: "Vous accédez à toutes les fonctionnalités du plan Pro pendant 14 jours, sans carte de crédit requise. À la fin de l'essai, vous choisissez un plan ou passez au Gratuit.",
   },
   {
     q: 'Proposez-vous une remise annuelle ?',
@@ -95,19 +90,11 @@ const TRUST = [
   { icon: Shield,        text: 'Paiement 100 % sécurisé' },
   { icon: RefreshCcw,    text: 'Annulation sans engagement' },
   { icon: HeartHandshake, text: 'Migration gratuite' },
-  { icon: CreditCard,    text: 'Sans carte pour l\'essai' },
+  { icon: CreditCard,    text: "Sans carte pour l'essai" },
 ];
 
-/* ─────────────────────────── helpers ───────────────────────── */
-
-const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 24 },
-  show:   { opacity: 1, y: 0, transition: { duration: 0.5, ease: 'easeOut' } },
-};
-const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.09 } } };
-
 function CellValue({ value }: { value: string | boolean }) {
-  if (value === true)  return <Check className="h-5 w-5 text-primary mx-auto" />;
+  if (value === true)  return <Check className="h-5 w-5 text-success mx-auto" />;
   if (value === false) return <X     className="h-4 w-4 text-muted-foreground/40 mx-auto" />;
   return <span className="text-sm font-medium text-foreground">{value}</span>;
 }
@@ -115,94 +102,86 @@ function CellValue({ value }: { value: string | boolean }) {
 function FaqItem({ q, a }: { q: string; a: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <motion.div
-      layout
-      className="border border-border rounded-2xl overflow-hidden cursor-pointer"
-      onClick={() => setOpen((v) => !v)}
-    >
-      <div className="flex items-center justify-between gap-4 px-6 py-5 hover:bg-muted/30 transition-colors">
+    <div className="border border-border rounded-2xl overflow-hidden bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left hover:bg-accent/40 transition-colors"
+      >
         <span className="text-sm font-semibold text-foreground">{q}</span>
-        {open
-          ? <ChevronUp   className="h-4 w-4 text-muted-foreground shrink-0" />
-          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
-      </div>
-      {open && (
-        <div className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed border-t border-border bg-muted/10">
-          <p className="pt-4">{a}</p>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground shrink-0 transition-transform duration-300', open && 'rotate-180')} />
+      </button>
+      <div className={cn('grid transition-all duration-300', open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]')}>
+        <div className="overflow-hidden">
+          <p className="px-6 pb-5 text-sm text-muted-foreground leading-relaxed">{a}</p>
         </div>
-      )}
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
-/* ─────────────────────────── main component ─────────────────── */
-
 export default function PricingPageClient() {
   const [billing, setBilling] = useState<BillingCycle>('monthly');
+  const { plans: catalog, isLoading } = usePlanCatalog();
 
-  const getPrice = (plan: typeof PLANS[number]) =>
+  const PLANS = catalog ?? [];
+
+  const getPrice = (plan: PlanCatalog) =>
     billing === 'annual' ? plan.annualPrice : plan.monthlyPrice;
 
-  const savings = (plan: typeof PLANS[number]) => {
-    if (plan.id === 'free') return null;
+  const savings = (plan: PlanCatalog) => {
+    if (plan.monthlyPrice <= 0) return null;
     const saved = (plan.monthlyPrice - plan.annualPrice) * 12;
     return saved > 0 ? saved : null;
   };
 
+  const comparisonRows = buildComparisonRows(PLANS);
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="bg-background">
 
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden pt-24 pb-12 sm:pt-32 sm:pb-16">
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -top-32 right-0 h-[600px] w-[600px] rounded-full bg-primary/5 blur-3xl" />
-          <div className="absolute top-16 -left-24 h-80 w-80 rounded-full bg-violet-500/4 blur-3xl" />
-        </div>
-
-        <motion.div
-          className="mx-auto max-w-3xl px-4 sm:px-6 text-center"
-          variants={stagger}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.div variants={fadeUp}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/8 px-4 py-1.5 text-xs font-semibold text-primary mb-6">
+      <section className="relative overflow-hidden pt-14 pb-10 sm:pt-20 sm:pb-14">
+        <div className="warm-aura absolute inset-0 -z-10" />
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 text-center">
+          <Reveal as="div" y={12} className="inline-flex items-center gap-2.5 mb-6">
+            <span className="h-px w-8 bg-primary/60" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-primary">
               <Sparkles className="h-3.5 w-3.5" />
-              Tarifs transparents, sans surprise
+              Tarifs transparents
             </span>
-          </motion.div>
+            <span className="h-px w-8 bg-primary/60" />
+          </Reveal>
 
-          <motion.h1
-            variants={fadeUp}
-            className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight text-foreground mb-5"
+          <TextReveal
+            as="h1"
+            className="font-display text-4xl sm:text-5xl lg:text-[3.5rem] lg:leading-[1.02] text-foreground text-balance"
           >
             Un prix honnête pour{' '}
-            <span className="text-primary">chaque restaurant</span>
-          </motion.h1>
+            <span className="font-display-italic text-gradient-warm">chaque restaurant</span>
+          </TextReveal>
 
-          <motion.p
-            variants={fadeUp}
-            className="text-lg text-muted-foreground max-w-xl mx-auto mb-8"
-          >
+          <Reveal as="p" delay={0.15} className="text-lg text-muted-foreground max-w-xl mx-auto mt-5 mb-8">
             Essai 14 jours gratuit sur tous les plans. Aucune carte de crédit requise.
             Changez de plan à tout moment.
-          </motion.p>
+          </Reveal>
 
           {/* Billing toggle */}
-          <motion.div variants={fadeUp} className="inline-flex items-center gap-3 mb-6">
+          <Reveal as="div" delay={0.25} className="inline-flex items-center gap-3">
             <span className={cn('text-sm font-medium transition-colors', billing === 'monthly' ? 'text-foreground' : 'text-muted-foreground')}>
               Mensuel
             </span>
             <button
-              onClick={() => setBilling((b) => b === 'monthly' ? 'annual' : 'monthly')}
+              onClick={() => setBilling((b) => (b === 'monthly' ? 'annual' : 'monthly'))}
               className={cn(
                 'relative h-6 w-11 rounded-full transition-colors duration-300',
                 billing === 'annual' ? 'bg-primary' : 'bg-muted',
               )}
-              aria-label="Basculer facturation annuelle"
+              aria-label="Basculer la facturation annuelle"
             >
               <span className={cn(
-                'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform duration-300',
+                'absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-card shadow-sm transition-transform duration-300',
                 billing === 'annual' ? 'translate-x-5' : 'translate-x-0',
               )} />
             </button>
@@ -210,139 +189,132 @@ export default function PricingPageClient() {
               Annuel
             </span>
             {billing === 'annual' && (
-              <Badge className="bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400 text-[11px] font-bold border-0">
+              <Badge className="bg-success/12 text-success text-[11px] font-semibold border-0">
                 Économisez ~20 %
               </Badge>
             )}
-          </motion.div>
-        </motion.div>
+          </Reveal>
+        </div>
       </section>
 
       {/* ── Plan cards ── */}
       <section className="pb-16 sm:pb-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <motion.div
-            className="grid grid-cols-1 md:grid-cols-3 gap-6 items-start"
-            variants={stagger}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-          >
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-primary/50" />
+            </div>
+          ) : (
+          <Stagger className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch" stagger={0.1}>
             {PLANS.map((plan) => {
-              const Icon      = PLAN_ICONS[plan.id];
-              const isPopular = plan.id === 'pro';
+              const Icon      = planIcon(plan);
+              const isPopular = !!plan.badge && !plan.comingSoon;
               const price     = getPrice(plan);
               const saved     = savings(plan);
 
               return (
-                <motion.div
-                  key={plan.id}
-                  variants={fadeUp}
+                <div
+                  key={plan.key}
                   className={cn(
-                    'relative rounded-3xl border bg-card flex flex-col overflow-hidden transition-all duration-300',
+                    'relative rounded-3xl bg-card flex flex-col overflow-hidden transition-all duration-300',
                     isPopular
-                      ? 'border-primary shadow-xl shadow-primary/10 ring-1 ring-primary scale-[1.02] hover:shadow-2xl'
+                      ? 'border-2 border-primary shadow-xl shadow-primary/10 md:-translate-y-2'
                       : plan.comingSoon
-                      ? 'border-dashed border-border/60 opacity-70 shadow-sm'
-                      : 'shadow-sm hover:shadow-lg',
+                      ? 'border border-dashed border-border opacity-75'
+                      : 'border border-border shadow-sm hover:shadow-lg',
                   )}
                 >
-                  {/* Badge populaire ou "bientôt dispo" */}
                   {plan.comingSoon ? (
-                    <div className="py-2.5 text-center text-xs font-bold tracking-wider uppercase bg-muted text-muted-foreground">
-                      🚧 En cours de développement
+                    <div className="py-2.5 text-center text-xs font-semibold tracking-widest uppercase bg-muted text-muted-foreground">
+                      En cours de développement
+                    </div>
+                  ) : isPopular ? (
+                    <div className="py-2.5 text-center text-xs font-semibold tracking-widest uppercase bg-primary text-primary-foreground inline-flex items-center justify-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5" /> {plan.badge ?? 'Le plus populaire'}
                     </div>
                   ) : plan.badge ? (
-                    <div className={cn(
-                      'py-2.5 text-center text-xs font-bold tracking-wider uppercase',
-                      isPopular ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-                    )}>
+                    <div className="py-2.5 text-center text-xs font-semibold tracking-widest uppercase bg-muted text-muted-foreground">
                       {plan.badge}
                     </div>
                   ) : null}
 
                   <div className="p-8 flex flex-col flex-1">
-                    {/* Header */}
                     <div className="mb-6">
-                      <div className="flex items-center gap-2.5 mb-1">
+                      <div className="flex items-center gap-2.5 mb-2">
                         {Icon && (
                           <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                             <Icon className="h-4 w-4 text-primary" />
                           </div>
                         )}
-                        <h3 className="text-xl font-black text-foreground">{plan.name}</h3>
+                        <h3 className="font-display text-2xl text-foreground">{plan.name}</h3>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">{plan.tagline}</p>
+                      <p className="text-sm text-muted-foreground">{plan.tagline}</p>
                     </div>
 
-                    {/* Price */}
                     <div className="mb-7">
                       <div className="flex items-baseline gap-1.5">
-                        <span className="text-5xl font-black text-foreground tabular-nums">
-                          {price}€
+                        <span className="font-display text-5xl text-foreground tabular-nums">
+                          {price}{currencySymbol(plan.currency)}
                         </span>
                         <span className="text-sm text-muted-foreground">/ mois</span>
                       </div>
                       {billing === 'annual' && saved && (
-                        <p className="text-xs text-green-600 dark:text-green-400 font-semibold mt-1">
-                          Soit {saved}€ économisés / an
-                        </p>
+                        <p className="text-xs text-success font-semibold mt-1">Soit {saved}{currencySymbol(plan.currency)} économisés / an</p>
                       )}
                       {billing === 'annual' && price > 0 && (
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Facturé {price * 12}€ annuellement
-                        </p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">Facturé {price * 12}{currencySymbol(plan.currency)} annuellement</p>
                       )}
                     </div>
 
-                    {/* Perks */}
                     <ul className="mb-8 space-y-2.5 flex-grow">
                       {plan.highlights.map((perk) => (
                         <li key={perk} className="flex items-center gap-2.5 text-sm">
-                          <Check className="h-4 w-4 text-primary shrink-0" />
+                          <Check className="h-4 w-4 text-success shrink-0" />
                           <span className="text-foreground/80">{perk}</span>
                         </li>
                       ))}
                     </ul>
 
-                    {/* CTA */}
-                    <Button
-                      asChild={!plan.comingSoon}
-                      size="lg"
-                      variant={isPopular ? 'default' : 'outline'}
-                      disabled={plan.comingSoon}
-                      className={cn(
-                        'w-full h-12 rounded-2xl font-bold gap-2',
-                        isPopular && 'shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-shadow',
-                      )}
-                    >
-                      {plan.comingSoon ? (
-                        <span>Bientôt disponible</span>
-                      ) : (
-                        <Link href={PLAN_HREFS[plan.id]}>
-                          {PLAN_CTAS[plan.id]}
+                    {plan.comingSoon ? (
+                      <Button size="lg" disabled className="w-full h-12 rounded-full font-semibold">
+                        Bientôt disponible
+                      </Button>
+                    ) : isPopular ? (
+                      <Magnetic strength={0.3} block>
+                        <Button asChild size="lg" className="w-full h-12 rounded-full font-semibold gap-2 shadow-lg shadow-primary/20">
+                          <Link href={planHref(plan)}>
+                            {planCta(plan)}
+                            <ArrowRight className="h-4 w-4" />
+                          </Link>
+                        </Button>
+                      </Magnetic>
+                    ) : (
+                      <Button asChild size="lg" variant="outline" className="w-full h-12 rounded-full font-semibold gap-2">
+                        <Link href={planHref(plan)}>
+                          {planCta(plan)}
                           <ArrowRight className="h-4 w-4" />
                         </Link>
-                      )}
-                    </Button>
+                      </Button>
+                    )}
 
-                    {plan.id === 'pro' && (
+                    {isPopular && (
                       <p className="text-center text-[11px] text-muted-foreground mt-3">
                         Sans carte de crédit · Annulation libre
                       </p>
                     )}
                   </div>
-                </motion.div>
+                </div>
               );
             })}
-          </motion.div>
+          </Stagger>
+          )}
         </div>
       </section>
 
       {/* ── Trust bar ── */}
-      <section className="py-8 border-y border-border bg-muted/30">
+      <section className="py-8 border-y border-border bg-card">
         <div className="mx-auto max-w-4xl px-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
             {TRUST.map(({ icon: Icon, text }) => (
               <div key={text} className="flex items-center gap-2">
                 <Icon className="h-4 w-4 text-primary" />
@@ -354,73 +326,72 @@ export default function PricingPageClient() {
       </section>
 
       {/* ── Comparison table ── */}
-      <section className="py-16 sm:py-20">
+      <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-          >
-            <div className="text-center mb-10">
-              <span className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">
-                Comparatif complet
-              </span>
-              <h2 className="text-3xl font-black text-foreground">
-                Toutes les fonctionnalités, côte à côte
-              </h2>
-            </div>
+          <SectionHeading
+            eyebrow="Comparatif complet"
+            title={<>Toutes les fonctionnalités, <span className="font-display-italic text-gradient-warm">côte à côte</span></>}
+          />
 
-            <div className="rounded-2xl border border-border overflow-hidden shadow-sm">
-              {/* Table header */}
-              <div className="grid grid-cols-4 bg-muted/50 border-b border-border">
+          <Reveal as="div" y={24} className="mt-12 overflow-x-auto">
+            <div
+              className="min-w-[640px] rounded-3xl border border-border overflow-hidden shadow-sm"
+              style={{ ['--cols' as string]: PLANS.length }}
+            >
+              {/* Header */}
+              <div
+                className="grid bg-muted/60 border-b border-border"
+                style={{ gridTemplateColumns: `1.4fr repeat(${PLANS.length}, 1fr)` }}
+              >
                 <div className="p-4 font-semibold text-sm text-muted-foreground">Fonctionnalité</div>
                 {PLANS.map((p) => (
-                  <div key={p.id} className={cn(
-                    'p-4 text-center text-sm font-bold',
+                  <div key={p.key} className={cn(
+                    'p-4 text-center text-sm font-semibold',
                     p.badge ? 'text-primary bg-primary/5' : 'text-foreground',
                   )}>
                     {p.name}
-                    {p.badge && <span className="ml-1 text-[10px] align-super">★</span>}
                   </div>
                 ))}
               </div>
 
-              {/* Table rows */}
-              {FEATURES.map((feat, i) => (
+              {comparisonRows.map((row, i) => (
                 <div
-                  key={feat.label}
+                  key={row.label}
                   className={cn(
-                    'grid grid-cols-4 border-b border-border last:border-0',
-                    i % 2 === 0 ? 'bg-background' : 'bg-muted/20',
+                    'grid border-b border-border last:border-0',
+                    i % 2 === 0 ? 'bg-card' : 'bg-muted/20',
                   )}
+                  style={{ gridTemplateColumns: `1.4fr repeat(${PLANS.length}, 1fr)` }}
                 >
-                  <div className="p-4 text-sm text-foreground/80 font-medium">{feat.label}</div>
-                  <div className="p-4 text-center"><CellValue value={feat.free} /></div>
-                  <div className={cn('p-4 text-center', 'bg-primary/3')}>
-                    <CellValue value={feat.pro} />
-                  </div>
-                  <div className="p-4 text-center"><CellValue value={feat.enterprise} /></div>
+                  <div className="p-4 text-sm text-foreground/80 font-medium">{row.label}</div>
+                  {PLANS.map((p) => (
+                    <div
+                      key={p.key}
+                      className={cn(
+                        'p-4 text-center flex items-center justify-center',
+                        p.badge && 'bg-primary/[0.04]',
+                      )}
+                    >
+                      <CellValue value={row.get(p)} />
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-          </motion.div>
+          </Reveal>
         </div>
       </section>
 
       {/* ── FAQ ── */}
-      <section className="py-16 sm:py-20 bg-muted/30">
+      <section className="py-16 sm:py-24 bg-card">
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
-          <div className="text-center mb-10">
-            <span className="text-xs font-bold uppercase tracking-widest text-primary mb-2 block">FAQ</span>
-            <h2 className="text-3xl font-black text-foreground">Questions fréquentes</h2>
-          </div>
+          <SectionHeading eyebrow="FAQ" title={<>Questions <span className="font-display-italic text-gradient-warm">fréquentes</span></>} />
 
-          <div className="space-y-3">
+          <Stagger className="mt-12 space-y-3" stagger={0.06} y={14}>
             {FAQS.map((faq) => (
               <FaqItem key={faq.q} q={faq.q} a={faq.a} />
             ))}
-          </div>
+          </Stagger>
 
           <p className="text-center text-sm text-muted-foreground mt-8">
             Autre question ?{' '}
@@ -431,57 +402,42 @@ export default function PricingPageClient() {
         </div>
       </section>
 
-      {/* ── CTA final ── */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-4xl px-4 sm:px-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="rounded-3xl bg-primary px-8 py-14 sm:px-14 sm:py-20 text-center text-primary-foreground shadow-2xl shadow-primary/30 relative overflow-hidden"
-          >
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute -top-16 -right-16 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
-              <div className="absolute -bottom-12 -left-12 h-48 w-48 rounded-full bg-white/10 blur-3xl" />
-            </div>
-
-            <div className="relative">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold mb-5">
-                <Sparkles className="h-3 w-3" />
-                Essai gratuit 14 jours · Sans engagement
-              </span>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black mb-4">
-                Lancez-vous aujourd&apos;hui
-              </h2>
-              <p className="text-primary-foreground/80 text-base sm:text-lg mb-10 max-w-lg mx-auto">
-                Rejoignez les restaurateurs qui ont déjà digitalisé leur établissement avec Flash Menu.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-4">
-                <Button
-                  asChild
-                  size="lg"
-                  className="bg-white text-primary hover:bg-white/90 font-bold shadow-xl h-13 px-8 rounded-2xl gap-2 text-base"
-                >
-                  <Link href="/auth/register">
-                    Commencer gratuitement
-                    <ArrowRight className="h-4.5 w-4.5" />
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  size="lg"
-                  variant="ghost"
-                  className="text-primary-foreground hover:bg-white/10 font-semibold h-13 px-8 rounded-2xl text-base"
-                >
-                  <Link href="/contact?subject=demo">Demander une démo</Link>
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
+      <SaasCTAInline />
     </div>
+  );
+}
+
+/* CTA final — variante inline (le composant partagé SaasCTA vit côté serveur ;
+   ici on reste dans un fichier client, on réutilise donc le même langage visuel). */
+function SaasCTAInline() {
+  return (
+    <section className="relative py-20 sm:py-28 overflow-hidden bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative rounded-[2.5rem] bg-foreground text-background px-6 py-14 sm:px-16 sm:py-20 overflow-hidden text-center">
+          <div className="absolute inset-0 opacity-50 [background:radial-gradient(50%_60%_at_80%_0%,oklch(0.645_0.205_44/0.55),transparent_70%),radial-gradient(40%_50%_at_10%_100%,oklch(0.8_0.15_78/0.35),transparent_70%)]" />
+          <div className="relative max-w-2xl mx-auto">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-background/10 px-3 py-1 text-xs font-semibold text-primary mb-5">
+              <Sparkles className="h-3 w-3" /> Essai gratuit 14 jours · Sans engagement
+            </span>
+            <h2 className="font-display text-3xl sm:text-4xl lg:text-[3rem] lg:leading-[1.05] text-background text-balance">
+              Lancez-vous <span className="font-display-italic text-gradient-warm">aujourd’hui</span>
+            </h2>
+            <p className="mt-5 text-lg text-background/70 leading-relaxed">
+              Rejoignez les restaurateurs qui ont déjà digitalisé leur établissement avec Flash Menu.
+            </p>
+            <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <Magnetic strength={0.4}>
+                <Button asChild size="lg" className="h-14 px-9 text-base font-semibold rounded-full shadow-xl shadow-primary/30">
+                  <Link href="/auth/register">Commencer gratuitement<ArrowRight className="ml-2 h-5 w-5" /></Link>
+                </Button>
+              </Magnetic>
+              <Button asChild size="lg" variant="outline" className="h-14 px-9 text-base rounded-full bg-transparent border-background/25 text-background hover:bg-background/10 hover:text-background">
+                <Link href="/contact?subject=demo">Demander une démo</Link>
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }

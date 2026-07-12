@@ -1,5 +1,7 @@
 import { LazySection } from "@/components/common/LazySection"
 import { Star, Quote } from "lucide-react"
+import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { Stagger } from "@/components/motion/stagger"
 
 const TESTIMONIALS = [
   {
@@ -31,48 +33,37 @@ const TESTIMONIALS = [
 export const Testimonials = () => {
   return (
     <LazySection>
-      <section className="py-20 sm:py-28 bg-muted/40">
+      <section className="py-24 sm:py-32 bg-card">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* Header */}
-          <div className="text-center mb-14">
-            <div className="inline-flex items-center gap-2 bg-primary/10 text-primary rounded-full px-4 py-1.5 mb-5">
-              <Star className="h-3.5 w-3.5 fill-primary" />
-              <span className="text-xs font-bold uppercase tracking-widest">Témoignages</span>
-            </div>
-            <h2 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mb-4">
-              Des restaurateurs qui nous font confiance
-            </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-              Plus de 500 établissements utilisent Flash Menu au quotidien pour piloter leur activité.
-            </p>
-          </div>
+          <SectionHeading
+            eyebrow="Témoignages"
+            title={<>Des restaurateurs qui nous <span className="font-display-italic text-gradient-warm">font confiance</span></>}
+            description="Plus de 500 établissements pilotent leur activité avec Flash Menu au quotidien."
+          />
 
           {/* Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Stagger className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6" stagger={0.12}>
             {TESTIMONIALS.map((t) => (
-              <div
+              <figure
                 key={t.name}
-                className="bg-card border border-border rounded-2xl p-7 flex flex-col gap-5 shadow-sm hover:shadow-md transition-shadow duration-200"
+                className="bg-background border border-border rounded-3xl p-8 flex flex-col gap-6 shadow-sm hover:shadow-lg transition-shadow duration-300"
               >
-                {/* Stars */}
-                <div className="flex gap-0.5">
-                  {Array.from({ length: t.rating }).map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-                  ))}
+                <div className="flex items-center justify-between">
+                  <div className="flex gap-0.5">
+                    {Array.from({ length: t.rating }).map((_, i) => (
+                      <Star key={i} className="h-4 w-4 fill-warning text-warning" />
+                    ))}
+                  </div>
+                  <Quote className="h-8 w-8 text-primary/15" />
                 </div>
 
-                {/* Quote */}
-                <div className="relative flex-1">
-                  <Quote className="absolute -top-1 -left-1 h-6 w-6 text-primary/15 rotate-180" />
-                  <p className="text-foreground/90 text-sm leading-relaxed pl-5 italic">
-                    {t.text}
-                  </p>
-                </div>
+                <blockquote className="flex-1 text-foreground/90 leading-relaxed">
+                  “{t.text}”
+                </blockquote>
 
-                {/* Author */}
-                <div className="flex items-center gap-3 pt-2 border-t border-border">
-                  <div className="h-10 w-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-sm font-bold flex-shrink-0">
+                <figcaption className="flex items-center gap-3 pt-5 border-t border-border">
+                  <div className="h-11 w-11 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold flex-shrink-0 ring-1 ring-primary/10">
                     {t.initials}
                   </div>
                   <div className="min-w-0">
@@ -80,20 +71,23 @@ export const Testimonials = () => {
                     <p className="text-xs text-muted-foreground truncate">{t.role}</p>
                     <p className="text-xs text-muted-foreground/70">{t.location}</p>
                   </div>
-                </div>
-              </div>
+                </figcaption>
+              </figure>
             ))}
-          </div>
+          </Stagger>
 
           {/* Social proof bar */}
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-8 text-sm text-muted-foreground">
+          <div className="mt-12 flex flex-wrap items-center justify-center gap-x-8 gap-y-3 text-sm text-muted-foreground">
             <span className="font-semibold text-foreground">+500 restaurants</span>
             <span className="h-1 w-1 rounded-full bg-border hidden sm:block" />
-            <span>98 % de satisfaction client</span>
+            <span>98 % de satisfaction</span>
             <span className="h-1 w-1 rounded-full bg-border hidden sm:block" />
             <span>Support 7j/7</span>
             <span className="h-1 w-1 rounded-full bg-border hidden sm:block" />
-            <span>Note moyenne ⭐ 4,9 / 5</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Star className="h-3.5 w-3.5 fill-warning text-warning" />
+              4,9 / 5 de note moyenne
+            </span>
           </div>
 
         </div>

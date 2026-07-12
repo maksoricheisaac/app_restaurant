@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Loader2, AlertTriangle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { onboardingService } from '@/services/onboarding.service';
 import type { OnboardingData } from '@/types/onboarding';
@@ -110,16 +110,16 @@ export default function StepFinalization({ data, onComplete }: Props) {
   if (error) {
     return (
       <div className="space-y-4 text-center py-8">
-        <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-100 mx-auto">
-          <span className="text-2xl">⚠️</span>
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/12 mx-auto">
+          <AlertTriangle className="h-8 w-8 text-destructive" strokeWidth={1.6} />
         </div>
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Erreur lors de l&apos;inscription</h2>
-          <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">{error}</p>
+          <h2 className="font-display text-2xl text-foreground">Erreur lors de l&apos;inscription</h2>
+          <p className="mt-2 text-sm text-muted-foreground max-w-sm mx-auto">{error}</p>
         </div>
         <button
           onClick={() => window.location.reload()}
-          className="text-sm text-primary hover:underline"
+          className="text-sm text-primary font-medium hover:underline"
         >
           Réessayer
         </button>
@@ -137,9 +137,9 @@ export default function StepFinalization({ data, onComplete }: Props) {
               initial={{ scale: 0, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-              className="flex h-20 w-20 items-center justify-center rounded-full bg-green-100 mx-auto"
+              className="flex h-20 w-20 items-center justify-center rounded-full bg-success/12 mx-auto"
             >
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
+              <CheckCircle2 className="h-10 w-10 text-success" />
             </motion.div>
           ) : (
             <motion.div
@@ -161,11 +161,11 @@ export default function StepFinalization({ data, onComplete }: Props) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="font-display text-2xl sm:text-3xl tracking-tight text-foreground">
             {isDone ? 'Bienvenue sur Flash Menu !' : 'Préparation de votre espace…'}
           </h1>
           {isDone && data.restaurantName && (
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               {data.restaurantName} est prêt. Redirection en cours…
             </p>
           )}
@@ -191,7 +191,7 @@ export default function StepFinalization({ data, onComplete }: Props) {
                     animate={{ scale: 1 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                   >
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <CheckCircle2 className="h-5 w-5 text-success" />
                   </motion.div>
                 ) : isCurrent ? (
                   <motion.div
@@ -201,16 +201,16 @@ export default function StepFinalization({ data, onComplete }: Props) {
                     <Loader2 className="h-4 w-4 text-primary" />
                   </motion.div>
                 ) : (
-                  <div className="h-4 w-4 rounded-full border-2 border-slate-200" />
+                  <div className="h-4 w-4 rounded-full border-2 border-border" />
                 )}
               </div>
               <p
                 className={`text-sm transition-colors ${
                   isComplete
-                    ? 'text-slate-600 line-through decoration-slate-300'
+                    ? 'text-muted-foreground line-through decoration-border'
                     : isCurrent
-                    ? 'text-slate-900 font-medium'
-                    : 'text-slate-400'
+                    ? 'text-foreground font-medium'
+                    : 'text-muted-foreground/60'
                 }`}
               >
                 {step.label}
@@ -225,12 +225,12 @@ export default function StepFinalization({ data, onComplete }: Props) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}
-          className="rounded-xl bg-slate-50 border border-slate-100 p-4 max-w-sm mx-auto"
+          className="rounded-2xl bg-muted/40 border border-border p-4 max-w-sm mx-auto"
         >
-          <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">Votre espace</p>
-          <p className="font-semibold text-slate-900">{data.restaurantName}</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold mb-2">Votre espace</p>
+          <p className="font-semibold text-foreground">{data.restaurantName}</p>
           {data.slug && (
-            <p className="text-xs text-slate-400 mt-0.5 font-mono">{data.slug}.flashmenu.app</p>
+            <p className="text-xs text-muted-foreground mt-0.5 font-mono">{data.slug}.flashmenu.app</p>
           )}
         </motion.div>
       )}

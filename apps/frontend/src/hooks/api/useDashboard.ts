@@ -35,3 +35,29 @@ export const useTenants = () => {
     staleTime: 2 * 60_000,
   });
 };
+
+export interface BillingStats {
+  totalTenants: number;
+  payingTenants: number;
+  mrr: number;
+  arr: number;
+  conversion: number;
+  breakdown: {
+    key: string;
+    name: string;
+    monthlyPrice: number;
+    annualPrice: number;
+    currency: string;
+    isActive: boolean;
+    count: number;
+    mrr: number;
+  }[];
+}
+
+export const useBillingStats = () => {
+  return useQuery<BillingStats>({
+    queryKey: ['billing-stats'],
+    queryFn: () => dashboardService.getBillingStats(),
+    staleTime: 60_000,
+  });
+};

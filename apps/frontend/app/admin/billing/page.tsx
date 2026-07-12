@@ -6,67 +6,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePlan } from "@/hooks/usePlan";
+import { usePlanCatalog } from "@/hooks/api/usePlans";
+import { currencySymbol } from "@/config/plans";
 import api from "@/lib/api-client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
-const PLANS = [
-  {
-    id: "free",
-    name: "Gratuit",
-    price: "0",
-    description: "Pour démarrer et tester la plateforme.",
-    badge: null,
-    features: [
-      "10 commandes / mois",
-      "5 articles au menu",
-      "3 tables",
-      "2 comptes staff",
-      "Dashboard de base",
-    ],
-    cta: "Plan actuel",
-    disabled: true,
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    price: "29",
-    description: "Pour les restaurants actifs.",
-    badge: "Populaire",
-    features: [
-      "Commandes illimitées",
-      "Menu illimité",
-      "10 tables",
-      "5 comptes staff",
-      "Rapports avancés",
-      "Notifications email/SMS",
-      "Kitchen Display System",
-    ],
-    cta: "Passer au Pro",
-    disabled: false,
-  },
-  {
-    id: "enterprise",
-    name: "Enterprise",
-    price: "99",
-    description: "Pour les restaurants à fort volume.",
-    badge: null,
-    features: [
-      "Tout ce qu'offre le plan Pro",
-      "Tables illimitées",
-      "Staff illimité",
-      "Multi-établissements (bientôt)",
-      "API personnalisée",
-      "Account Manager dédié",
-    ],
-    cta: "Passer à Enterprise",
-    disabled: false,
-  },
-] as const;
-
 export default function BillingPage() {
   const { plan: currentPlan } = usePlan();
+  const { plans: catalog, isLoading: plansLoading } = usePlanCatalog();
   const [loading, setLoading] = useState<string | null>(null);
+
+  // Ordre d'un plan (par prix) pour distinguer upgrade / downgrade.
+  const priceOf = (key: string) =>
+    catalog?.find((p) => p.key === key)?.monthlyPrice ?? 0;
+  const PLANS = catalog ?? [];
 
   async function handleUpgrade(planId: string) {
     setLoading(planId);
@@ -104,16 +58,23 @@ export default function BillingPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {plansLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-8 w-8 animate-spin text-orange-500/50" />
+        </div>
+      ) : (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {PLANS.map((plan) => {
-          const isCurrent = currentPlan === plan.id;
+          const isCurrent = currentPlan === plan.key;
+          const isPaid = plan.monthlyPrice > 0;
+          // Upgrade = plan payant, plus cher que l'actuel, et souscriptible.
           const isUpgrade =
-            (currentPlan === "free" && plan.id !== "free") ||
-            (currentPlan === "pro" && plan.id === "enterprise");
+            !isCurrent && !plan.comingSoon && isPaid &&
+            plan.monthlyPrice > priceOf(currentPlan);
 
           return (
             <Card
-              key={plan.id}
+              key={plan.key}
               className={cn(
                 "relative flex flex-col transition-all",
                 isCurrent && "border-orange-400 ring-1 ring-orange-400",
@@ -134,19 +95,19 @@ export default function BillingPage() {
               )}
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2 mb-1">
-                  {plan.id === "pro" && <Zap className="h-5 w-5 text-orange-500" />}
-                  {plan.id === "enterprise" && <Crown className="h-5 w-5 text-purple-500" />}
+                  {plan.key === "pro" && <Zap className="h-5 w-5 text-orange-500" />}
+                  {plan.key === "enterprise" && <Crown className="h-5 w-5 text-purple-500" />}
                   <h3 className="text-xl font-bold">{plan.name}</h3>
                 </div>
-                <p className="text-sm text-muted-foreground">{plan.description}</p>
+                <p className="text-sm text-muted-foreground">{plan.description ?? plan.tagline}</p>
                 <div className="flex items-baseline gap-1 mt-3">
-                  <span className="text-4xl font-black">{plan.price}€</span>
+                  <span className="text-4xl font-black">{plan.monthlyPrice}{currencySymbol(plan.currency)}</span>
                   <span className="text-muted-foreground text-sm">/ mois</span>
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col flex-1 gap-4">
                 <ul className="space-y-2.5 flex-1">
-                  {plan.features.map((f) => (
+                  {plan.highlights.map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm">
                       <Check className="h-4 w-4 text-orange-500 mt-0.5 flex-shrink-0" />
                       {f}
@@ -159,16 +120,20 @@ export default function BillingPage() {
                     isCurrent && "bg-slate-100 text-slate-500 hover:bg-slate-100 cursor-default",
                     isUpgrade && "gap-2",
                   )}
-                  variant={plan.id === "pro" && !isCurrent ? "default" : "outline"}
-                  disabled={isCurrent || loading !== null}
-                  onClick={() => isUpgrade && handleUpgrade(plan.id)}
+                  variant={plan.key === "pro" && !isCurrent ? "default" : "outline"}
+                  disabled={isCurrent || plan.comingSoon || !isUpgrade || loading !== null}
+                  onClick={() => isUpgrade && handleUpgrade(plan.key)}
                 >
-                  {loading === plan.id ? (
+                  {loading === plan.key ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : isCurrent ? (
                     <><CheckCircle2 className="h-4 w-4 mr-1" /> Actif</>
+                  ) : plan.comingSoon ? (
+                    "Bientôt disponible"
+                  ) : isUpgrade ? (
+                    <>Passer à {plan.name} <ArrowRight className="h-4 w-4" /></>
                   ) : (
-                    <>{plan.cta} {isUpgrade && <ArrowRight className="h-4 w-4" />}</>
+                    "Indisponible"
                   )}
                 </Button>
               </CardContent>
@@ -176,6 +141,7 @@ export default function BillingPage() {
           );
         })}
       </div>
+      )}
 
       <p className="text-center text-xs text-muted-foreground">
         Paiement sécurisé · Annulation à tout moment · Sans engagement

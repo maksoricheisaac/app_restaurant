@@ -5,27 +5,28 @@
 
 /* ─── Light theme ─────────────────────────────────────────────────── */
 :root {
-  /* Base */
-  --background: oklch(0.9827 0.0026 286.3511);
-  --foreground: oklch(0.1649 0.0352 281.8285);
+  /* Base — neutres CHAUDS (ivoire / encre stone) : la chaleur hospitalière qui
+     éloigne Flash Menu du slate froid générique des SaaS. */
+  --background: oklch(0.9911 0.0040 84.5659);   /* ivoire très clair */
+  --foreground: oklch(0.2050 0.0120 58.0000);   /* encre stone profonde */
   --card: oklch(1.0000 0 0);
-  --card-foreground: oklch(0.1649 0.0352 281.8285);
+  --card-foreground: oklch(0.2050 0.0120 58.0000);
   --popover: oklch(1.0000 0 0);
-  --popover-foreground: oklch(0.1649 0.0352 281.8285);
+  --popover-foreground: oklch(0.2050 0.0120 58.0000);
 
-  /* Brand — warm orange */
-  --primary: oklch(0.6280 0.2577 29.2339);
+  /* Brand — orange chaud, plus « braise » que rouge tomate, pour l'énergie CTA */
+  --primary: oklch(0.6450 0.2050 44.0000);
   --primary-foreground: oklch(1.0000 0 0);
 
-  /* Secondary / muted */
-  --secondary: oklch(0.9612 0 0);
-  --secondary-foreground: oklch(0.1649 0.0352 281.8285);
-  --muted: oklch(0.9595 0.0200 286.0164);
-  --muted-foreground: oklch(0.5200 0.0320 278.0000);
+  /* Secondary / muted — surfaces sable */
+  --secondary: oklch(0.9670 0.0080 78.0000);
+  --secondary-foreground: oklch(0.2050 0.0120 58.0000);
+  --muted: oklch(0.9640 0.0090 80.0000);
+  --muted-foreground: oklch(0.5100 0.0160 62.0000);
 
-  /* Accent (orange-amber) */
-  --accent: oklch(0.9595 0.0200 286.0164);
-  --accent-foreground: oklch(0.1649 0.0352 281.8285);
+  /* Accent — sable chaud (fonds de survol) */
+  --accent: oklch(0.9560 0.0180 74.0000);
+  --accent-foreground: oklch(0.2050 0.0120 58.0000);
 
   /* Semantic — destructive (red) */
   --destructive: oklch(0.6279 0.2362 14.0);
@@ -43,13 +44,13 @@
   --info: oklch(0.6194 0.1696 243.9);
   --info-foreground: oklch(1.0000 0 0);
 
-  /* Borders / inputs */
-  --border: oklch(0.9205 0.0086 225.0878);
-  --input: oklch(0.9205 0.0086 225.0878);
-  --ring: oklch(0.6280 0.2577 29.2339);
+  /* Borders / inputs — hairlines chaudes */
+  --border: oklch(0.9160 0.0090 76.0000);
+  --input: oklch(0.9160 0.0090 76.0000);
+  --ring: oklch(0.6450 0.2050 44.0000);
 
   /* Charts */
-  --chart-1: oklch(0.6280 0.2577 29.2339);
+  --chart-1: oklch(0.6450 0.2050 44.0000);
   --chart-2: oklch(0.6803 0.2144 39.8015);
   --chart-3: oklch(0.7447 0.1863 53.2932);
   --chart-4: oklch(0.8442 0.1457 89.7682);
@@ -57,31 +58,32 @@
 
   /* Sidebar */
   --sidebar: oklch(1.0000 0 0);
-  --sidebar-foreground: oklch(0.1649 0.0352 281.8285);
-  --sidebar-primary: oklch(0.6280 0.2577 29.2339);
+  --sidebar-foreground: oklch(0.2050 0.0120 58.0000);
+  --sidebar-primary: oklch(0.6450 0.2050 44.0000);
   --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.9595 0.0200 286.0164);
-  --sidebar-accent-foreground: oklch(0.1649 0.0352 281.8285);
-  --sidebar-border: oklch(0.9205 0.0086 225.0878);
-  --sidebar-ring: oklch(0.6280 0.2577 29.2339);
+  --sidebar-accent: oklch(0.9560 0.0180 74.0000);
+  --sidebar-accent-foreground: oklch(0.2050 0.0120 58.0000);
+  --sidebar-border: oklch(0.9160 0.0090 76.0000);
+  --sidebar-ring: oklch(0.6450 0.2050 44.0000);
 
-  /* Typography */
-  --font-sans: Outfit, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: Fira Code, monospace;
+  /* Typography — Inter (texte) + Fraunces (titrage éditorial) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", monospace;
 
   /* Shape */
   --radius: 0.625rem;
 
-  /* Shadows — richer depth */
-  --shadow-2xs: 0 1px 2px 0 hsl(0 0% 0% / 0.04);
-  --shadow-xs:  0 1px 3px 0 hsl(0 0% 0% / 0.06), 0 1px 2px -1px hsl(0 0% 0% / 0.06);
-  --shadow-sm:  0 2px 4px 0 hsl(0 0% 0% / 0.07), 0 1px 2px -1px hsl(0 0% 0% / 0.05);
-  --shadow:     0 4px 6px -1px hsl(0 0% 0% / 0.08), 0 2px 4px -2px hsl(0 0% 0% / 0.05);
-  --shadow-md:  0 6px 10px -2px hsl(0 0% 0% / 0.10), 0 3px 6px -3px hsl(0 0% 0% / 0.07);
-  --shadow-lg:  0 10px 20px -4px hsl(0 0% 0% / 0.12), 0 4px 8px -4px hsl(0 0% 0% / 0.08);
-  --shadow-xl:  0 20px 40px -8px hsl(0 0% 0% / 0.15), 0 8px 16px -8px hsl(0 0% 0% / 0.10);
-  --shadow-2xl: 0 30px 60px -12px hsl(0 0% 0% / 0.20);
+  /* Shadows — teintées chaudes (encre stone), profondeur douce et premium */
+  --shadow-2xs: 0 1px 2px 0 hsl(28 40% 12% / 0.04);
+  --shadow-xs:  0 1px 3px 0 hsl(28 40% 12% / 0.06), 0 1px 2px -1px hsl(28 40% 12% / 0.06);
+  --shadow-sm:  0 2px 4px 0 hsl(28 40% 12% / 0.07), 0 1px 2px -1px hsl(28 40% 12% / 0.05);
+  --shadow:     0 4px 8px -1px hsl(28 40% 12% / 0.08), 0 2px 4px -2px hsl(28 40% 12% / 0.05);
+  --shadow-md:  0 8px 16px -3px hsl(28 40% 12% / 0.10), 0 3px 6px -3px hsl(28 40% 12% / 0.07);
+  --shadow-lg:  0 14px 28px -6px hsl(28 40% 12% / 0.12), 0 5px 10px -5px hsl(28 40% 12% / 0.08);
+  --shadow-xl:  0 24px 48px -10px hsl(28 42% 12% / 0.16), 0 10px 20px -8px hsl(28 40% 12% / 0.10);
+  --shadow-2xl: 0 40px 80px -16px hsl(28 45% 10% / 0.22);
 
   /* Misc */
   --tracking-normal: 0em;
@@ -90,23 +92,24 @@
 
 /* ─── Dark theme ──────────────────────────────────────────────────── */
 .dark {
-  --background: oklch(0.1649 0.0352 281.8285);
-  --foreground: oklch(0.9513 0.0074 260.7315);
-  --card: oklch(0.2100 0.0450 281.0);
-  --card-foreground: oklch(0.9513 0.0074 260.7315);
-  --popover: oklch(0.2100 0.0450 281.0);
-  --popover-foreground: oklch(0.9513 0.0074 260.7315);
+  /* Charbon chaud (pas de violet froid) pour rester cohérent avec le mode clair */
+  --background: oklch(0.1780 0.0110 58.0000);
+  --foreground: oklch(0.9540 0.0080 80.0000);
+  --card: oklch(0.2180 0.0130 60.0000);
+  --card-foreground: oklch(0.9540 0.0080 80.0000);
+  --popover: oklch(0.2180 0.0130 60.0000);
+  --popover-foreground: oklch(0.9540 0.0080 80.0000);
 
-  --primary: oklch(0.6280 0.2577 29.2339);
-  --primary-foreground: oklch(1.0000 0 0);
+  --primary: oklch(0.6900 0.2000 46.0000);
+  --primary-foreground: oklch(0.1780 0.0110 58.0000);
 
-  --secondary: oklch(0.2542 0.0611 281.1423);
-  --secondary-foreground: oklch(0.9513 0.0074 260.7315);
-  --muted: oklch(0.2542 0.0611 281.1423);
-  --muted-foreground: oklch(0.6245 0.0500 278.1046);
+  --secondary: oklch(0.2620 0.0150 62.0000);
+  --secondary-foreground: oklch(0.9540 0.0080 80.0000);
+  --muted: oklch(0.2620 0.0150 62.0000);
+  --muted-foreground: oklch(0.7050 0.0170 74.0000);
 
-  --accent: oklch(0.2800 0.0600 281.0);
-  --accent-foreground: oklch(0.9513 0.0074 260.7315);
+  --accent: oklch(0.2900 0.0180 64.0000);
+  --accent-foreground: oklch(0.9540 0.0080 80.0000);
 
   --destructive: oklch(0.6535 0.2348 14.0);
   --destructive-foreground: oklch(1.0000 0 0);
@@ -120,28 +123,29 @@
   --info: oklch(0.5700 0.1600 243.9);
   --info-foreground: oklch(1.0000 0 0);
 
-  --border: oklch(0.3279 0.0832 280.7890);
-  --input: oklch(0.3279 0.0832 280.7890);
-  --ring: oklch(0.6280 0.2577 29.2339);
+  --border: oklch(0.3020 0.0180 62.0000);
+  --input: oklch(0.3020 0.0180 62.0000);
+  --ring: oklch(0.6900 0.2000 46.0000);
 
-  --chart-1: oklch(0.6280 0.2577 29.2339);
+  --chart-1: oklch(0.6900 0.2000 46.0000);
   --chart-2: oklch(0.6803 0.2144 39.8015);
   --chart-3: oklch(0.7447 0.1863 53.2932);
   --chart-4: oklch(0.8442 0.1457 89.7682);
   --chart-5: oklch(0.9168 0.1915 101.4070);
 
-  --sidebar: oklch(0.1500 0.0350 281.8285);
-  --sidebar-foreground: oklch(0.9513 0.0074 260.7315);
-  --sidebar-primary: oklch(0.6280 0.2577 29.2339);
-  --sidebar-primary-foreground: oklch(1.0000 0 0);
-  --sidebar-accent: oklch(0.2400 0.0500 281.0);
-  --sidebar-accent-foreground: oklch(0.9513 0.0074 260.7315);
-  --sidebar-border: oklch(0.2800 0.0700 280.7890);
-  --sidebar-ring: oklch(0.6280 0.2577 29.2339);
+  --sidebar: oklch(0.1620 0.0110 58.0000);
+  --sidebar-foreground: oklch(0.9540 0.0080 80.0000);
+  --sidebar-primary: oklch(0.6900 0.2000 46.0000);
+  --sidebar-primary-foreground: oklch(0.1780 0.0110 58.0000);
+  --sidebar-accent: oklch(0.2620 0.0150 62.0000);
+  --sidebar-accent-foreground: oklch(0.9540 0.0080 80.0000);
+  --sidebar-border: oklch(0.3020 0.0180 62.0000);
+  --sidebar-ring: oklch(0.6900 0.2000 46.0000);
 
-  --font-sans: Outfit, sans-serif;
-  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-mono: Fira Code, monospace;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-serif: var(--font-fraunces), ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Fira Code", monospace;
 
   --radius: 0.625rem;
 
@@ -199,6 +203,7 @@
   --font-sans: var(--font-sans);
   --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+  --font-display: var(--font-display);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -232,6 +237,19 @@
     @apply font-semibold tracking-tight;
   }
 
+  /* Respect prefers-reduced-motion partout : neutralise les animations CSS
+     décoratives. Les primitives GSAP se coupent aussi côté JS (voir useReveal). */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   /* Custom scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
@@ -253,6 +271,48 @@
   /* Focus ring consistent */
   .focus-ring {
     @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* ── Signature éditoriale ─────────────────────────────────────────── */
+  /* Titrage serif Fraunces — grands titres uniquement. optical sizing large
+     pour un rendu « affiche » chaleureux. */
+  .font-display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variation-settings: "opsz" 144, "SOFT" 40;
+    letter-spacing: -0.02em;
+    font-weight: 500;
+  }
+  .font-display-italic {
+    font-family: var(--font-display);
+    font-style: italic;
+    font-optical-sizing: auto;
+    font-variation-settings: "opsz" 144, "SOFT" 60;
+  }
+
+  /* Texte accent dégradé « braise » (orange → ambre) */
+  .text-gradient-warm {
+    background-image: linear-gradient(
+      100deg,
+      oklch(0.6450 0.2050 44) 0%,
+      oklch(0.7300 0.1750 62) 55%,
+      oklch(0.8000 0.1500 78) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  /* Filet chaud sous les yeux-brow / séparateurs éditoriaux */
+  .rule-warm {
+    background-image: linear-gradient(90deg, var(--border), transparent);
+  }
+
+  /* Halo radial chaud pour arrière-plans de sections hero/CTA */
+  .warm-aura {
+    background:
+      radial-gradient(60% 50% at 50% 0%, oklch(0.6450 0.2050 44 / 0.10), transparent 70%),
+      radial-gradient(40% 40% at 85% 20%, oklch(0.8000 0.1500 78 / 0.12), transparent 70%);
   }
 
   /* Gradient accents */
@@ -331,6 +391,21 @@
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position:  200% 0; }
+}
+
+/* Flottement ambiant (cartes flottantes hero) — coupé par prefers-reduced-motion */
+@keyframes floaty {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-10px); }
+}
+@keyframes floaty-slow {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-16px); }
+}
+
+@layer utilities {
+  .animate-float      { animation: floaty 6s ease-in-out infinite; }
+  .animate-float-slow { animation: floaty-slow 9s ease-in-out infinite; }
 }
 
 /* ─── Page transitions ────────────────────────────────────────────── */

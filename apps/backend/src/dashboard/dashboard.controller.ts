@@ -42,4 +42,10 @@ export class DashboardController {
   getPlatformStats() {
     return this.dashboardService.getPlatformStats();
   }
+
+  @Get('billing-stats')
+  @Roles('super_admin')
+  getBillingStats() {
+    return this.dashboardService.getBillingStats();
+  }
 }

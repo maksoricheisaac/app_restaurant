@@ -73,7 +73,8 @@ export const stepRestaurantInfoSchema = z.object({
 });
 
 export const stepPlanSchema = z.object({
-  plan: z.enum(['free', 'pro', 'enterprise']),
+  // Clé de plan (data-driven — plus une enum figée).
+  plan: z.string().min(1),
 });
 
 export type MenuItemInput = z.infer<typeof menuItemSchema>;

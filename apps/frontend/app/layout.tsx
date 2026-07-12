@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Fraunces } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
@@ -10,10 +10,21 @@ import { StructuredData } from "@/components/seo/structured-data";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
   display: 'swap',
   variable: '--font-inter',
+});
+
+// Fraunces — serif éditorial variable (chaleureux, premium) réservé aux grands
+// titres. C'est la signature typographique qui distingue Flash Menu des SaaS
+// génériques tout-Inter. `opsz`/`SOFT` adoucissent le rendu pour l'hospitalité.
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  display: 'swap',
+  variable: '--font-fraunces',
+  style: ['normal', 'italic'],
+  axes: ['opsz', 'SOFT'],
 });
 
 export const metadata: Metadata = {
@@ -38,7 +49,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="Flash Menu" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
-      <body className={inter.className} suppressHydrationWarning>
+      <body className={`${inter.variable} ${fraunces.variable} font-sans`} suppressHydrationWarning>
         <ThemeProvider
           attribute="class"
           defaultTheme="light"

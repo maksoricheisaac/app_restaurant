@@ -1,12 +1,16 @@
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { getLimitsForPlan, PlanFeatures, UNLIMITED } from './plans.config';
+import { PlanFeatures, UNLIMITED } from './plans.config';
+import { PlansService } from './plans.catalog.service';
 
 @Injectable()
 export class PlanLimitService {
   private readonly logger = new Logger(PlanLimitService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly plans: PlansService,
+  ) {}
 
   // ─── Internal helpers ────────────────────────────────────────────────────
 
@@ -32,7 +36,7 @@ export class PlanLimitService {
 
   async assertMenuItemLimit(tenantId: string): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
     if (limits.maxMenuItems >= UNLIMITED) return;
 
     const count = await this.prisma.menuItem.count({
@@ -48,7 +52,7 @@ export class PlanLimitService {
 
   async assertTableLimit(tenantId: string): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
     if (limits.maxTables >= UNLIMITED) return;
 
     const count = await this.prisma.table.count({
@@ -64,7 +68,7 @@ export class PlanLimitService {
 
   async assertStaffMemberLimit(tenantId: string): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
     if (limits.maxStaffMembers >= UNLIMITED) return;
 
     // Owners are excluded from the staff quota — they always exist and are not
@@ -82,7 +86,7 @@ export class PlanLimitService {
 
   async assertMonthlyOrderLimit(tenantId: string): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
     if (limits.maxMonthlyOrders >= UNLIMITED) return;
 
     const count = await this.prisma.order.count({
@@ -105,7 +109,7 @@ export class PlanLimitService {
     feature: keyof PlanFeatures,
   ): Promise<void> {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
 
     if (!limits.features[feature]) {
       throw new ForbiddenException(
@@ -118,7 +122,7 @@ export class PlanLimitService {
 
   async getUsageSummary(tenantId: string) {
     const plan = await this.getTenantPlan(tenantId);
-    const limits = getLimitsForPlan(plan);
+    const limits = await this.plans.getLimits(plan);
 
     const [menuItems, tables, staff, monthlyOrders] = await Promise.all([
       this.prisma.menuItem.count({ where: { tenantId, deletedAt: null } }),

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Store } from 'lucide-react';
+import { ChefHat } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress';
 import StepAccountCreation from '@/components/onboarding/StepAccountCreation';
@@ -12,6 +12,8 @@ import StepRestaurantInfo from '@/components/onboarding/StepRestaurantInfo';
 import StepPlanSelection from '@/components/onboarding/StepPlanSelection';
 import StepPayment from '@/components/onboarding/StepPayment';
 import StepFinalization from '@/components/onboarding/StepFinalization';
+import { usePlanCatalog } from '@/hooks/api/usePlans';
+import type { PlanCatalog } from '@/config/plans';
 import type { OnboardingData } from '@/types/onboarding';
 
 export type { OnboardingData };
@@ -22,11 +24,11 @@ export type { OnboardingData };
 // unique. Tant que le wizard n'est pas terminé, aucun compte n'existe en base.
 // Le 4e libellé dépend du plan : « Paiement » pour un plan payant (une vraie
 // étape de paiement s'intercale), « Finalisation » pour le plan gratuit.
-const stepLabels = (plan?: OnboardingData['plan']) => [
+const stepLabels = (isPaid: boolean) => [
   'Compte',
   'Restaurant',
   'Forfait',
-  plan === 'pro' || plan === 'enterprise' ? 'Paiement' : 'Finalisation',
+  isPaid ? 'Paiement' : 'Finalisation',
 ];
 
 // Brouillon (draft) — permet de reprendre l'onboarding après un rechargement
@@ -97,6 +99,16 @@ export default function RegisterPage() {
   // Guard: prevent the redirect from firing more than once per mount.
   const hasRedirected = useRef(false);
 
+  // Catalogue des plans (data-driven) — sert à router la sortie de l'étape
+  // Forfait (payant → Paiement, gratuit → Finalisation) et à alimenter les
+  // écrans Forfait / Paiement. Piloté par le PRIX, jamais par une clé codée.
+  const { plans: catalog } = usePlanCatalog();
+  const planByKey: Record<string, PlanCatalog> = Object.fromEntries(
+    (catalog ?? []).map((p) => [p.key, p]),
+  );
+  const isPaidPlan = (key?: string) =>
+    key ? (planByKey[key]?.monthlyPrice ?? 0) > 0 : false;
+
   // Reprise du brouillon au montage (données client uniquement) + pré-sélection
   // du plan depuis l'URL (?plan=pro), utilisée par les CTA de la page /pricing.
   useEffect(() => {
@@ -105,10 +117,9 @@ export default function RegisterPage() {
       typeof window !== 'undefined'
         ? new URLSearchParams(window.location.search).get('plan')
         : null;
-    const preselectedPlan =
-      planParam === 'free' || planParam === 'pro' || planParam === 'enterprise'
-        ? (planParam as OnboardingData['plan'])
-        : undefined;
+    // Toute clé de plan est acceptée (data-driven). L'écran Forfait ne la
+    // met en évidence que si elle correspond à un plan réellement disponible.
+    const preselectedPlan = planParam || undefined;
 
     if (Object.keys(draft).length > 0 || preselectedPlan) {
       setData((prev) => ({
@@ -145,13 +156,14 @@ export default function RegisterPage() {
   };
 
   // Sortie de l'étape Forfait : cliquer un plan redirige automatiquement — vers
-  // l'étape Paiement pour un plan payant, directement vers la Finalisation pour
-  // le plan gratuit.
+  // l'étape Paiement dès que le plan choisi a un prix (> 0), directement vers la
+  // Finalisation pour un plan gratuit. Piloté par le PRIX (et non par des IDs
+  // codés en dur) afin que tout nouveau plan payant soit routé correctement.
   const goFromPlan = (stepData: Partial<OnboardingData>) => {
-    const chosen = stepData.plan;
+    const isPaid = isPaidPlan(stepData.plan);
     setData((prev) => ({ ...prev, ...stepData }));
     setDir(1);
-    setStep(chosen === 'pro' || chosen === 'enterprise' ? STEP_PAYMENT : STEP_FINALIZE);
+    setStep(isPaid ? STEP_PAYMENT : STEP_FINALIZE);
   };
 
   const goBack = () => {
@@ -162,7 +174,7 @@ export default function RegisterPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="min-h-dvh flex items-center justify-center bg-background">
         <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
       </div>
     );
@@ -175,11 +187,19 @@ export default function RegisterPage() {
       case STEP_RESTAURANT:
         return <StepRestaurantInfo onNext={goNext} onBack={goBack} data={data} />;
       case STEP_PLAN:
-        return <StepPlanSelection onNext={goFromPlan} onBack={goBack} data={data} />;
+        return (
+          <StepPlanSelection
+            onNext={goFromPlan}
+            onBack={goBack}
+            data={data}
+            plans={catalog ?? []}
+          />
+        );
       case STEP_PAYMENT:
         return (
           <StepPayment
             data={data as OnboardingData}
+            plan={planByKey[data.plan as string]}
             onBack={goBack}
             onComplete={clearDraft}
           />
@@ -196,26 +216,30 @@ export default function RegisterPage() {
     }
   };
 
-  const labels = stepLabels(data.plan);
+  const labels = stepLabels(isPaidPlan(data.plan));
   // L'étape Paiement (payant) et la Finalisation (gratuit) partagent la 4e
   // pastille de progression.
   const progressStep = Math.min(step, STEP_PAYMENT);
   const showProgress = step < STEP_FINALIZE;
+  // Les étapes Forfait (3) et Paiement (4) s'affichent en « paysage » : on
+  // élargit le conteneur pour que les cartes de plans / le récap + formulaire
+  // ne soient pas confinés dans la colonne étroite des étapes de formulaire.
+  const wide = step === STEP_PLAN || step === STEP_PAYMENT;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
+    <div className="min-h-dvh bg-background flex flex-col">
       {/* Header — minimal, sans les étapes d'onboarding */}
-      <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 bg-white/80 backdrop-blur-md border-b border-slate-100">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center shadow-sm group-hover:shadow-primary/30 transition-shadow">
-            <Store className="h-4 w-4 text-white" />
+      <header className="sticky top-0 z-10 flex items-center justify-between px-5 sm:px-6 py-4 bg-background/80 backdrop-blur-md border-b border-border">
+        <Link href="/" className="flex items-center gap-2.5 group">
+          <div className="h-9 w-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center shadow-sm group-hover:-rotate-3 transition-transform">
+            <ChefHat className="h-5 w-5" strokeWidth={1.75} />
           </div>
-          <span className="font-bold text-slate-900 hidden sm:block">Flash Menu</span>
+          <span className="font-display text-lg text-foreground hidden sm:block">Flash Menu</span>
         </Link>
 
         <Link
           href="/auth/login"
-          className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <span className="hidden sm:inline">Déjà inscrit ? </span>
           <span className="font-semibold text-primary">Connexion</span>
@@ -224,7 +248,7 @@ export default function RegisterPage() {
 
       {/* Content */}
       <main className="flex-1 flex items-start md:items-center justify-center px-4 py-10 md:py-16">
-        <div className="w-full max-w-lg">
+        <div className={`w-full transition-[max-width] duration-300 ${wide ? 'max-w-5xl' : 'max-w-lg'}`}>
           {/* Indicateur d'étapes dans le body, pas dans le header.
               gap-3 md:gap-8 laisse respirer les libellés (positionnés en absolute
               sous les pastilles, visibles md+) ; mb-10 aère nettement l'ensemble
@@ -232,17 +256,17 @@ export default function RegisterPage() {
           {showProgress && (
             <div className="mb-10 flex flex-col items-center gap-3 md:gap-8">
               <OnboardingProgress currentStep={progressStep} steps={labels} />
-              <span className="text-xs font-medium text-slate-400">
+              <span className="text-xs font-medium text-muted-foreground">
                 Étape {progressStep + 1} sur {labels.length}
               </span>
             </div>
           )}
 
           {/* Card */}
-          <div className="rounded-2xl bg-white shadow-xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+          <div className="rounded-3xl bg-card shadow-xl border border-border overflow-hidden">
             {/* Barre de progression en haut de la card */}
             {showProgress && (
-              <div className="h-1 bg-slate-100">
+              <div className="h-1 bg-muted">
                 <motion.div
                   className="h-full bg-primary rounded-full"
                   animate={{ width: `${((progressStep + 1) / labels.length) * 100}%` }}
@@ -269,13 +293,13 @@ export default function RegisterPage() {
 
           {/* Footer note */}
           {step === STEP_ACCOUNT && (
-            <p className="mt-4 text-center text-xs text-slate-400">
+            <p className="mt-4 text-center text-xs text-muted-foreground">
               En continuant, vous acceptez nos{' '}
-              <Link href="#" className="text-slate-600 hover:underline">
+              <Link href="#" className="text-foreground/70 hover:underline">
                 Conditions d&apos;utilisation
               </Link>{' '}
               et notre{' '}
-              <Link href="#" className="text-slate-600 hover:underline">
+              <Link href="#" className="text-foreground/70 hover:underline">
                 Politique de confidentialité
               </Link>
               .
@@ -284,10 +308,10 @@ export default function RegisterPage() {
         </div>
       </main>
 
-      {/* Background decoration */}
+      {/* Background decoration — halo chaud */}
       <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/5 blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-violet-500/5 blur-3xl" />
+        <div className="absolute -top-24 -right-24 h-96 w-96 rounded-full bg-primary/8 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-96 w-96 rounded-full bg-amber-300/10 blur-3xl" />
       </div>
     </div>
   );

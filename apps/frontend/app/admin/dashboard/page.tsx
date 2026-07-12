@@ -13,6 +13,7 @@ import {
   DashboardOrdersSection
 } from "@/components/admin/dashboard";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { PlanUsageCard } from "@/components/admin/PlanUsageCard";
 import { Permission } from "@/types/permissions";
 import { useDashboardStats, useLatestOrders } from "@/hooks/api/useDashboard";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
@@ -108,6 +109,8 @@ export default function AdminDashboard() {
         statsData={statsData}
         isLoading={isLoadingStats}
       />
+
+      <PlanUsageCard />
 
       <DashboardOrdersSection
         viewMode={viewMode}

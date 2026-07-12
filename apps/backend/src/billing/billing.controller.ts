@@ -31,7 +31,7 @@ export class BillingController {
   @Post('checkout')
   async createCheckout(
     @CurrentTenant() tenant: Tenant,
-    @Body('plan') plan: 'pro' | 'enterprise',
+    @Body('plan') plan: string,
   ) {
     const returnUrl =
       this.config.get('FRONTEND_URL') ?? 'http://localhost:4000';

@@ -74,7 +74,7 @@ async function bootstrap() {
 
   app.use(cookieParser());
 
-  const frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:3000';
+  const frontendOrigin = process.env.FRONTEND_URL ?? 'http://localhost:4000';
   const wsOrigin = frontendOrigin.replace(/^http/, 'ws');
   const isProduction = process.env.NODE_ENV === 'production';
 

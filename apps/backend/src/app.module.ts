@@ -29,6 +29,7 @@ import { BillingModule } from './billing/billing.module';
 import { MailModule } from './mail/mail.module';
 import { HealthModule } from './health/health.module';
 import { PlansModule } from './plans/plans.module';
+import { DomainsModule } from './domains/domains.module';
 import { MediaModule } from './media/media.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthMiddleware } from './common/middleware/auth.middleware';
@@ -110,6 +111,7 @@ import { RedisModule } from './common/redis/redis.module';
     MailModule,
     HealthModule,
     PlansModule,
+    DomainsModule,
     MediaModule,
   ],
   controllers: [AppController],

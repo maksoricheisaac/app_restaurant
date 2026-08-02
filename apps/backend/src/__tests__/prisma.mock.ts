@@ -11,6 +11,8 @@ const PRISMA_MODELS = [
   'tenantMembership',
   'membershipInvite',
   'menuItem',
+  'menuItemOptionGroup',
+  'menuItemOption',
   'menuCategory',
   'table',
   'order',

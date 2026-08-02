@@ -109,7 +109,7 @@ export class PublicMenuController {
 
     if (!tenant) throw new NotFoundException('Restaurant introuvable');
 
-    const [menu, settings] = await Promise.all([
+    const [menu, settings, deliveryZones] = await Promise.all([
       this.menuService.findPublicMenu(tenant.id),
       this.prisma.restaurantSettings.findUnique({
         where: { tenantId: tenant.id },
@@ -123,13 +123,57 @@ export class PublicMenuController {
           instagramUrl: true,
           twitterUrl: true,
           youtubeUrl: true,
+          dineInEnabled: true,
+          takeawayEnabled: true,
+          deliveryEnabled: true,
+          maxReservationGuests: true,
+          maxDaysInAdvance: true,
+        },
+      }),
+      this.prisma.deliveryZone.findMany({
+        where: { tenantId: tenant.id, isActive: true, deletedAt: null },
+        orderBy: { price: 'asc' },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          minOrder: true,
+          deliveryTime: true,
         },
       }),
     ]);
 
+    // Types de service proposés au client public (par défaut activés si settings absent).
+    const services = {
+      dineIn: settings?.dineInEnabled ?? true,
+      takeaway: settings?.takeawayEnabled ?? true,
+      delivery: settings?.deliveryEnabled ?? false,
+    };
+
+    // Public settings only — on ne renvoie pas les toggles internes en double.
+    const publicSettings = settings
+      ? {
+          description: settings.description,
+          phone: settings.phone,
+          email: settings.email,
+          address: settings.address,
+          website: settings.website,
+          facebookUrl: settings.facebookUrl,
+          instagramUrl: settings.instagramUrl,
+          twitterUrl: settings.twitterUrl,
+          youtubeUrl: settings.youtubeUrl,
+        }
+      : null;
+
     return {
-      tenant: { ...tenant, settings: settings ?? null },
+      tenant: { ...tenant, settings: publicSettings },
       menu,
+      services,
+      deliveryZones: services.delivery ? deliveryZones : [],
+      limits: {
+        maxReservationGuests: settings?.maxReservationGuests ?? 20,
+        maxDaysInAdvance: settings?.maxDaysInAdvance ?? 30,
+      },
       // Short-lived HMAC token required to submit orders — prevents scripted flooding
       sessionToken: this.menuSession.generate(slug),
     };

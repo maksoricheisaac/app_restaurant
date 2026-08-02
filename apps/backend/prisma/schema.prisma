@@ -382,11 +382,54 @@ model MenuItem {
   category      MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   deletedAt     DateTime?    // Soft delete
 
-  orderItems OrderItemsOnOrders[]
-  recipes    Recipe[]
+  orderItems   OrderItemsOnOrders[]
+  recipes      Recipe[]
+  optionGroups MenuItemOptionGroup[]
 
   @@index([tenantId])
   @@index([tenantId, deletedAt])
+}
+
+/// Groupe d'options d'un plat (ex. « Cuisson », « Suppléments »).
+/// - required + minSelect : force un choix minimal (ex. cuisson obligatoire).
+/// - maxSelect : 1 = choix unique (radio), >1 = multi borné, 0 = illimité (checkbox).
+/// La validation required/min/max est TOUJOURS refaite côté serveur à la commande.
+model MenuItemOptionGroup {
+  id         String   @id @default(uuid())
+  menuItemId String
+  menuItem   MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  name      String
+  required  Boolean @default(false)
+  minSelect Int     @default(0)
+  maxSelect Int     @default(1) // 0 = illimité
+  sortOrder Int     @default(0)
+
+  deletedAt DateTime? // Soft delete — préserve les commandes historiques
+
+  options MenuItemOption[]
+
+  @@index([menuItemId])
+  @@index([menuItemId, deletedAt])
+}
+
+/// Option individuelle au sein d'un groupe. priceDelta s'ajoute (ou se retranche)
+/// au prix du plat. Le prix réel facturé est TOUJOURS relu en base au moment de
+/// la commande, jamais fait confiance au client.
+model MenuItemOption {
+  id      String              @id @default(uuid())
+  groupId String
+  group   MenuItemOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  name      String
+  priceDelta Decimal @default(0) // Decimal pour précision financière
+  available Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  deletedAt DateTime? // Soft delete
+
+  @@index([groupId])
+  @@index([groupId, deletedAt])
 }
 
 model Order {
@@ -431,9 +474,12 @@ model OrderItemsOnOrders {
   orderId    String
   menuItemId String?
   quantity   Int     @default(1)
-  price      Decimal // Snapshot du prix au moment de la commande
+  price      Decimal // Snapshot du prix (plat + options) au moment de la commande
   name       String
   image      String?
+  // Snapshot des options choisies : [{ groupName, optionName, priceDelta }].
+  // Figé à la commande pour rester lisible même si l'option est modifiée/supprimée.
+  options    Json?
 
   order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)

@@ -1,366 +1,288 @@
-"use client";
+'use client';
 
-import { use, useEffect, useState } from "react";
-import Image from "next/image";
+import { use, useEffect, useState } from 'react';
+import Image from 'next/image';
 import {
   CheckCircle2, Clock, ChefHat, BellRing, XCircle,
-  Loader2, ArrowLeft, UtensilsCrossed, RefreshCw, Receipt,
-} from "lucide-react";
-import { io, Socket } from "socket.io-client";
-import { updateStoredStatus, type OrderStatus } from "@/lib/order-storage";
+  ArrowLeft, UtensilsCrossed, RefreshCw, Receipt, Bike, Timer,
+} from 'lucide-react';
+import { io, Socket } from 'socket.io-client';
+import { updateStoredStatus, type OrderStatus } from '@/lib/order-storage';
+import { formatCurrency } from '@/lib/order-utils';
+import { WARM, normalizeHex, readableOn, withAlpha } from '../../_lib/theme';
+import { StatusBlock } from '../../_components/states';
+import { TrackSkeleton } from '../../_components/skeletons';
+import { TrackingTimeline } from '../../_components/tracking-timeline';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
+interface ItemOption { groupName: string; optionName: string; priceDelta: number }
 interface OrderItem {
-  id:       string;
-  name:     string;
-  quantity: number;
-  price:    string | number;
-  image:    string | null;
+  id: string; name: string; quantity: number;
+  price: string | number; image: string | null;
+  options?: ItemOption[] | null;
 }
-
 interface TrackingData {
-  id:           string;
-  status:       OrderStatus;
-  type:         "dine_in" | "takeaway" | "delivery";
-  total:        string | number | null;
-  createdAt:    string;
-  updatedAt:    string;
+  id: string; status: OrderStatus;
+  type: 'dine_in' | 'takeaway' | 'delivery';
+  total: string | number | null;
+  createdAt: string; updatedAt: string;
   specialNotes: string | null;
-  table:        { number: number } | null;
-  tenant: {
-    name:         string;
-    logo:         string | null;
-    primaryColor: string | null;
-    currency:     string;
-    slug:         string;
-  };
+  deliveryFee: string | number | null;
+  deliveryAddress: string | null;
+  table: { number: number } | null;
+  deliveryZone: { name: string; deliveryTime: number | null } | null;
+  tenant: { name: string; logo: string | null; primaryColor: string | null; currency: string; slug: string };
   orderItems: OrderItem[];
 }
 
-// ─── Config ───────────────────────────────────────────────────────────────────
-
-const API        = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
-const SOCKET_URL = API.replace(/\/api\/v1\/?$/, "");
-
-function fmt(price: string | number, currency = "XAF") {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency", currency, minimumFractionDigits: 0,
-  }).format(Number(price));
-}
-
-function primary(color: string | null | undefined) { return color ?? "#f97316"; }
-
-// ─── Status config ────────────────────────────────────────────────────────────
-
-const STEPS: {
-  status: OrderStatus;
-  label: string;
-  sublabel: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { status: "pending",   label: "Commande reçue",   sublabel: "Le restaurant a bien reçu votre commande", icon: Clock        },
-  { status: "preparing", label: "En préparation",   sublabel: "La cuisine prépare votre commande",        icon: ChefHat      },
-  { status: "ready",     label: "Prête !",           sublabel: "Votre commande est prête",                icon: BellRing     },
-  { status: "served",    label: "Servie",            sublabel: "Bon appétit !",                           icon: CheckCircle2 },
-];
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
+const SOCKET_URL = API.replace(/\/api\/v1\/?$/, '');
 
 const STATUS_ORDER: Record<OrderStatus, number> = {
   pending: 0, preparing: 1, ready: 2, served: 3, cancelled: -1,
 };
 
-const STATUS_HERO: Record<OrderStatus, {
-  label: string; sublabel: string;
-  icon: React.ComponentType<{ className?: string }>;
-  bg: string; iconColor: string;
-}> = {
-  pending:   { label: "Commande reçue",        sublabel: "Le restaurant a bien reçu votre commande",       icon: Clock,        bg: "bg-blue-50",   iconColor: "text-blue-500"  },
-  preparing: { label: "En préparation",        sublabel: "La cuisine s'affaire à préparer votre commande", icon: ChefHat,      bg: "bg-amber-50",  iconColor: "text-amber-500" },
-  ready:     { label: "Votre commande est prête !", sublabel: "Vous pouvez récupérer votre commande",      icon: BellRing,     bg: "bg-green-50",  iconColor: "text-green-500" },
-  served:    { label: "Servie — Bon appétit !", sublabel: "Nous espérons que vous apprécierez",            icon: CheckCircle2, bg: "bg-green-50",  iconColor: "text-green-500" },
-  cancelled: { label: "Commande annulée",       sublabel: "",                                              icon: XCircle,      bg: "bg-red-50",    iconColor: "text-red-400"   },
+const HERO: Record<OrderStatus, { label: string; sub: string; icon: typeof Clock; tone: 'brand' | 'success' | 'danger' }> = {
+  pending: { label: 'Commande reçue', sub: 'Le restaurant a bien reçu votre commande', icon: Clock, tone: 'brand' },
+  preparing: { label: 'En préparation', sub: "La cuisine s'affaire à préparer votre commande", icon: ChefHat, tone: 'brand' },
+  ready: { label: 'Votre commande est prête !', sub: 'Vous pouvez la récupérer', icon: BellRing, tone: 'success' },
+  served: { label: 'Servie — Bon appétit !', sub: 'Nous espérons que vous vous régalez', icon: CheckCircle2, tone: 'success' },
+  cancelled: { label: 'Commande annulée', sub: '', icon: XCircle, tone: 'danger' },
 };
 
-// ─── Component ────────────────────────────────────────────────────────────────
+/** Estimation du temps restant, selon statut / type de service. */
+function estimateEta(t: TrackingData): string | null {
+  if (t.status === 'served' || t.status === 'cancelled') return null;
+  if (t.status === 'ready') return t.type === 'delivery' ? 'En route bientôt' : 'À récupérer';
+  if (t.type === 'delivery' && t.deliveryZone?.deliveryTime)
+    return `~${t.deliveryZone.deliveryTime} min`;
+  if (t.status === 'preparing') return '~15 min';
+  return '~20 min';
+}
 
-export default function TrackOrderPage({
-  params,
-}: {
-  params: Promise<{ slug: string; orderId: string }>;
-}) {
+export default function TrackOrderPage({ params }: { params: Promise<{ slug: string; orderId: string }> }) {
   const { slug, orderId } = use(params);
-
-  const [tracking,   setTracking]   = useState<TrackingData | null>(null);
-  const [isLoading,  setIsLoading]  = useState(true);
-  const [isError,    setIsError]    = useState(false);
-  const [connected,  setConnected]  = useState(false);
+  const [tracking, setTracking] = useState<TrackingData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
-  // ── Initial fetch ────────────────────────────────────────────────────────
   useEffect(() => {
     async function fetchStatus() {
       try {
         const res = await fetch(`${API}/orders/${orderId}/tracking`);
         if (!res.ok) { setIsError(true); return; }
-        const data: TrackingData = await res.json();
-        setTracking(data);
-      } catch {
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
-      }
+        setTracking(await res.json());
+      } catch { setIsError(true); }
+      finally { setIsLoading(false); }
     }
     fetchStatus();
   }, [orderId]);
 
-  // ── WebSocket ────────────────────────────────────────────────────────────
   useEffect(() => {
-    const socket: Socket = io(SOCKET_URL, {
-      transports: ["websocket", "polling"],
-    });
-
-    socket.on("connect", () => {
-      setConnected(true);
-      socket.emit("join-order", { orderId });
-    });
-    socket.on("disconnect", () => setConnected(false));
-    socket.on("status-update", (payload: { status: OrderStatus }) => {
-      setTracking((prev) => prev ? { ...prev, status: payload.status } : prev);
+    const socket: Socket = io(SOCKET_URL, { transports: ['websocket', 'polling'] });
+    socket.on('connect', () => { setConnected(true); socket.emit('join-order', { orderId }); });
+    socket.on('disconnect', () => setConnected(false));
+    socket.on('status-update', (payload: { status: OrderStatus }) => {
+      setTracking((prev) => (prev ? { ...prev, status: payload.status } : prev));
       setLastUpdate(new Date());
-      // Sync localStorage so the banner on /order reflects the latest status
-      if (tracking?.tenant?.slug) {
-        updateStoredStatus(tracking.tenant.slug, orderId, payload.status);
-      }
+      updateStoredStatus(slug, orderId, payload.status);
     });
-
     return () => { socket.disconnect(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderId]);
+  }, [orderId, slug]);
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (isLoading) return (
-    <div className="min-h-screen bg-[#f5f4f1] flex flex-col items-center justify-center gap-3">
-      <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-      <p className="text-sm text-slate-400 font-medium">Chargement du suivi…</p>
-    </div>
-  );
+  if (isLoading) return <TrackSkeleton />;
 
-  if (isError || !tracking) return (
-    <div className="min-h-screen bg-[#f5f4f1] flex flex-col items-center justify-center p-8 text-center gap-5">
-      <div className="h-20 w-20 rounded-3xl bg-white flex items-center justify-center shadow-sm">
-        <UtensilsCrossed className="h-9 w-9 text-slate-300" />
-      </div>
-      <div>
-        <p className="text-xl font-black text-slate-800">Commande introuvable</p>
-        <p className="text-sm text-slate-400 mt-1">Ce lien de suivi est invalide ou a expiré.</p>
-      </div>
-      <a href={`/menu/${slug}`} className="text-sm font-semibold text-slate-500 hover:text-slate-700 transition-colors">
-        Retour au menu
-      </a>
-    </div>
-  );
+  if (isError || !tracking)
+    return (
+      <StatusBlock
+        title="Commande introuvable"
+        subtitle="Ce lien de suivi est invalide ou a expiré."
+        action={
+          <a href={`/menu/${slug}`} className="text-sm font-semibold transition-colors" style={{ color: WARM.muted }}>
+            Retour au menu
+          </a>
+        }
+      />
+    );
 
-  const color       = primary(tracking.tenant.primaryColor);
-  const currency    = tracking.tenant.currency ?? "XAF";
-  const isCancelled = tracking.status === "cancelled";
+  const color = normalizeHex(tracking.tenant.primaryColor);
+  const onBrand = readableOn(color);
+  const currency = tracking.tenant.currency ?? 'XAF';
+  const isCancelled = tracking.status === 'cancelled';
   const currentStep = STATUS_ORDER[tracking.status];
-  const hero        = STATUS_HERO[tracking.status];
+  const hero = HERO[tracking.status];
+  const eta = estimateEta(tracking);
+
+  const heroBg =
+    hero.tone === 'success' ? '#f0faf3' : hero.tone === 'danger' ? '#fdf2f2' : withAlpha(color, 0.08);
+  const heroIconBg =
+    hero.tone === 'success' ? '#16a34a' : hero.tone === 'danger' ? '#dc2626' : color;
+  const heroIconFg = hero.tone === 'brand' ? onBrand : '#fff';
 
   return (
-    <div className="min-h-screen bg-[#f5f4f1] flex flex-col">
-
+    <div className="flex min-h-screen flex-col" style={{ backgroundColor: WARM.page }}>
       {/* Header */}
-      <header className="bg-white border-b border-slate-100 shadow-sm sticky top-0 z-10">
-        <div className="max-w-md mx-auto px-4 py-3.5 flex items-center gap-3">
-          <a
-            href={`/menu/${slug}/order`}
-            className="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="h-4 w-4 text-slate-600" />
+      <header className="sticky top-0 z-10 shadow-sm" style={{ backgroundColor: WARM.card, borderBottom: `1px solid ${WARM.border}` }}>
+        <div className="mx-auto flex max-w-md items-center gap-3 px-4 py-3.5">
+          <a href={`/menu/${slug}`} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors" style={{ backgroundColor: WARM.surfaceAlt }} aria-label="Retour au menu">
+            <ArrowLeft className="h-4 w-4" style={{ color: WARM.inkSoft }} />
           </a>
-
-          {/* Restaurant identity */}
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
             {tracking.tenant.logo ? (
-              <div className="relative h-8 w-8 rounded-lg overflow-hidden flex-shrink-0">
+              <div className="relative h-8 w-8 flex-shrink-0 overflow-hidden rounded-lg">
                 <Image src={tracking.tenant.logo} alt={tracking.tenant.name} fill className="object-cover" sizes="32px" />
               </div>
             ) : (
-              <div className="h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}18` }}>
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg" style={{ backgroundColor: withAlpha(color, 0.1) }}>
                 <UtensilsCrossed className="h-4 w-4" style={{ color }} />
               </div>
             )}
             <div className="min-w-0">
-              <p className="font-black text-slate-900 text-sm truncate leading-none">{tracking.tenant.name}</p>
-              <p className="text-xs text-slate-400 font-mono mt-0.5">#{orderId.slice(-8).toUpperCase()}</p>
+              <p className="truncate text-sm font-bold leading-none" style={{ color: WARM.ink }}>{tracking.tenant.name}</p>
+              <p className="mt-0.5 font-mono text-xs" style={{ color: WARM.faint }}>#{orderId.slice(-8).toUpperCase()}</p>
             </div>
           </div>
-
-          {/* Live indicator */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
+          <div className="flex flex-shrink-0 items-center gap-1.5">
             <span className="relative flex h-2.5 w-2.5">
-              {connected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />}
-              <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${connected ? "bg-green-500" : "bg-slate-300"}`} />
+              {connected && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />}
+              <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-[#cfc7b8]'}`} />
             </span>
-            <span className="text-xs font-medium text-slate-400">{connected ? "En direct" : "Reconnexion…"}</span>
+            <span className="text-xs font-medium" style={{ color: WARM.faint }}>{connected ? 'En direct' : 'Reconnexion…'}</span>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-md mx-auto w-full px-4 py-6 space-y-4">
-
-        {/* Cancelled */}
+      <main className="mx-auto w-full max-w-md flex-1 space-y-4 px-4 py-6">
         {isCancelled ? (
-          <div className="bg-white rounded-3xl border border-red-100 shadow-sm p-8 flex flex-col items-center text-center gap-4">
-            <div className="h-20 w-20 rounded-full bg-red-50 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-4 rounded-3xl border border-red-100 bg-white p-8 text-center shadow-sm">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-red-50">
               <XCircle className="h-10 w-10 text-red-400" />
             </div>
             <div>
-              <p className="text-xl font-black text-slate-900">Commande annulée</p>
-              <p className="text-sm text-slate-400 mt-1 leading-relaxed">
+              <p className="font-display text-2xl" style={{ color: WARM.ink }}>Commande annulée</p>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: WARM.faint }}>
                 Cette commande a été annulée. N&apos;hésitez pas à en passer une nouvelle.
               </p>
             </div>
-            <a
-              href={`/menu/${slug}/order`}
-              className="mt-2 inline-flex items-center gap-2 font-bold text-sm bg-slate-900 text-white px-6 py-3 rounded-xl hover:bg-slate-700 transition-colors"
-            >
+            <a href={`/menu/${slug}`} className="mt-1 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-bold text-white transition-colors" style={{ backgroundColor: WARM.ink }}>
               Nouvelle commande
             </a>
           </div>
         ) : (
           <>
             {/* Status hero */}
-            <div className={`${hero.bg} rounded-3xl p-5 flex items-center gap-4 border border-white shadow-sm`}>
-              <div className="h-14 w-14 rounded-2xl bg-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                <hero.icon className={`h-7 w-7 ${hero.iconColor}`} />
+            <div className="flex items-center gap-4 rounded-3xl border border-white p-5 shadow-sm" style={{ backgroundColor: heroBg }}>
+              <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-2xl shadow-sm" style={{ backgroundColor: heroIconBg, color: heroIconFg }}>
+                <hero.icon className="h-7 w-7" />
               </div>
-              <div>
-                <p className="font-black text-slate-900 text-lg leading-tight">{hero.label}</p>
-                <p className="text-sm text-slate-500 mt-0.5">{hero.sublabel}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-lg font-bold leading-tight" style={{ color: WARM.ink }}>{hero.label}</p>
+                <p className="mt-0.5 text-sm" style={{ color: WARM.muted }}>{hero.sub}</p>
               </div>
+              {eta && (
+                <div className="flex flex-shrink-0 flex-col items-center rounded-2xl px-3 py-2" style={{ backgroundColor: withAlpha(WARM.card, 0.7) }}>
+                  <Timer className="h-4 w-4" style={{ color }} />
+                  <span className="mt-0.5 whitespace-nowrap text-xs font-bold tabular-nums" style={{ color: WARM.ink }}>{eta}</span>
+                </div>
+              )}
             </div>
 
-            {/* Timeline */}
-            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5 space-y-0">
-              {STEPS.map((step, index) => {
-                const stepIndex = STATUS_ORDER[step.status];
-                const isDone    = stepIndex < currentStep;
-                const isActive  = stepIndex === currentStep;
-                const isLast    = index === STEPS.length - 1;
+            {/* Delivery address */}
+            {tracking.type === 'delivery' && tracking.deliveryAddress && (
+              <div className="flex items-center gap-3 rounded-2xl px-4 py-3" style={{ backgroundColor: WARM.card, border: `1px solid ${WARM.border}` }}>
+                <Bike className="h-4 w-4 flex-shrink-0" style={{ color }} />
+                <span className="text-sm" style={{ color: WARM.inkSoft }}>{tracking.deliveryAddress}</span>
+              </div>
+            )}
 
-                return (
-                  <div key={step.status} className="flex gap-4">
-                    <div className="flex flex-col items-center">
-                      <div className={`h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-500 ${isDone ? "bg-green-500" : isActive ? "bg-slate-900 shadow-lg" : "bg-slate-100"}`}>
-                        {isDone
-                          ? <CheckCircle2 className="h-4 w-4 text-white" />
-                          : <step.icon className={`h-4 w-4 ${isActive ? "text-white" : "text-slate-400"}`} />
-                        }
-                      </div>
-                      {!isLast && (
-                        <div className={`w-0.5 flex-1 my-1 transition-all duration-700 ${isDone ? "bg-green-300" : "bg-slate-100"}`} style={{ minHeight: 20 }} />
-                      )}
-                    </div>
-                    <div className={`flex-1 pt-1.5 ${isLast ? "pb-0" : "pb-5"}`}>
-                      <p className={`text-sm font-bold leading-none transition-colors ${isDone ? "text-green-600" : isActive ? "text-slate-900" : "text-slate-400"}`}>
-                        {step.label}
-                        {isActive && (
-                          <span className="ml-2 inline-flex items-center gap-1 text-xs font-semibold bg-slate-900 text-white px-2 py-0.5 rounded-full">
-                            <span className="relative flex h-1.5 w-1.5">
-                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white" />
-                            </span>
-                            Maintenant
-                          </span>
-                        )}
-                      </p>
-                      <p className={`text-xs mt-0.5 ${isActive ? "text-slate-500" : "text-slate-300"}`}>{step.sublabel}</p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <TrackingTimeline currentStep={currentStep} color={color} onBrand={onBrand} />
           </>
         )}
 
-        {/* Order summary */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-          {/* Summary header */}
-          <div className="px-5 py-4 border-b border-slate-50 flex items-center gap-2">
-            <Receipt className="h-4 w-4 text-slate-400" />
-            <p className="font-black text-slate-900 text-sm">Récapitulatif</p>
+        {/* Récapitulatif */}
+        <div className="overflow-hidden rounded-3xl" style={{ backgroundColor: WARM.card, border: `1px solid ${WARM.border}` }}>
+          <div className="flex items-center gap-2 px-5 py-4" style={{ borderBottom: `1px solid ${WARM.surface}` }}>
+            <Receipt className="h-4 w-4" style={{ color: WARM.faint }} />
+            <p className="text-sm font-bold" style={{ color: WARM.ink }}>Récapitulatif</p>
             {tracking.table && (
-              <span className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: `${color}15`, color }}>
+              <span className="ml-auto rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: withAlpha(color, 0.1), color }}>
                 Table {tracking.table.number}
               </span>
             )}
-            {tracking.type === "takeaway" && (
-              <span className="ml-auto text-xs font-semibold bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full">
-                À emporter
-              </span>
+            {tracking.type === 'takeaway' && (
+              <span className="ml-auto rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: WARM.surfaceAlt, color: WARM.inkSoft }}>À emporter</span>
+            )}
+            {tracking.type === 'delivery' && (
+              <span className="ml-auto rounded-full px-2.5 py-1 text-xs font-semibold" style={{ backgroundColor: WARM.surfaceAlt, color: WARM.inkSoft }}>Livraison</span>
             )}
           </div>
 
-          {/* Items */}
-          <div className="px-5 py-3 divide-y divide-slate-50">
+          <ul className="divide-y px-5" style={{ borderColor: WARM.surface }}>
             {tracking.orderItems.map((item) => (
-              <div key={item.id} className="flex items-center gap-3 py-3">
-                <div className="relative h-11 w-11 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
-                  {item.image
-                    ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="44px" />
-                    : <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
-                        <UtensilsCrossed className="h-4 w-4 opacity-30" style={{ color }} />
-                      </div>
-                  }
+              <li key={item.id} className="flex items-start gap-3 py-3">
+                <div className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded-xl" style={{ backgroundColor: WARM.surface }}>
+                  {item.image ? (
+                    <Image src={item.image} alt={item.name} fill className="object-cover" sizes="44px" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center" style={{ background: `linear-gradient(135deg, ${withAlpha(color, 0.14)}, ${withAlpha(color, 0.04)})` }}>
+                      <UtensilsCrossed className="h-4 w-4 opacity-30" style={{ color }} />
+                    </div>
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-slate-900 text-sm truncate leading-none">{item.name}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">× {item.quantity}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold leading-tight" style={{ color: WARM.ink }}>{item.name}</p>
+                  {item.options && item.options.length > 0 && (
+                    <p className="mt-0.5 text-xs" style={{ color: WARM.faint }}>
+                      {item.options.map((o) => o.optionName).join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-0.5 text-xs" style={{ color: WARM.faint }}>× {item.quantity}</p>
                 </div>
-                <p className="text-sm font-black text-slate-900 flex-shrink-0">
-                  {fmt(Number(item.price) * item.quantity, currency)}
+                <p className="flex-shrink-0 text-sm font-bold" style={{ color: WARM.ink }}>
+                  {formatCurrency(Number(item.price) * item.quantity, currency)}
                 </p>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
 
-          {/* Special notes */}
           {tracking.specialNotes && (
-            <div className="mx-5 mb-3 px-3 py-2.5 bg-slate-50 rounded-xl">
-              <p className="text-xs text-slate-400 font-medium mb-0.5">Note</p>
-              <p className="text-xs text-slate-600">{tracking.specialNotes}</p>
+            <div className="mx-5 mb-3 rounded-xl px-3 py-2.5" style={{ backgroundColor: WARM.surface }}>
+              <p className="mb-0.5 text-xs font-medium" style={{ color: WARM.faint }}>Note</p>
+              <p className="text-xs" style={{ color: WARM.inkSoft }}>{tracking.specialNotes}</p>
             </div>
           )}
 
-          {/* Total */}
+          {tracking.deliveryFee != null && Number(tracking.deliveryFee) > 0 && (
+            <div className="flex items-center justify-between px-5 py-2 text-sm" style={{ color: WARM.muted }}>
+              <span>Livraison</span>
+              <span className="tabular-nums">{formatCurrency(Number(tracking.deliveryFee), currency)}</span>
+            </div>
+          )}
+
           {tracking.total != null && (
-            <div className="px-5 py-4 border-t border-slate-100 flex items-center justify-between">
-              <span className="text-sm text-slate-500 font-medium">Total</span>
-              <span className="text-xl font-black text-slate-900">{fmt(tracking.total, currency)}</span>
+            <div className="flex items-center justify-between px-5 py-4" style={{ borderTop: `1px solid ${WARM.border}` }}>
+              <span className="text-sm font-medium" style={{ color: WARM.inkSoft }}>Total</span>
+              <span className="text-xl font-bold" style={{ color: WARM.ink }}>{formatCurrency(Number(tracking.total), currency)}</span>
             </div>
           )}
         </div>
 
-        {/* Last update */}
-        <div className="flex items-center justify-center gap-2 text-xs text-slate-400 py-2">
+        <div className="flex items-center justify-center gap-2 py-2 text-xs" style={{ color: WARM.faint }}>
           <RefreshCw className="h-3 w-3" />
           {lastUpdate
-            ? `Mis à jour à ${lastUpdate.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`
-            : "En attente de mise à jour…"
-          }
+            ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`
+            : 'En attente de mise à jour…'}
         </div>
 
-        {/* Add more CTA */}
         <a
-          href={`/menu/${slug}/order`}
-          className="flex items-center justify-center gap-2 w-full font-bold text-sm py-4 rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.98] border-2"
+          href={`/menu/${slug}`}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 py-4 text-sm font-bold transition-transform hover:scale-[1.01] active:scale-[0.98]"
           style={{ borderColor: color, color }}
         >
           <UtensilsCrossed className="h-4 w-4" />
-          Ajouter une autre commande
+          Commander à nouveau
         </a>
-
       </main>
     </div>
   );

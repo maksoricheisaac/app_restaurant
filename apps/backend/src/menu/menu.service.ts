@@ -140,11 +140,36 @@ export class MenuService {
             description: true,
             price: true,
             image: true,
+            optionGroups: {
+              where: { ...NOT_DELETED },
+              orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+              select: {
+                id: true,
+                name: true,
+                required: true,
+                minSelect: true,
+                maxSelect: true,
+                options: {
+                  where: { available: true, ...NOT_DELETED },
+                  orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+                  select: { id: true, name: true, priceDelta: true },
+                },
+              },
+            },
           },
         },
       },
       orderBy: { name: 'asc' },
     });
-    return categories.filter((cat) => cat.items.length > 0);
+    // On ne renvoie que les groupes qui ont au moins une option disponible.
+    return categories
+      .filter((cat) => cat.items.length > 0)
+      .map((cat) => ({
+        ...cat,
+        items: cat.items.map((item) => ({
+          ...item,
+          optionGroups: item.optionGroups.filter((g) => g.options.length > 0),
+        })),
+      }));
   }
 }

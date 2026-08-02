@@ -367,6 +367,27 @@
   .pb-safe-6 {
     padding-bottom: max(1.5rem, env(safe-area-inset-bottom));
   }
+  /* Champ de formulaire du parcours public « Warm Editorial » */
+  .input-warm {
+    width: 100%;
+    border-radius: 0.75rem;
+    border: 1px solid #e5dfd3;
+    background-color: #ffffff;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.9375rem; /* 15px — évite le zoom auto iOS */
+    line-height: 1.4;
+    color: #2a2620;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input-warm::placeholder {
+    color: #b3ab9d;
+  }
+  .input-warm:focus {
+    border-color: #cdbfa8;
+    box-shadow: 0 0 0 3px rgba(229, 89, 13, 0.12);
+  }
+
   /* scrollbar-none already provided by browsers but explicit for Tailwind v4 */
   .scrollbar-none {
     scrollbar-width: none;

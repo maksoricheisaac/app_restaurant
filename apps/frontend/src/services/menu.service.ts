@@ -36,4 +36,33 @@ export const menuService = {
   deleteCategory: async (id: string) => {
     return api.delete(`/categories/${id}`);
   },
+
+  // ── Options / suppléments de plats ────────────────────────────────────────
+  getItemOptions: async (menuItemId: string) => {
+    return api.get(`/menu-options/item/${menuItemId}`);
+  },
+
+  createOptionGroup: async (data: any) => {
+    return api.post('/menu-options/groups', data);
+  },
+
+  updateOptionGroup: async (id: string, data: any) => {
+    return api.patch(`/menu-options/groups/${id}`, data);
+  },
+
+  deleteOptionGroup: async (id: string) => {
+    return api.delete(`/menu-options/groups/${id}`);
+  },
+
+  createOption: async (data: any) => {
+    return api.post('/menu-options/options', data);
+  },
+
+  updateOption: async (id: string, data: any) => {
+    return api.patch(`/menu-options/options/${id}`, data);
+  },
+
+  deleteOption: async (id: string) => {
+    return api.delete(`/menu-options/options/${id}`);
+  },
 };

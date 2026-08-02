@@ -285,7 +285,10 @@ export class OrdersService {
         createdAt: true,
         updatedAt: true,
         specialNotes: true,
+        deliveryFee: true,
+        deliveryAddress: true,
         table: { select: { number: true } },
+        deliveryZone: { select: { name: true, deliveryTime: true } },
         tenant: {
           select: {
             name: true,
@@ -302,6 +305,7 @@ export class OrdersService {
             quantity: true,
             price: true,
             image: true,
+            options: true,
           },
         },
       },

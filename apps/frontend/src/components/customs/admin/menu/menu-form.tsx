@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import ImageUpload from "@/components/image-upload";
 import { toast } from "sonner";
 import { useUploadMenuItemImage } from "@/hooks/api/useMedia";
+import { MenuOptionsEditor } from "./menu-options-editor";
 
 interface Category {
   id: string;
@@ -318,6 +319,17 @@ export function MenuForm({
                     </FormItem>
                   )}
                 />
+
+                {/* Options / suppléments — disponible seulement en édition,
+                    car les groupes doivent être rattachés à un plat existant. */}
+                {selectedItem ? (
+                  <MenuOptionsEditor menuItemId={selectedItem.id} />
+                ) : (
+                  <p className="text-sm text-muted-foreground italic">
+                    Enregistrez d&apos;abord le plat pour lui ajouter des
+                    options et suppléments.
+                  </p>
+                )}
               </div>
             </ScrollArea>
 

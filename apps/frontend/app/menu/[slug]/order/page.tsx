@@ -1,624 +1,496 @@
-"use client";
+'use client';
 
-import { use, useEffect, useRef, useState } from "react";
-import Image from "next/image";
-import { useSearchParams } from "next/navigation";
+import { use, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import {
-  ShoppingCart, Plus, Minus, Trash2, UtensilsCrossed,
-  CheckCircle2, Loader2, ArrowLeft, X, ChevronUp,
-  Sparkles, ExternalLink, Clock, ChefHat, BellRing,
-} from "lucide-react";
-import { QRCodeSVG } from "qrcode.react";
-import { io, Socket } from "socket.io-client";
-import { toast } from "sonner";
-import { cn } from "@/lib/utils";
-import {
-  persistOrder,
-  getActiveOrders,
-  updateStoredStatus,
-  type StoredOrder,
-  type OrderStatus,
-} from "@/lib/order-storage";
+  ArrowLeft,
+  Loader2,
+  Sparkles,
+  Store,
+  ShoppingBag,
+  Bike,
+  UtensilsCrossed,
+  ChevronRight,
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { formatCurrency } from '@/lib/order-utils';
+import { persistOrder } from '@/lib/order-storage';
+import type { ServiceFlags, DeliveryZone, ServiceType } from '../_lib/types';
+import { WARM, normalizeHex, readableOn, withAlpha } from '../_lib/theme';
+import { useMenuCart, lineUnitPrice } from '../_lib/useMenuCart';
+import { QuantityStepper, ItemImage } from '../_components/primitives';
+import { InlineEmpty } from '../_components/states';
+import { MenuSkeleton } from '../_components/skeletons';
+import { OrderConfirmation } from '../_components/order-confirmation';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api/v1';
 
-interface MenuItem {
-  id:          string;
-  name:        string;
-  description: string | null;
-  price:       number;
-  image:       string | null;
-}
-interface Category {
-  id:       string;
-  name:     string;
-  imageUrl: string | null;
-  items:    MenuItem[];
-}
-interface CartItem extends MenuItem { quantity: number }
 interface Restaurant {
-  name:         string;
-  logo:         string | null;
+  name: string;
+  logo: string | null;
   primaryColor: string | null;
-  currency:     string;
-  settings: {
-    description: string | null;
-    phone:       string | null;
-    address:     string | null;
-  } | null;
+  currency: string;
 }
 
-const API        = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000/api/v1";
-const SOCKET_URL = API.replace(/\/api\/v1\/?$/, "");
-
-function fmt(price: number, currency = "XAF") {
-  return new Intl.NumberFormat("fr-FR", { style: "currency", currency, minimumFractionDigits: 0 }).format(price);
-}
-function primary(color: string | null | undefined) { return color ?? "#f97316"; }
-
-// Status label for the active-orders banner
-const STATUS_LABEL: Record<OrderStatus, { label: string; icon: React.ComponentType<{ className?: string }>; dot: string }> = {
-  pending:   { label: "Reçue",           icon: Clock,        dot: "bg-blue-400"   },
-  preparing: { label: "En préparation",  icon: ChefHat,      dot: "bg-amber-400"  },
-  ready:     { label: "Prête !",         icon: BellRing,     dot: "bg-green-500"  },
-  served:    { label: "Servie",          icon: CheckCircle2, dot: "bg-green-400"  },
-  cancelled: { label: "Annulée",         icon: X,            dot: "bg-red-400"    },
+const SERVICE_META: Record<ServiceType, { label: string; icon: typeof Store }> = {
+  dine_in: { label: 'Sur place', icon: Store },
+  takeaway: { label: 'À emporter', icon: ShoppingBag },
+  delivery: { label: 'Livraison', icon: Bike },
 };
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function OrderPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug }     = use(params);
+export default function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = use(params);
   const searchParams = useSearchParams();
-  const tableId      = searchParams.get("table") ?? searchParams.get("tableId");
+  const tableId = searchParams.get('table') ?? searchParams.get('tableId');
 
-  const [restaurant,     setRestaurant]     = useState<Restaurant | null>(null);
-  const [categories,     setCategories]     = useState<Category[]>([]);
-  const [sessionToken,   setSessionToken]   = useState<string | null>(null);
-  const [cart,           setCart]           = useState<CartItem[]>([]);
-  const [isLoading,      setIsLoading]      = useState(true);
-  const [isSubmitting,   setIsSubmitting]   = useState(false);
-  const [orderDone,      setOrderDone]      = useState<string | null>(null);
-  const [activeCategory, setActiveCategory] = useState("");
-  const [cartOpen,       setCartOpen]       = useState(false);
-  const [activeOrders,   setActiveOrders]   = useState<StoredOrder[]>([]);
+  const cart = useMenuCart(slug);
 
-  const catRefs  = useRef<Record<string, HTMLElement | null>>({});
-  // One socket per active orderId for live status sync in the banner
-  const sockRefs = useRef<Record<string, Socket>>({});
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [services, setServices] = useState<ServiceFlags>({ dineIn: true, takeaway: true, delivery: false });
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderDone, setOrderDone] = useState<string | null>(null);
 
-  // ── Fetch menu + session token ────────────────────────────────────────────
+  const [serviceType, setServiceType] = useState<ServiceType>('takeaway');
+  const [zoneId, setZoneId] = useState('');
+  const [address, setAddress] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
+  const [touched, setTouched] = useState(false);
+
+  const color = normalizeHex(restaurant?.primaryColor);
+  const onBrand = readableOn(color);
+  const currency = restaurant?.currency ?? 'XAF';
+
+  // ── Fetch restaurant context (services, zones, session token) ──────────────
   useEffect(() => {
     async function load() {
       try {
         const res = await fetch(`${API}/public-menu/${slug}`);
-        if (!res.ok) { toast.error("Restaurant introuvable"); return; }
+        if (!res.ok) {
+          toast.error('Restaurant introuvable');
+          return;
+        }
         const data = await res.json();
         setRestaurant(data.tenant);
-        setCategories(data.menu);
+        setServices(data.services ?? { dineIn: true, takeaway: true, delivery: false });
+        setZones(data.deliveryZones ?? []);
         if (data.sessionToken) setSessionToken(data.sessionToken);
-        if (data.menu.length > 0) setActiveCategory(data.menu[0].id);
-      } catch { toast.error("Impossible de charger le menu"); }
-      finally  { setIsLoading(false); }
+        // Type de service par défaut : sur place si table scannée, sinon 1er dispo.
+        if (tableId && (data.services?.dineIn ?? true)) setServiceType('dine_in');
+        else if (data.services?.takeaway ?? true) setServiceType('takeaway');
+        else if (data.services?.delivery) setServiceType('delivery');
+      } catch {
+        toast.error('Impossible de charger la commande');
+      } finally {
+        setIsLoading(false);
+      }
     }
     load();
-  }, [slug]);
+  }, [slug, tableId]);
 
-  // ── Load active orders from localStorage ────────────────────────────────
-  useEffect(() => {
-    setActiveOrders(getActiveOrders(slug));
-  }, [slug, orderDone]); // refresh after new order
+  const availableServices = useMemo(() => {
+    const out: ServiceType[] = [];
+    if (tableId && services.dineIn) out.push('dine_in');
+    if (services.takeaway) out.push('takeaway');
+    if (services.delivery) out.push('delivery');
+    return out.length > 0 ? out : ['takeaway' as ServiceType];
+  }, [services, tableId]);
 
-  // ── Subscribe to live status for each active order (banner sync) ─────────
-  useEffect(() => {
-    // Disconnect sockets for orders no longer in the list
-    Object.keys(sockRefs.current).forEach((id) => {
-      if (!activeOrders.find((o) => o.orderId === id)) {
-        sockRefs.current[id].disconnect();
-        delete sockRefs.current[id];
-      }
-    });
+  const selectedZone = zones.find((z) => z.id === zoneId) ?? null;
+  const deliveryFee = serviceType === 'delivery' && selectedZone ? Number(selectedZone.price) : 0;
+  const total = cart.subtotal + deliveryFee;
 
-    activeOrders.forEach((order) => {
-      if (sockRefs.current[order.orderId]) return; // already connected
-      const socket: Socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
-      socket.on("connect", () => socket.emit("join-order", { orderId: order.orderId }));
-      socket.on("status-update", ({ status }: { status: OrderStatus }) => {
-        updateStoredStatus(slug, order.orderId, status);
-        setActiveOrders(getActiveOrders(slug));
-      });
-      sockRefs.current[order.orderId] = socket;
-    });
+  const belowMinOrder =
+    serviceType === 'delivery' &&
+    selectedZone?.minOrder != null &&
+    cart.subtotal < Number(selectedZone.minOrder);
 
-    return () => {
-      Object.values(sockRefs.current).forEach((s) => s.disconnect());
-      sockRefs.current = {};
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeOrders.map((o) => o.orderId).join(",")]);
+  // ── Validation ─────────────────────────────────────────────────────────────
+  const errors = useMemo(() => {
+    const e: Record<string, string> = {};
+    if (serviceType === 'delivery') {
+      if (!zoneId) e.zone = 'Choisissez une zone de livraison';
+      if (!address.trim()) e.address = 'Renseignez votre adresse';
+      if (belowMinOrder) e.min = `Minimum ${formatCurrency(Number(selectedZone?.minOrder), currency)} pour cette zone`;
+    }
+    if ((serviceType === 'takeaway' || serviceType === 'delivery') && !name.trim())
+      e.name = 'Renseignez votre nom';
+    return e;
+  }, [serviceType, zoneId, address, name, belowMinOrder, selectedZone, currency]);
 
-  // ── Scroll spy ───────────────────────────────────────────────────────────
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries)
-          if (entry.isIntersecting) setActiveCategory(entry.target.id.replace("cat-", ""));
-      },
-      { threshold: 0.3, rootMargin: "-60px 0px -60% 0px" },
-    );
-    Object.values(catRefs.current).forEach((el) => el && observer.observe(el));
-    return () => observer.disconnect();
-  }, [categories]);
+  const canSubmit = cart.lines.length > 0 && Object.keys(errors).length === 0;
 
-  // ── Cart helpers ─────────────────────────────────────────────────────────
-  const color     = primary(restaurant?.primaryColor);
-  const currency  = restaurant?.currency ?? "XAF";
-  const total     = cart.reduce((s, i) => s + i.price * i.quantity, 0);
-  const itemCount = cart.reduce((s, i) => s + i.quantity, 0);
-
-  function addItem(item: MenuItem) {
-    setCart((prev) => {
-      const ex = prev.find((c) => c.id === item.id);
-      if (ex) return prev.map((c) => c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { ...item, quantity: 1 }];
-    });
-    toast.success(`${item.name} ajouté`, { duration: 1500 });
-  }
-
-  function setQty(id: string, qty: number) {
-    setCart((prev) => qty <= 0
-      ? prev.filter((c) => c.id !== id)
-      : prev.map((c) => c.id === id ? { ...c, quantity: qty } : c));
-  }
-
-  // ── Submit ───────────────────────────────────────────────────────────────
   async function submitOrder() {
-    if (cart.length === 0) return;
+    setTouched(true);
+    if (!canSubmit) {
+      toast.error('Merci de compléter les informations manquantes');
+      return;
+    }
     setIsSubmitting(true);
     try {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (sessionToken) headers["x-menu-session"] = sessionToken;
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (sessionToken) headers['x-menu-session'] = sessionToken;
 
       const res = await fetch(`${API}/public-menu/${slug}/order`, {
-        method: "POST",
+        method: 'POST',
         headers,
         body: JSON.stringify({
-          type:    tableId ? "dine_in" : "takeaway",
-          tableId: tableId || undefined,
-          items:   cart.map((c) => ({ menuItemId: c.id, quantity: c.quantity })),
+          type: serviceType,
+          tableId: serviceType === 'dine_in' ? tableId || undefined : undefined,
+          deliveryZoneId: serviceType === 'delivery' ? zoneId : undefined,
+          deliveryAddress: serviceType === 'delivery' ? address.trim() : undefined,
+          customerName: name.trim() || undefined,
+          customerPhone: phone.trim() || undefined,
+          specialNotes: notes.trim() || undefined,
+          items: cart.lines.map((l) => ({
+            menuItemId: l.itemId,
+            quantity: l.quantity,
+            selectedOptionIds: l.selectedOptions.map((o) => o.optionId),
+          })),
         }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error((err as any).message || `Erreur ${res.status}`);
+        throw new Error((err as { message?: string }).message || `Erreur ${res.status}`);
       }
 
       const data = await res.json();
 
-      // Persist to localStorage for the multi-order banner
       persistOrder({
-        orderId:        data.orderId,
+        orderId: data.orderId,
         slug,
-        ref:            data.orderId.slice(-8).toUpperCase(),
-        createdAt:      new Date().toISOString(),
-        itemCount:      cart.reduce((s, i) => s + i.quantity, 0),
-        total:          total,
+        ref: data.orderId.slice(-8).toUpperCase(),
+        createdAt: new Date().toISOString(),
+        itemCount: cart.itemCount,
+        total,
         currency,
-        status:         "pending",
-        restaurantName: restaurant?.name ?? "",
+        status: 'pending',
+        restaurantName: restaurant?.name ?? '',
       });
 
+      cart.clear();
       setOrderDone(data.orderId);
-      setCart([]);
-      setCartOpen(false);
 
-      // Refresh session token so the next order in the same session is valid
+      // Rafraîchit le token de session pour une éventuelle commande suivante.
       fetch(`${API}/public-menu/${slug}`)
         .then((r) => r.json())
         .then((d) => { if (d.sessionToken) setSessionToken(d.sessionToken); })
         .catch(() => {});
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi de la commande");
+      toast.error(err instanceof Error ? err.message : "Erreur lors de l'envoi");
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  // ── Loading ───────────────────────────────────────────────────────────────
-  if (isLoading) return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#f5f4f1] gap-3">
-      <Loader2 className="h-8 w-8 animate-spin" style={{ color }} />
-      <p className="text-sm text-slate-400 font-medium">Chargement du menu…</p>
-    </div>
-  );
+  // ── Rendu ──────────────────────────────────────────────────────────────────
+  if (isLoading) return <MenuSkeleton />;
 
-  // ── Confirmation ──────────────────────────────────────────────────────────
-  if (orderDone) {
-    const trackingUrl = typeof window !== "undefined"
-      ? `${window.location.origin}/menu/${slug}/track/${orderDone}`
-      : `/menu/${slug}/track/${orderDone}`;
-
+  if (orderDone)
     return (
-      <div className="min-h-screen bg-[#f5f4f1] flex flex-col items-center justify-center p-6">
-        <div className="w-full max-w-sm mx-auto space-y-5">
-          <div className="text-center space-y-3">
-            <div className="h-24 w-24 rounded-full bg-green-50 flex items-center justify-center shadow-lg mx-auto">
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-black text-slate-900">Commande envoyée !</h1>
-              <p className="text-slate-500 text-sm mt-1 leading-relaxed">
-                {tableId
-                  ? "Scannez le QR code pour suivre votre commande en temps réel."
-                  : "Scannez le QR code pour suivre l'avancement de votre commande."}
-              </p>
-            </div>
-          </div>
+      <OrderConfirmation
+        orderId={orderDone}
+        slug={slug}
+        color={color}
+        onBrand={onBrand}
+        isDineIn={serviceType === 'dine_in'}
+        onNewOrder={() => (window.location.href = `/menu/${slug}`)}
+      />
+    );
 
-          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6 flex flex-col items-center gap-4">
-            <div className="p-3 rounded-2xl bg-slate-50">
-              {/* Responsive QR: 180px max, 65vw on small screens */}
-              <div style={{ width: "min(180px, 65vw)", height: "min(180px, 65vw)" }}>
-                <QRCodeSVG
-                  value={trackingUrl}
-                  size={180}
-                  fgColor="#0f172a"
-                  bgColor="transparent"
-                  level="M"
-                  style={{ width: "100%", height: "auto" }}
-                />
-              </div>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-slate-400 font-medium">Référence commande</p>
-              <p className="text-base font-black text-slate-800 font-mono tracking-widest mt-0.5">
-                #{orderDone.slice(-8).toUpperCase()}
-              </p>
-            </div>
-          </div>
-
+  if (cart.hydrated && cart.lines.length === 0)
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: WARM.page }}>
+        <CheckoutHeader slug={slug} restaurant={restaurant} color={color} />
+        <InlineEmpty title="Votre panier est vide" subtitle="Ajoutez des plats depuis le menu pour commander." />
+        <div className="flex justify-center pb-10">
           <a
-            href={trackingUrl}
-            className="flex items-center justify-center gap-2 w-full font-bold text-sm text-white py-4 rounded-2xl shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
-            style={{ backgroundColor: color, boxShadow: `0 8px 24px ${color}45` }}
+            href={`/menu/${slug}`}
+            className="rounded-2xl px-6 py-3 text-sm font-bold"
+            style={{ backgroundColor: color, color: onBrand }}
           >
-            <Sparkles className="h-4 w-4" />
-            Suivre ma commande
-            <ExternalLink className="h-3.5 w-3.5 opacity-70" />
+            Retour au menu
           </a>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setOrderDone(null)}
-              className="flex-1 font-semibold text-sm text-slate-600 bg-white border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition-colors"
-            >
-              Commander autre chose
-            </button>
-            <a
-              href={`/menu/${slug}`}
-              className="flex-1 text-center font-semibold text-sm text-slate-600 bg-white border border-slate-200 py-3 rounded-xl hover:bg-slate-50 transition-colors"
-            >
-              Retour au menu
-            </a>
-          </div>
         </div>
       </div>
     );
-  }
 
-  // ── Main page ─────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#f5f4f1] flex flex-col">
+    <div className="min-h-screen" style={{ backgroundColor: WARM.page }}>
+      <CheckoutHeader slug={slug} restaurant={restaurant} color={color} tableId={tableId} />
 
-      {/* ── HEADER ──────────────────────────────────────────────────── */}
-      <header className="bg-white border-b border-slate-100 sticky top-0 z-30 shadow-sm">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-          <a
-            href={`/menu/${slug}`}
-            className="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors flex-shrink-0"
-          >
-            <ArrowLeft className="h-4 w-4 text-slate-600" />
-          </a>
-
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
-            {restaurant?.logo ? (
-              <div className="relative h-9 w-9 rounded-xl overflow-hidden flex-shrink-0">
-                <Image src={restaurant.logo} alt={restaurant.name} fill className="object-cover" sizes="36px" />
-              </div>
-            ) : (
-              <div className="h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: `${color}18` }}>
-                <UtensilsCrossed className="h-4 w-4" style={{ color }} />
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="font-black text-slate-900 text-sm truncate leading-none">{restaurant?.name}</p>
-              {tableId
-                ? <p className="text-xs font-semibold mt-0.5" style={{ color }}>Table {tableId}</p>
-                : <p className="text-xs text-slate-400 mt-0.5">À emporter</p>
-              }
-            </div>
+      <main className="mx-auto max-w-2xl space-y-5 px-4 pb-40 pt-5">
+        {/* Type de service */}
+        <Section title="Mode de service">
+          <div className="grid grid-cols-3 gap-2">
+            {availableServices.map((s) => {
+              const meta = SERVICE_META[s];
+              const active = serviceType === s;
+              const Icon = meta.icon;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setServiceType(s)}
+                  className="flex flex-col items-center gap-1.5 rounded-2xl border-2 py-3 text-xs font-semibold transition-colors touch-manipulation"
+                  style={{
+                    borderColor: active ? color : WARM.border,
+                    backgroundColor: active ? withAlpha(color, 0.06) : WARM.card,
+                    color: active ? color : WARM.muted,
+                  }}
+                  aria-pressed={active}
+                >
+                  <Icon className="h-5 w-5" />
+                  {meta.label}
+                </button>
+              );
+            })}
           </div>
-
-          {itemCount > 0 && (
-            <button
-              onClick={() => setCartOpen(true)}
-              className="flex items-center gap-2 text-white text-xs font-bold px-3.5 py-2 rounded-xl transition-all hover:scale-105 active:scale-95 shadow-md"
-              style={{ backgroundColor: color, boxShadow: `0 4px 12px ${color}45` }}
-            >
-              <ShoppingCart className="h-3.5 w-3.5" />
-              <span>{itemCount}</span>
-            </button>
-          )}
-        </div>
-
-        {/* Category tabs */}
-        {categories.length > 1 && (
-          <div className="max-w-2xl mx-auto px-4 pb-3 flex gap-2 overflow-x-auto scrollbar-none">
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                onClick={() => {
-                  setActiveCategory(cat.id);
-                  catRefs.current[cat.id]?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }}
-                className={cn(
-                  "flex-shrink-0 text-xs font-semibold px-4 py-2 rounded-full transition-all duration-200 whitespace-nowrap",
-                  activeCategory === cat.id ? "text-white shadow-sm" : "bg-slate-100 text-slate-500",
-                )}
-                style={activeCategory === cat.id
-                  ? { backgroundColor: color, boxShadow: `0 2px 8px ${color}40` }
-                  : {}}
-              >
-                {cat.name}
-              </button>
-            ))}
-          </div>
-        )}
-      </header>
-
-      {/* ── ACTIVE ORDERS BANNER ────────────────────────────────────── */}
-      {activeOrders.length > 0 && (
-        <div className="max-w-2xl mx-auto w-full px-4 pt-4">
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm px-4 py-3">
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-              Mes commandes en cours
+          {serviceType === 'dine_in' && tableId && (
+            <p className="mt-3 rounded-xl px-3 py-2 text-center text-xs font-medium" style={{ backgroundColor: withAlpha(color, 0.08), color }}>
+              Commande servie à votre table
             </p>
-            <div className="flex gap-2 overflow-x-auto scrollbar-none">
-              {activeOrders.map((order) => {
-                const cfg = STATUS_LABEL[order.status];
-                return (
-                  <a
-                    key={order.orderId}
-                    href={`/menu/${slug}/track/${order.orderId}`}
-                    className="flex-shrink-0 flex items-center gap-2 bg-slate-50 hover:bg-slate-100 transition-colors rounded-xl px-3 py-2 group"
-                  >
-                    <span className={`h-2 w-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
-                    <div className="min-w-0">
-                      <p className="text-xs font-black text-slate-800 leading-none">#{order.ref}</p>
-                      <p className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">{cfg.label}</p>
-                    </div>
-                    <ExternalLink className="h-3 w-3 text-slate-300 group-hover:text-slate-500 transition-colors flex-shrink-0 ml-1" />
-                  </a>
-                );
-              })}
-            </div>
+          )}
+        </Section>
+
+        {/* Delivery details */}
+        {serviceType === 'delivery' && (
+          <Section title="Livraison">
+            <Field label="Zone de livraison" error={touched ? errors.zone : undefined}>
+              <div className="space-y-2">
+                {zones.length === 0 && (
+                  <p className="text-sm" style={{ color: WARM.faint }}>Aucune zone de livraison configurée.</p>
+                )}
+                {zones.map((z) => {
+                  const active = zoneId === z.id;
+                  return (
+                    <button
+                      key={z.id}
+                      type="button"
+                      onClick={() => setZoneId(z.id)}
+                      className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition-colors"
+                      style={{ borderColor: active ? color : WARM.border, backgroundColor: active ? withAlpha(color, 0.06) : WARM.card }}
+                    >
+                      <span>
+                        <span className="block text-sm font-semibold" style={{ color: WARM.ink }}>{z.name}</span>
+                        {z.deliveryTime && (
+                          <span className="text-xs" style={{ color: WARM.faint }}>~{z.deliveryTime} min</span>
+                        )}
+                        {z.minOrder != null && (
+                          <span className="ml-2 text-xs" style={{ color: WARM.faint }}>
+                            min. {formatCurrency(Number(z.minOrder), currency)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-sm font-bold tabular-nums" style={{ color }}>
+                        {formatCurrency(Number(z.price), currency)}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+            <Field label="Adresse de livraison" error={touched ? errors.address : undefined}>
+              <input
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="Rue, quartier, points de repère…"
+                className="input-warm"
+                autoComplete="street-address"
+              />
+            </Field>
+            {touched && errors.min && (
+              <p className="text-sm font-medium text-red-500" role="alert">{errors.min}</p>
+            )}
+          </Section>
+        )}
+
+        {/* Customer info (takeaway / delivery) */}
+        {(serviceType === 'takeaway' || serviceType === 'delivery') && (
+          <Section title="Vos coordonnées">
+            <Field label="Nom" error={touched ? errors.name : undefined}>
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Votre nom"
+                className="input-warm"
+                autoComplete="name"
+              />
+            </Field>
+            <Field label="Téléphone (optionnel)">
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                type="tel"
+                inputMode="tel"
+                placeholder="Pour vous prévenir"
+                className="input-warm"
+                autoComplete="tel"
+              />
+            </Field>
+          </Section>
+        )}
+
+        {/* Order recap */}
+        <Section title="Votre commande">
+          <ul className="divide-y" style={{ borderColor: WARM.border }}>
+            {cart.lines.map((line) => (
+              <li key={line.lineId} className="flex items-start gap-3 py-3 first:pt-0">
+                <div className="relative h-14 w-14 flex-shrink-0 overflow-hidden rounded-xl" style={{ backgroundColor: WARM.surface }}>
+                  <ItemImage src={line.image} alt={line.name} color={color} sizes="56px" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold leading-tight" style={{ color: WARM.ink }}>{line.name}</p>
+                  {line.selectedOptions.length > 0 && (
+                    <p className="mt-0.5 text-xs" style={{ color: WARM.faint }}>
+                      {line.selectedOptions.map((o) => o.optionName).join(' · ')}
+                    </p>
+                  )}
+                  <p className="mt-1 text-sm font-bold" style={{ color }}>
+                    {formatCurrency(lineUnitPrice(line) * line.quantity, currency)}
+                  </p>
+                </div>
+                <QuantityStepper
+                  quantity={line.quantity}
+                  onChange={(q) => cart.setQuantity(line.lineId, q)}
+                  color={color}
+                  onBrand={onBrand}
+                  size="sm"
+                />
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        {/* Notes */}
+        <Section title="Note pour le restaurant (optionnel)">
+          <textarea
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={500}
+            placeholder="Allergies, cuisson, instructions de livraison…"
+            className="input-warm resize-none"
+          />
+        </Section>
+
+        {/* Totals */}
+        <div className="rounded-2xl p-4" style={{ backgroundColor: WARM.card, border: `1px solid ${WARM.border}` }}>
+          <Row label="Sous-total" value={formatCurrency(cart.subtotal, currency)} color={WARM.muted} />
+          {serviceType === 'delivery' && (
+            <Row
+              label="Frais de livraison"
+              value={deliveryFee > 0 ? formatCurrency(deliveryFee, currency) : '—'}
+              color={WARM.muted}
+            />
+          )}
+          <div className="mt-2 flex items-center justify-between border-t pt-3" style={{ borderColor: WARM.border }}>
+            <span className="text-sm font-medium" style={{ color: WARM.inkSoft }}>Total</span>
+            <span className="text-2xl font-bold" style={{ color: WARM.ink }}>{formatCurrency(total, currency)}</span>
           </div>
         </div>
-      )}
-
-      {/* ── MENU ────────────────────────────────────────────────────── */}
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 pt-6 pb-40 space-y-10">
-        {categories.map((cat) => (
-          <section
-            key={cat.id}
-            id={`cat-${cat.id}`}
-            ref={(el) => { catRefs.current[cat.id] = el; }}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="h-1.5 w-5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-              {cat.imageUrl && (
-                <div className="relative h-8 w-8 rounded-lg overflow-hidden flex-shrink-0">
-                  <Image src={cat.imageUrl} alt={cat.name} fill className="object-cover" sizes="32px" />
-                </div>
-              )}
-              <h2 className="text-xl font-black text-slate-900 leading-none">{cat.name}</h2>
-              <span className="text-xs text-slate-400 font-medium">{cat.items.length}</span>
-            </div>
-
-            <div className="space-y-3">
-              {cat.items.map((item) => {
-                const inCart = cart.find((c) => c.id === item.id);
-                return (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "bg-white rounded-2xl overflow-hidden shadow-sm transition-all duration-200 border",
-                      inCart ? "shadow-md" : "border-transparent hover:shadow-md",
-                    )}
-                    style={inCart ? { borderColor: `${color}30`, boxShadow: `0 4px 16px ${color}12` } : {}}
-                  >
-                    <div className="flex">
-                      <div className="relative flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-slate-100 overflow-hidden">
-                        {item.image ? (
-                          <Image src={item.image} alt={item.name} fill className="object-cover" sizes="128px" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
-                            <UtensilsCrossed className="h-8 w-8 opacity-25" style={{ color }} />
-                          </div>
-                        )}
-                        {inCart && (
-                          <div className="absolute top-2 left-2 h-6 w-6 rounded-full text-white text-xs font-black flex items-center justify-center shadow-lg" style={{ backgroundColor: color }}>
-                            {inCart.quantity}
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex-1 p-3.5 flex flex-col justify-between min-w-0">
-                        <div>
-                          <p className="font-black text-slate-900 text-sm leading-tight">{item.name}</p>
-                          {item.description && (
-                            <p className="text-xs text-slate-400 mt-1 line-clamp-2 leading-relaxed">{item.description}</p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between mt-2.5">
-                          <span className="font-black text-sm" style={{ color }}>{fmt(item.price, currency)}</span>
-
-                          {inCart ? (
-                            <div className="flex items-center gap-1">
-                              {/* min 44px touch targets for accessibility */}
-                              <button
-                                onClick={() => setQty(item.id, inCart.quantity - 1)}
-                                className="h-10 w-10 rounded-full border-2 flex items-center justify-center transition-colors hover:bg-slate-50 active:scale-95 touch-manipulation"
-                                style={{ borderColor: color }}
-                              >
-                                {inCart.quantity === 1
-                                  ? <Trash2 className="h-3.5 w-3.5" style={{ color }} />
-                                  : <Minus   className="h-3.5 w-3.5" style={{ color }} />}
-                              </button>
-                              <span className="text-sm font-black w-6 text-center text-slate-900">{inCart.quantity}</span>
-                              <button
-                                onClick={() => addItem(item)}
-                                className="h-10 w-10 rounded-full text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-md touch-manipulation"
-                                style={{ backgroundColor: color }}
-                              >
-                                <Plus className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => addItem(item)}
-                              className="h-10 w-10 rounded-full text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 shadow-md touch-manipulation"
-                              style={{ backgroundColor: color }}
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        ))}
       </main>
 
-      {/* ── CART BOTTOM BAR ─────────────────────────────────────────── */}
-      {cart.length > 0 && !cartOpen && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 px-4 pt-4 pb-safe-4">
-          <div className="max-w-2xl mx-auto">
-            <button
-              onClick={() => setCartOpen(true)}
-              className="w-full flex items-center justify-between text-white font-bold px-5 py-4 rounded-2xl shadow-2xl transition-all hover:scale-[1.01] active:scale-[0.99]"
-              style={{ backgroundColor: color, boxShadow: `0 8px 32px ${color}55` }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 rounded-xl w-9 h-9 flex items-center justify-center text-sm font-black">{itemCount}</div>
-                <span className="text-sm">Voir ma sélection</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-black">{fmt(total, currency)}</span>
-                <ChevronUp className="h-4 w-4 opacity-80" />
-              </div>
-            </button>
+      {/* Sticky submit */}
+      <div className="pb-safe-4 fixed inset-x-0 bottom-0 z-40 px-4 pt-4" style={{ background: `linear-gradient(to top, ${WARM.page} 60%, transparent)` }}>
+        <div className="mx-auto max-w-2xl">
+          <button
+            type="button"
+            onClick={submitOrder}
+            disabled={isSubmitting}
+            className="flex w-full items-center justify-center gap-2.5 rounded-2xl py-4 text-base font-bold shadow-2xl transition-transform hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
+            style={{ backgroundColor: color, color: onBrand, boxShadow: `0 10px 34px ${withAlpha(color, 0.33)}` }}
+          >
+            {isSubmitting ? (
+              <Loader2 className="h-5 w-5 animate-spin" />
+            ) : (
+              <>
+                <Sparkles className="h-5 w-5" />
+                Confirmer · {formatCurrency(total, currency)}
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Sous-composants locaux ─────────────────────────────────────────────────────
+
+function CheckoutHeader({
+  slug,
+  restaurant,
+  color,
+  tableId,
+}: {
+  slug: string;
+  restaurant: Restaurant | null;
+  color: string;
+  tableId?: string | null;
+}) {
+  return (
+    <header className="sticky top-0 z-30 shadow-sm" style={{ backgroundColor: WARM.card, borderBottom: `1px solid ${WARM.border}` }}>
+      <div className="mx-auto flex max-w-2xl items-center gap-3 px-4 py-3">
+        <a
+          href={`/menu/${slug}${tableId ? `?tableId=${tableId}` : ''}`}
+          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl transition-colors"
+          style={{ backgroundColor: WARM.surfaceAlt }}
+          aria-label="Retour au menu"
+        >
+          <ArrowLeft className="h-4 w-4" style={{ color: WARM.inkSoft }} />
+        </a>
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          {restaurant?.logo ? (
+            <div className="relative h-9 w-9 flex-shrink-0 overflow-hidden rounded-xl">
+              <Image src={restaurant.logo} alt={restaurant.name} fill className="object-cover" sizes="36px" />
+            </div>
+          ) : (
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl" style={{ backgroundColor: withAlpha(color, 0.1) }}>
+              <UtensilsCrossed className="h-4 w-4" style={{ color }} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold leading-none" style={{ color: WARM.ink }}>{restaurant?.name ?? 'Commande'}</p>
+            <p className="mt-0.5 text-xs" style={{ color: WARM.faint }}>Finaliser la commande</p>
           </div>
         </div>
-      )}
+        <ChevronRight className="h-4 w-4" style={{ color: WARM.fainter }} />
+      </div>
+    </header>
+  );
+}
 
-      {/* ── CART DRAWER ─────────────────────────────────────────────── */}
-      {cartOpen && (
-        <div className="fixed inset-0 z-50 flex flex-col justify-end">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setCartOpen(false)} />
-          <div className="relative bg-white rounded-t-3xl shadow-2xl max-h-[88vh] flex flex-col">
-            <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
-              <div className="h-1 w-10 rounded-full bg-slate-200" />
-            </div>
-            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="h-9 w-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: `${color}15` }}>
-                  <ShoppingCart className="h-4 w-4" style={{ color }} />
-                </div>
-                <div>
-                  <p className="font-black text-slate-900 text-base leading-none">Ma sélection</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{itemCount} article{itemCount > 1 ? "s" : ""}</p>
-                </div>
-              </div>
-              <button onClick={() => setCartOpen(false)} className="h-9 w-9 rounded-xl bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors">
-                <X className="h-4 w-4 text-slate-500" />
-              </button>
-            </div>
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="rounded-2xl p-4" style={{ backgroundColor: WARM.card, border: `1px solid ${WARM.border}` }}>
+      <h2 className="mb-3 text-sm font-bold" style={{ color: WARM.ink }}>{title}</h2>
+      <div className="space-y-3">{children}</div>
+    </section>
+  );
+}
 
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-              {cart.map((item) => (
-                <div key={item.id} className="flex items-center gap-3 py-1">
-                  <div className="relative h-14 w-14 rounded-xl overflow-hidden flex-shrink-0 bg-slate-100">
-                    {item.image
-                      ? <Image src={item.image} alt={item.name} fill className="object-cover" sizes="56px" />
-                      : <div className="w-full h-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${color}15, ${color}05)` }}>
-                          <UtensilsCrossed className="h-5 w-5 opacity-30" style={{ color }} />
-                        </div>
-                    }
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-slate-900 text-sm truncate leading-none">{item.name}</p>
-                    <p className="text-xs font-black mt-1" style={{ color }}>{fmt(item.price * item.quantity, currency)}</p>
-                    {item.quantity > 1 && <p className="text-xs text-slate-400 mt-0.5">{fmt(item.price, currency)} × {item.quantity}</p>}
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => setQty(item.id, item.quantity - 1)}
-                      className="h-10 w-10 rounded-full border-2 flex items-center justify-center hover:bg-slate-50 transition-colors active:scale-95 touch-manipulation"
-                      style={{ borderColor: color }}
-                    >
-                      {item.quantity === 1 ? <Trash2 className="h-3.5 w-3.5" style={{ color }} /> : <Minus className="h-3.5 w-3.5" style={{ color }} />}
-                    </button>
-                    <span className="text-sm font-black w-5 text-center">{item.quantity}</span>
-                    <button
-                      onClick={() => setQty(item.id, item.quantity + 1)}
-                      className="h-10 w-10 rounded-full text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95 touch-manipulation"
-                      style={{ backgroundColor: color }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5">
+      <label className="block text-xs font-semibold" style={{ color: WARM.muted }}>{label}</label>
+      {children}
+      {error && <p className="text-xs font-medium text-red-500" role="alert">{error}</p>}
+    </div>
+  );
+}
 
-            <div className="px-5 pt-4 pb-safe-6 border-t border-slate-100 space-y-3 flex-shrink-0 bg-white rounded-b-3xl">
-              <div className="flex items-center justify-between py-1">
-                <span className="text-slate-500 text-sm font-medium">Total</span>
-                <span className="text-2xl font-black text-slate-900">{fmt(total, currency)}</span>
-              </div>
-              {tableId && (
-                <div className="flex items-center justify-center gap-1.5 text-xs font-medium rounded-xl py-2.5" style={{ backgroundColor: `${color}12`, color }}>
-                  Commande pour la table {tableId}
-                </div>
-              )}
-              <button
-                onClick={submitOrder}
-                disabled={isSubmitting}
-                className="w-full flex items-center justify-center gap-2.5 text-white font-black py-4 rounded-2xl text-base shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60"
-                style={{ backgroundColor: color, boxShadow: `0 8px 24px ${color}45` }}
-              >
-                {isSubmitting
-                  ? <Loader2 className="h-5 w-5 animate-spin" />
-                  : <><Sparkles className="h-5 w-5" />Confirmer la commande</>
-                }
-              </button>
-              <button
-                onClick={() => { setCart([]); setCartOpen(false); }}
-                className="w-full text-xs text-slate-400 hover:text-slate-600 transition-colors py-1.5"
-              >
-                Vider la sélection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+function Row({ label, value, color }: { label: string; value: string; color: string }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-sm" style={{ color }}>{label}</span>
+      <span className="text-sm font-semibold tabular-nums" style={{ color: WARM.inkSoft }}>{value}</span>
     </div>
   );
 }

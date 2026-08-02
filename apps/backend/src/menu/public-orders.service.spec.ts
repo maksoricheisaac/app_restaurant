@@ -15,6 +15,9 @@ const mockMenuSessionService = { verify: jest.fn().mockReturnValue(true) };
 const mockInventoryService = {
   decrementStockForOrder: jest.fn().mockResolvedValue([]),
 };
+const mockCustomersService = {
+  upsertFromInteraction: jest.fn().mockResolvedValue(null),
+};
 
 describe('PublicOrderService', () => {
   let service: PublicOrderService;
@@ -36,6 +39,7 @@ describe('PublicOrderService', () => {
       mockPlanLimitService as any,
       mockMenuSessionService as any,
       mockInventoryService as any,
+      mockCustomersService as any,
     );
     jest.clearAllMocks();
     mockPlanLimitService.assertMonthlyOrderLimit.mockResolvedValue(undefined);
@@ -288,5 +292,180 @@ describe('PublicOrderService', () => {
         items: [{ menuItemId: 'item-1', quantity: 1 }],
       } as any),
     ).rejects.toThrow('Stock insuffisant');
+  });
+
+  // ─── Product options: pricing & validation ────────────────────────────────
+
+  const itemWithOptions = {
+    id: 'item-2',
+    name: 'Burger',
+    price: 3000,
+    image: null,
+    optionGroups: [
+      {
+        id: 'g1',
+        name: 'Cuisson',
+        required: true,
+        minSelect: 1,
+        maxSelect: 1,
+        options: [
+          { id: 'o-saignant', name: 'Saignant', priceDelta: 0 },
+          { id: 'o-apoint', name: 'À point', priceDelta: 0 },
+        ],
+      },
+      {
+        id: 'g2',
+        name: 'Suppléments',
+        required: false,
+        minSelect: 0,
+        maxSelect: 2,
+        options: [
+          { id: 'o-bacon', name: 'Bacon', priceDelta: 500 },
+          { id: 'o-cheese', name: 'Cheddar', priceDelta: 300 },
+        ],
+      },
+    ],
+  };
+
+  it('adds selected option priceDelta to the unit price and snapshots them', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([itemWithOptions]);
+    prisma.order.create.mockResolvedValue({ id: 'o1', status: 'pending', total: 3500 });
+
+    await service.createOrder('le-maquis', {
+      type: 'dine_in',
+      items: [
+        {
+          menuItemId: 'item-2',
+          quantity: 1,
+          selectedOptionIds: ['o-saignant', 'o-bacon'],
+        },
+      ],
+    } as any);
+
+    const createCall = prisma.order.create.mock.calls[0][0];
+    const line = createCall.data.orderItems.create[0];
+    expect(line.price).toBe(3500); // 3000 + 500 bacon
+    expect(createCall.data.total).toBe(3500);
+    expect(line.options).toEqual([
+      { groupName: 'Cuisson', optionName: 'Saignant', priceDelta: 0 },
+      { groupName: 'Suppléments', optionName: 'Bacon', priceDelta: 500 },
+    ]);
+  });
+
+  it('rejects when a required option group has no selection', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([itemWithOptions]);
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        items: [{ menuItemId: 'item-2', quantity: 1, selectedOptionIds: [] }],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.order.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects when more than maxSelect options are chosen in a group', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([itemWithOptions]);
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        items: [
+          {
+            menuItemId: 'item-2',
+            quantity: 1,
+            selectedOptionIds: ['o-saignant', 'o-apoint'], // 2 in a max-1 group
+          },
+        ],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('rejects an option id that does not belong to the item', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(tenant);
+    prisma.menuItem.findMany.mockResolvedValue([itemWithOptions]);
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'dine_in',
+        items: [
+          {
+            menuItemId: 'item-2',
+            quantity: 1,
+            selectedOptionIds: ['o-saignant', 'o-unknown'],
+          },
+        ],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  // ─── Delivery: service toggle, zone fee & minimum ─────────────────────────
+
+  const deliveryTenant = {
+    id: 'tenant-1',
+    name: 'Le Maquis',
+    settings: [{ dineInEnabled: true, takeawayEnabled: true, deliveryEnabled: true }],
+  };
+
+  it('adds the delivery zone fee to the total and persists delivery data', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(deliveryTenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.deliveryZone.findFirst.mockResolvedValue({
+      id: 'zone-1',
+      price: 1000,
+      minOrder: null,
+    });
+    prisma.order.create.mockResolvedValue({ id: 'o1', status: 'pending', total: 3500 });
+
+    await service.createOrder('le-maquis', {
+      type: 'delivery',
+      deliveryZoneId: 'zone-1',
+      deliveryAddress: 'Rue 1',
+      items: [{ menuItemId: 'item-1', quantity: 1 }], // 2500
+    } as any);
+
+    const createCall = prisma.order.create.mock.calls[0][0];
+    expect(createCall.data.total).toBe(3500); // 2500 + 1000 fee
+    expect(createCall.data.deliveryFee).toBe(1000);
+    expect(createCall.data.deliveryZoneId).toBe('zone-1');
+  });
+
+  it('rejects delivery below the zone minimum order', async () => {
+    prisma.tenant.findFirst.mockResolvedValue(deliveryTenant);
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+    prisma.deliveryZone.findFirst.mockResolvedValue({
+      id: 'zone-1',
+      price: 1000,
+      minOrder: 5000, // subtotal 2500 < 5000
+    });
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'delivery',
+        deliveryZoneId: 'zone-1',
+        items: [{ menuItemId: 'item-1', quantity: 1 }],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
+    expect(prisma.order.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a service type disabled by the restaurant', async () => {
+    prisma.tenant.findFirst.mockResolvedValue({
+      id: 'tenant-1',
+      name: 'Le Maquis',
+      settings: [{ dineInEnabled: true, takeawayEnabled: true, deliveryEnabled: false }],
+    });
+    prisma.menuItem.findMany.mockResolvedValue([menuItem]);
+
+    await expect(
+      service.createOrder('le-maquis', {
+        type: 'delivery',
+        deliveryZoneId: 'zone-1',
+        items: [{ menuItemId: 'item-1', quantity: 1 }],
+      } as any),
+    ).rejects.toThrow(BadRequestException);
   });
 });

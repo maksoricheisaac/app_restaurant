@@ -54,8 +54,8 @@ export default function PrivacyPage() {
           body: (
             <p>
               Vos données sont hébergées dans l&apos;Union européenne. Elles sont chiffrées en
-              transit (TLS 1.3) et au repos (AES-256), isolées par établissement (architecture
-              multi-tenant), et protégées par des contrôles d&apos;accès stricts et un audit trail.
+              transit (TLS 1.3) et au repos (AES-256), et protégées par des contrôles
+              d&apos;accès stricts ainsi qu&apos;un journal d&apos;audit.
             </p>
           ),
         },

@@ -349,7 +349,7 @@ export class MailService {
     );
   }
 
-  async sendMembershipInvite(opts: {
+  async sendStaffInvite(opts: {
     to: string;
     restaurantName: string;
     inviterName: string;
@@ -364,8 +364,7 @@ export class MailService {
     const roleLabel: Record<string, string> = {
       manager: 'Manager',
       waiter: 'Serveur',
-      head_chef: 'Chef de cuisine',
-      chef: 'Cuisinier',
+      chef: 'Chef',
       cashier: 'Caissier',
     };
 

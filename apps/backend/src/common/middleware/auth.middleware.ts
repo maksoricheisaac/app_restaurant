@@ -19,12 +19,11 @@ export class AuthMiddleware implements NestMiddleware {
     if (token) {
       try {
         const decoded = this.jwtService.verify(token);
+        // Identité seulement. Le rôle effectif est relu en base par AuthGuard —
+        // un claim de rôle périmé ne doit jamais accorder d'accès.
         (req as any).user = {
           id: decoded.sub,
           email: decoded.email,
-          role: decoded.role,
-          platformRole: decoded.platformRole,
-          tenantId: decoded.tenantId,
         };
       } catch {
         // Token invalide, on laisse passer pour que les Guards fassent leur travail

@@ -37,19 +37,12 @@ describe('AuthMiddleware', () => {
       email: 'a@b.com',
       role: 'owner',
       platformRole: 'user',
-      tenantId: 't1',
     });
 
     middleware.use(req, res, next);
 
     expect(mockJwtService.verify).toHaveBeenCalledWith('valid.token.here');
-    expect(req.user).toEqual({
-      id: 'u1',
-      email: 'a@b.com',
-      role: 'owner',
-      platformRole: 'user',
-      tenantId: 't1',
-    });
+    expect(req.user).toEqual({ id: 'u1', email: 'a@b.com' });
   });
 
   it('extracts token from cookie when no Authorization header', () => {
@@ -59,7 +52,6 @@ describe('AuthMiddleware', () => {
       email: 'b@c.com',
       role: 'manager',
       platformRole: 'user',
-      tenantId: 't2',
     });
 
     middleware.use(req, res, next);
@@ -78,7 +70,6 @@ describe('AuthMiddleware', () => {
       email: 'c@d.com',
       role: 'owner',
       platformRole: 'user',
-      tenantId: null,
     });
 
     middleware.use(req, res, next);
@@ -141,7 +132,6 @@ describe('AuthMiddleware', () => {
       email: 'a@b.com',
       role: 'owner',
       platformRole: 'user',
-      tenantId: null,
     });
 
     middleware.use(req, res, next);
@@ -150,24 +140,21 @@ describe('AuthMiddleware', () => {
 
   // ─── req.user shape ───────────────────────────────────────────────────────
 
-  it('maps JWT claims to correct req.user shape', () => {
+  it('ne retient que l’identité du porteur du jeton', () => {
     const req = makeReq({ cookie: 'tok' });
     mockJwtService.verify.mockReturnValue({
       sub: 'user-uuid',
       email: 'test@example.com',
       role: 'cashier',
       platformRole: 'user',
-      tenantId: 'tenant-uuid',
     });
 
     middleware.use(req, res, next);
 
+    // Le rôle est délibérément absent : AuthGuard le relit en base.
     expect(req.user).toStrictEqual({
       id: 'user-uuid',
       email: 'test@example.com',
-      role: 'cashier',
-      platformRole: 'user',
-      tenantId: 'tenant-uuid',
     });
   });
 });

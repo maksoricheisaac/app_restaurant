@@ -24,10 +24,10 @@ import {
   useInviteByEmail,
   useRevokeInvite,
   useResendInvite,
-} from "@/hooks/api/useMemberships";
-import { ROLE_LABELS, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
+} from "@/hooks/api/useStaff";
+import { ROLE_LABELS, MANAGER, CHEF, WAITER, CASHIER } from "@/types/permissions";
 
-const INVITABLE_ROLES = [MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER];
+const INVITABLE_ROLES = [MANAGER, CHEF, WAITER, CASHIER];
 
 export function PendingInvitesCard() {
   const { data: invites, isLoading } = usePendingInvites();

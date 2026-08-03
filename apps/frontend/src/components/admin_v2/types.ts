@@ -7,9 +7,6 @@ export interface NavItem {
   badge?: string | number;
   items?: NavItem[];
   /** Feature du plan requise pour accéder au module (data-driven). */
-  feature?: string;
-  /** Calculé à l'exécution : module non inclus dans le plan du tenant. */
-  locked?: boolean;
 }
 
 export interface NavGroup {

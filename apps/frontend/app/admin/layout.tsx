@@ -14,16 +14,28 @@ interface AdminLayoutProps {
   children: ReactNode;
 }
 
+const apiBase =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:3000/api/v1';
+
 export default async function AdminLayout({ children }: AdminLayoutProps) {
   const h = await headers();
-  const tenantId = h.get('x-tenant-id');
-  const tenantSlug = h.get('x-tenant-slug');
 
-  const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+  // Tant que l'assistant de première installation n'a pas tourné, il n'y a ni
+  // établissement ni propriétaire : l'administration n'a rien à afficher.
+  const setup = await fetch(`${apiBase}/setup/status`, { cache: 'no-store' })
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null);
+
+  if (setup?.required) {
+    redirect('/setup');
+  }
+
   const profileResponse = await fetch(`${apiBase}/auth/profile`, {
     method: 'GET',
     headers: h,
-    cache: 'no-store'
+    cache: 'no-store',
   });
 
   if (profileResponse.status === 401) {
@@ -31,86 +43,59 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
   }
 
   const user = await profileResponse.json();
-  
+
   if (!user) {
     redirect('/auth/login');
   }
 
-  // Super admin sans contexte de tenant → dashboard super admin
-  if (user.platformRole === 'super_admin' && !tenantId && !tenantSlug) {
-    redirect('/super-admin/dashboard');
-  }
+  let counts = {
+    pendingOrders: 0,
+    unreadMessages: 0,
+    pendingReservations: 0,
+    orders: 0,
+    reservations: 0,
+  };
 
-  // Utilisateur normal avec onboarding explicitement non terminé et sans tenant → reprendre l'onboarding
-  // Vérification stricte (=== false) pour ne pas rediriger quand le champ est absent/undefined
-  if (
-    user.platformRole !== 'super_admin' &&
-    user.onboardingCompleted === false &&
-    !user.tenantId
-  ) {
-    redirect('/auth/register');
-  }
-
-  // Cas edge : onboarding marqué terminé mais tenantId manquant dans le profil
-  // (peut arriver après migration ou erreur de sync) → laisser passer avec tenantId header
-
-  // Onboarding terminé mais pas de restaurant assigné (Multi-Manager / Franchise en attente d'invitation)
-  if (
-    user.platformRole !== 'super_admin' &&
-    user.onboardingCompleted &&
-    !tenantId && !tenantSlug && !user.tenantId
-  ) {
-    redirect('/pending-invite');
-  }
-
-  let counts = { pendingOrders: 0, unreadMessages: 0, pendingReservations: 0, orders: 0, reservations: 0 };
-
-  if (tenantId || tenantSlug) {
-    try {
-      const countsResponse = await dashboardService.getSidebarCounts({
-        headers: h
-      });
-      if (countsResponse) {
-        counts = {
-          pendingOrders: countsResponse.pendingOrders ?? 0,
-          unreadMessages: countsResponse.unreadMessages ?? 0,
-          pendingReservations: countsResponse.pendingReservations ?? 0,
-          orders: countsResponse.orders ?? 0,
-          reservations: countsResponse.reservations ?? 0,
-        };
-      }
-    } catch (e) {
-      console.error("Error fetching sidebar counts:", e);
+  try {
+    const countsResponse = await dashboardService.getSidebarCounts({ headers: h });
+    if (countsResponse) {
+      counts = {
+        pendingOrders: countsResponse.pendingOrders ?? 0,
+        unreadMessages: countsResponse.unreadMessages ?? 0,
+        pendingReservations: countsResponse.pendingReservations ?? 0,
+        orders: countsResponse.orders ?? 0,
+        reservations: countsResponse.reservations ?? 0,
+      };
     }
+  } catch (e) {
+    console.error("Error fetching sidebar counts:", e);
   }
-
-  const effectiveTenantId = tenantId ?? user.tenantId ?? undefined;
 
   return (
-    <AdminSocketWrapper tenantId={effectiveTenantId}>
-    <SidebarProvider defaultOpen={false}>
-      <AdminNotificationProvider>
-        <AppSidebar counts={counts} user={user} />
-        <div
-          id='admin-layout-content'
-          className={cn(
-            'w-full max-w-full',
-            'lg:ml-auto',
-            'peer-data-[state=collapsed]:lg:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
-            'peer-data-[state=expanded]:lg:w-[calc(100%-var(--sidebar-width))]',
-            'transition-[width] duration-200 ease-linear',
-            'flex min-h-screen flex-col',
-            'group-data-[scroll-locked=1]/body:h-full',
-            'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh'
-          )}
-        >
-          <Header fixed user={user} />
-          <Main>
-            {children}
-          </Main>
-        </div>
-      </AdminNotificationProvider>
-    </SidebarProvider>
+    <AdminSocketWrapper>
+      <SidebarProvider defaultOpen={false}>
+        <AdminNotificationProvider>
+          <AppSidebar counts={counts} user={user} />
+          <div
+            id='admin-layout-content'
+            className={cn(
+              'w-full max-w-full',
+              'lg:ml-auto',
+              'peer-data-[state=collapsed]:lg:w-[calc(100%-var(--sidebar-width-icon)-1rem)]',
+              'peer-data-[state=expanded]:lg:w-[calc(100%-var(--sidebar-width))]',
+              'transition-[width] duration-200 ease-linear',
+              'flex min-h-screen flex-col',
+              'group-data-[scroll-locked=1]/body:h-full',
+              'has-[main.fixed-main]:group-data-[scroll-locked=1]/body:h-svh'
+            )}
+          >
+            <Header fixed user={user} />
+            <Main>
+              {children}
+            </Main>
+          </div>
+        </AdminNotificationProvider>
+      </SidebarProvider>
     </AdminSocketWrapper>
   );
 }

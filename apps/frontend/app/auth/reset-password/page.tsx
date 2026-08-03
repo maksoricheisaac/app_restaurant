@@ -125,9 +125,9 @@ function ResetPasswordForm() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-foreground">Nouveau mot de passe</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
+                    <div className="relative group">
                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                      <FormControl>
                         <Input
                           type={showPwd ? 'text' : 'password'}
                           autoComplete="new-password"
@@ -135,6 +135,7 @@ function ResetPasswordForm() {
                           className="h-12 pl-11 pr-11 rounded-xl bg-card"
                           {...field}
                         />
+                      </FormControl>
                         <button
                           type="button"
                           onClick={() => setShowPwd((v) => !v)}
@@ -143,8 +144,7 @@ function ResetPasswordForm() {
                         >
                           {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                         </button>
-                      </div>
-                    </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -156,9 +156,9 @@ function ResetPasswordForm() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-foreground">Confirmer le mot de passe</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
+                    <div className="relative group">
                         <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                      <FormControl>
                         <Input
                           type={showPwd ? 'text' : 'password'}
                           autoComplete="new-password"
@@ -166,8 +166,8 @@ function ResetPasswordForm() {
                           className="h-12 pl-11 rounded-xl bg-card"
                           {...field}
                         />
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

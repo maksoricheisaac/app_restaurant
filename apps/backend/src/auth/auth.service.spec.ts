@@ -52,6 +52,7 @@ describe('AuthService', () => {
         email: 'test@test.com',
         password: 'hashed',
         emailVerified: true,
+        status: 'active',
         memberships: [],
       };
       prisma.user.findUnique.mockResolvedValue(user);
@@ -93,9 +94,8 @@ describe('AuthService', () => {
       email: 'test@test.com',
       name: 'Test',
       emailVerified: true,
-      memberships: [{ role: 'owner', tenantId: 'tenant-1' }],
+      status: 'active',
       platformRole: 'user',
-      tenantId: 'tenant-1',
     };
 
     it('returns tokens for verified user', async () => {
@@ -199,6 +199,7 @@ describe('AuthService', () => {
       prisma.user.findUnique.mockResolvedValue({
         id: 'u1',
         emailVerified: true,
+        status: 'active',
       });
 
       const result = await service.resendVerificationEmail('verified@test.com');
@@ -246,8 +247,6 @@ describe('AuthService', () => {
           id: 'u1',
           email: 'test@test.com',
           platformRole: 'user',
-          tenantId: 'tenant-1',
-          memberships: [{ role: 'owner', tenantId: 'tenant-1' }],
         },
       };
       prisma.refreshToken.findUnique.mockResolvedValue(stored);

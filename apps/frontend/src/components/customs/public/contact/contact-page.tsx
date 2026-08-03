@@ -16,7 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useSendMessage } from '@/hooks/api/useContact';
-import { SectionHeading } from '@/components/customs/public/saas/section-heading';
+import { SectionHeading } from '@/components/customs/public/vitrine/section-heading';
 import { Reveal } from '@/components/motion/reveal';
 import { TextReveal } from '@/components/motion/text-reveal';
 import { Stagger } from '@/components/motion/stagger';
@@ -30,20 +30,20 @@ const CONTACT_CHANNELS = [
 ];
 
 const SUBJECTS = [
-  { value: 'demo',        label: 'Demande de démonstration' },
-  { value: 'trial',       label: "Questions sur l'essai gratuit" },
-  { value: 'support',     label: 'Support technique' },
-  { value: 'billing',     label: 'Facturation & abonnement' },
-  { value: 'enterprise',  label: 'Devis Enterprise / Multi-sites' },
-  { value: 'partnership', label: 'Partenariat' },
+  { value: 'reservation', label: 'Réservation de table' },
+  { value: 'order',       label: 'Question sur une commande' },
+  { value: 'event',       label: 'Privatisation & événement' },
+  { value: 'group',       label: 'Repas de groupe' },
+  { value: 'allergy',     label: 'Allergies & régimes alimentaires' },
+  { value: 'feedback',    label: 'Avis & suggestions' },
   { value: 'other',       label: 'Autre' },
 ];
 
 const FAQS = [
-  { q: "Combien de temps dure l'essai gratuit ?", a: '14 jours complets, sans carte de crédit requise. Accès à toutes les fonctionnalités Pro.' },
-  { q: 'Puis-je changer de plan à tout moment ?', a: 'Oui, vous pouvez upgrader ou downgrader votre plan à n\'importe quel moment depuis votre tableau de bord.' },
-  { q: "Proposez-vous un accompagnement à l'onboarding ?", a: 'Oui, chaque nouveau restaurant Pro ou Enterprise bénéficie d\'une session d\'onboarding en visio avec notre équipe.' },
-  { q: 'Les données de mon restaurant sont-elles sécurisées ?', a: 'Absolument. Vos données sont hébergées en Europe, chiffrées en transit et au repos, conformes au RGPD.' },
+  { q: 'Faut-il réserver pour venir ?', a: "La réservation n'est pas obligatoire, mais elle nous aide à vous accueillir dans de bonnes conditions — surtout le week-end et pour les groupes." },
+  { q: 'Puis-je commander en ligne et venir chercher ?', a: "Oui. Composez votre commande depuis la carte, choisissez « à emporter », et nous vous prévenons dès qu'elle est prête." },
+  { q: 'Comment signaler une allergie ou un régime particulier ?', a: "Indiquez-le dans les notes de votre commande ou de votre réservation, et signalez-le à votre serveur à l'arrivée : la cuisine en est informée." },
+  { q: 'Puis-je privatiser la salle pour un événement ?', a: 'Oui, selon les dates. Écrivez-nous via le formulaire en choisissant « Privatisation & événement », nous revenons vers vous avec les modalités.' },
 ];
 
 const TRUST_ITEMS = [
@@ -202,12 +202,12 @@ export default function ContactPageClient() {
             <span className="h-px w-8 bg-primary/60" />
           </Reveal>
           <TextReveal as="h1" className="font-display text-4xl sm:text-5xl lg:text-[3.25rem] lg:leading-[1.03] text-foreground text-balance">
-            Parlons de votre{' '}
-            <span className="font-display-italic text-gradient-warm">restaurant</span>
+            Écrivez-nous, on vous{' '}
+            <span className="font-display-italic text-gradient-warm">répond</span>
           </TextReveal>
           <Reveal as="p" delay={0.15} className="text-lg text-muted-foreground max-w-xl mx-auto mt-5">
-            Une démo, une question sur l’essai, un devis Enterprise ? Notre équipe vous
-            répond, humainement, sous 24 heures.
+            Une table à réserver, une allergie à signaler, un événement à organiser ?
+            Nous vous répondons sous 24 heures.
           </Reveal>
         </div>
       </section>
@@ -269,9 +269,9 @@ export default function ContactPageClient() {
             ))}
           </Stagger>
           <p className="text-center text-sm text-muted-foreground mt-8">
-            Envie de voir le produit en action ?{' '}
-            <Link href="/auth/register" className="text-primary font-semibold hover:underline">
-              Démarrez votre essai gratuit
+            Vous préférez découvrir par vous-même ?{' '}
+            <Link href="/menu" className="text-primary font-semibold hover:underline">
+              Parcourez notre carte
             </Link>
           </p>
         </div>

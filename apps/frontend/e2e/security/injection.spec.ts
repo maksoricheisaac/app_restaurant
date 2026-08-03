@@ -7,14 +7,14 @@ import { API_BASE } from '../helpers';
  */
 test.describe('Sécurité — Injection prix (Price Tampering)', () => {
   test('POST /public/orders avec prix = 0.01 doit être ignoré', async ({ request }) => {
-    const res = await request.post(`${API_BASE}/public-menu/unknown-slug/order`, {
+    const res = await request.post(`${API_BASE}/public-menu/order`, {
       data: {
         type: 'dine_in',
         items: [{ menuItemId: 'real-menu-id', quantity: 1 }],
       },
     });
-    // 404 (tenant inconnu) ou 400 — jamais 200 avec prix manipulé
-    expect([400, 404]).toContain(res.status());
+    // 400 (validation) ou 403 (session de menu absente) — jamais 200 avec un prix manipulé
+    expect([400, 403]).toContain(res.status());
   });
 });
 
@@ -78,25 +78,31 @@ test.describe('Sécurité — Rate limiting brute force', () => {
 });
 
 test.describe('Sécurité — Payloads SQL-like', () => {
-  test('GET /public-menu avec slug SQL injection → 404 ou 400', async ({ request }) => {
-    const res = await request.get(`${API_BASE}/public-menu/'; DROP TABLE "Tenant"; --`);
-    // Doit rejeter proprement — pas de 500
+  // Les URL publiques n'acceptent plus de segment libre (le slug a disparu).
+  // La surface restante prenant une entrée arbitraire est l'identifiant de
+  // table du QR code : c'est elle qu'on éprouve.
+  test('GET /public-menu/by-table avec payload SQL → 400 ou 404', async ({ request }) => {
+    const payload = `'; DROP TABLE "Order"; --`;
+    const res = await request.get(
+      `${API_BASE}/public-menu/by-table/${encodeURIComponent(payload)}`,
+    );
+    // Doit rejeter proprement — jamais de 500
     expect([400, 404]).toContain(res.status());
   });
 
-  test('GET /public-menu avec slug très long → 400 ou 404', async ({ request }) => {
-    const longSlug = 'a'.repeat(500);
-    const res = await request.get(`${API_BASE}/public-menu/${longSlug}`);
+  test('GET /public-menu/by-table avec identifiant très long → 400 ou 404', async ({ request }) => {
+    const longId = 'a'.repeat(500);
+    const res = await request.get(`${API_BASE}/public-menu/by-table/${longId}`);
     expect([400, 404]).toContain(res.status());
   });
 });
 
-test.describe('Sécurité — Tenant header forgé', () => {
-  test('x-tenant-id forgé sans auth → 401', async ({ request }) => {
+test.describe('Sécurité — En-têtes hérités du multi-tenant', () => {
+  test('x-tenant-id forgé est ignoré et n’ouvre aucun accès → 401', async ({ request }) => {
     const res = await request.get(`${API_BASE}/orders`, {
       headers: { 'x-tenant-id': 'any-tenant-id-i-want' },
     });
-    // Doit demander l'auth même si le tenant header est présent
+    // L'en-tête n'est plus lu nulle part : l'authentification reste exigée.
     expect([401]).toContain(res.status());
   });
 });

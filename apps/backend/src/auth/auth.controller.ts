@@ -2,10 +2,8 @@ import {
   Controller,
   Post,
   Get,
-  Patch,
   Body,
   Query,
-  Param,
   UseGuards,
   Request,
   Res,
@@ -13,15 +11,12 @@ import {
 } from '@nestjs/common';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { RolesGuard } from '../common/guards/roles.guard';
-import { Roles } from '../common/decorators/roles.decorator';
 import { AuthService } from './auth.service';
 import {
   ForgotPasswordDto,
   ResetPasswordDto,
   ResendVerificationDto,
 } from './dto/forgot-password.dto';
-import { UpdateUserRoleDto, UpdateUserStatusDto } from './dto/update-user.dto';
 import { Public } from '../common/decorators/public.decorator';
 import { Throttle } from '@nestjs/throttler';
 import express from 'express';
@@ -142,26 +137,5 @@ export class AuthController {
   @Post('reset-password')
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.password);
-  }
-
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles('super_admin')
-  @Get('users')
-  getAllUsers() {
-    return this.authService.getAllUsers();
-  }
-
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles('super_admin')
-  @Patch('users/:id/role')
-  updateUserRole(@Param('id') id: string, @Body() dto: UpdateUserRoleDto) {
-    return this.authService.updateUserPlatformRole(id, dto.platformRole);
-  }
-
-  @UseGuards(AuthGuard, RolesGuard)
-  @Roles('super_admin')
-  @Patch('users/:id/status')
-  updateUserStatus(@Param('id') id: string, @Body() dto: UpdateUserStatusDto) {
-    return this.authService.updateUserStatus(id, dto.status);
   }
 }

@@ -84,9 +84,9 @@ export default function ForgotPasswordPage() {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="text-sm font-medium text-foreground">Adresse e-mail</FormLabel>
-                    <FormControl>
-                      <div className="relative group">
+                    <div className="relative group">
                         <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                      <FormControl>
                         <Input
                           type="email"
                           inputMode="email"
@@ -95,8 +95,8 @@ export default function ForgotPasswordPage() {
                           className="h-12 pl-11 rounded-xl bg-card"
                           {...field}
                         />
-                      </div>
-                    </FormControl>
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

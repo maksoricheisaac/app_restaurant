@@ -1,13 +1,13 @@
 /**
- * Test data factories for Flash Menu.
+ * Fabriques de données de test.
  *
- * Usage:
+ * Usage :
  *   const user = UserFactory.create();
- *   const tenant = TenantFactory.create({ plan: 'pro' });
- *   const order = OrderFactory.create({ tenantId: tenant.id });
+ *   const restaurant = RestaurantFactory.create({ currency: 'XAF' });
+ *   const order = OrderFactory.create({ status: 'preparing' });
  *
- * All factories return plain objects matching the Prisma model shape.
- * Override any field by passing a partial object.
+ * Chaque fabrique renvoie un objet simple conforme au modèle Prisma.
+ * N'importe quel champ se surcharge en passant un objet partiel.
  */
 
 let _counter = 0;
@@ -23,10 +23,8 @@ export interface UserLike {
   lastName: string;
   password: string;
   emailVerified: boolean;
-  platformRole: string;
+  role: string;
   status: string;
-  tenantId: string | null;
-  onboardingCompleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,10 +40,8 @@ export const UserFactory = {
       lastName: `Last${n}`,
       password: '$2b$10$hashedpassword',
       emailVerified: true,
-      platformRole: 'user',
+      role: 'waiter',
       status: 'active',
-      tenantId: null,
-      onboardingCompleted: true,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       ...overrides,
@@ -53,110 +49,61 @@ export const UserFactory = {
   },
 
   unverified(overrides: Partial<UserLike> = {}): UserLike {
-    return UserFactory.create({
-      emailVerified: false,
-      onboardingCompleted: false,
-      ...overrides,
-    });
+    return UserFactory.create({ emailVerified: false, ...overrides });
   },
 
-  superAdmin(overrides: Partial<UserLike> = {}): UserLike {
-    return UserFactory.create({ platformRole: 'super_admin', ...overrides });
+  owner(overrides: Partial<UserLike> = {}): UserLike {
+    return UserFactory.create({ role: 'owner', ...overrides });
+  },
+
+  inactive(overrides: Partial<UserLike> = {}): UserLike {
+    return UserFactory.create({ status: 'inactive', ...overrides });
   },
 };
 
-// ─── Tenant ───────────────────────────────────────────────────────────────
+// ─── Restaurant ───────────────────────────────────────────────────────────
 
-export interface TenantLike {
+export interface RestaurantLike {
   id: string;
   name: string;
-  slug: string;
-  plan: string;
-  status: string;
+  slogan: string | null;
   logo: string | null;
+  primaryColor: string;
   country: string | null;
   currency: string;
   timezone: string;
-  onboardingCompleted: boolean;
-  paymentProvider: string | null;
-  paymentCustomerId: string | null;
-  paymentSubscriptionId: string | null;
-  subscriptionStatus: string | null;
-  gracePeriodEndsAt: Date | null;
+  dineInEnabled: boolean;
+  takeawayEnabled: boolean;
+  deliveryEnabled: boolean;
+  setupCompleted: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-export const TenantFactory = {
-  create(overrides: Partial<TenantLike> = {}): TenantLike {
-    const n = seq();
+export const RestaurantFactory = {
+  create(overrides: Partial<RestaurantLike> = {}): RestaurantLike {
     return {
-      id: `tenant-${n}`,
-      name: `Restaurant ${n}`,
-      slug: `restaurant-${n}`,
-      plan: 'free',
-      status: 'active',
+      // Singleton : l'identifiant est constant, comme en base.
+      id: 'restaurant',
+      name: 'Restaurant de test',
+      slogan: null,
       logo: null,
+      primaryColor: '#f97316',
       country: 'CG',
       currency: 'XAF',
       timezone: 'Africa/Brazzaville',
-      onboardingCompleted: true,
-      paymentProvider: null,
-      paymentCustomerId: null,
-      paymentSubscriptionId: null,
-      subscriptionStatus: null,
-      gracePeriodEndsAt: null,
+      dineInEnabled: true,
+      takeawayEnabled: true,
+      deliveryEnabled: false,
+      setupCompleted: true,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       ...overrides,
     };
   },
 
-  pro(overrides: Partial<TenantLike> = {}): TenantLike {
-    return TenantFactory.create({
-      plan: 'pro',
-      paymentProvider: 'stripe',
-      paymentSubscriptionId: `${seq()}`,
-      subscriptionStatus: 'active',
-      ...overrides,
-    });
-  },
-
-  suspended(overrides: Partial<TenantLike> = {}): TenantLike {
-    return TenantFactory.create({
-      status: 'suspended',
-      subscriptionStatus: 'past_due',
-      gracePeriodEndsAt: new Date(Date.now() + 3 * 24 * 3600 * 1000),
-      ...overrides,
-    });
-  },
-};
-
-// ─── Membership ───────────────────────────────────────────────────────────
-
-export interface MembershipLike {
-  id: string;
-  tenantId: string;
-  userId: string;
-  role: string;
-  permissions: string[];
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export const MembershipFactory = {
-  create(overrides: Partial<MembershipLike> = {}): MembershipLike {
-    const n = seq();
-    return {
-      id: `membership-${n}`,
-      tenantId: overrides.tenantId ?? `tenant-${n}`,
-      userId: overrides.userId ?? `user-${n}`,
-      role: 'owner',
-      permissions: [],
-      createdAt: new Date('2026-01-01'),
-      updatedAt: new Date('2026-01-01'),
-      ...overrides,
-    };
+  notSetUp(overrides: Partial<RestaurantLike> = {}): RestaurantLike {
+    return RestaurantFactory.create({ setupCompleted: false, ...overrides });
   },
 };
 
@@ -169,7 +116,6 @@ export interface MenuItemLike {
   price: number;
   image: string | null;
   available: boolean;
-  tenantId: string;
   categoryId: string;
   deletedAt: Date | null;
 }
@@ -184,7 +130,6 @@ export const MenuItemFactory = {
       price: 1500 + n * 100,
       image: null,
       available: true,
-      tenantId: overrides.tenantId ?? `tenant-${n}`,
       categoryId: `cat-${n}`,
       deletedAt: null,
       ...overrides,
@@ -196,13 +141,13 @@ export const MenuItemFactory = {
 
 export interface OrderLike {
   id: string;
-  tenantId: string;
   userId: string | null;
   type: string;
   status: string;
   total: number;
   specialNotes: string | null;
   tableId: string | null;
+  deletedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -212,13 +157,13 @@ export const OrderFactory = {
     const n = seq();
     return {
       id: `order-${n}`,
-      tenantId: overrides.tenantId ?? `tenant-${n}`,
       userId: null,
       type: 'dine_in',
       status: 'pending',
       total: 3000,
       specialNotes: null,
       tableId: null,
+      deletedAt: null,
       createdAt: new Date('2026-01-01'),
       updatedAt: new Date('2026-01-01'),
       ...overrides,
@@ -226,16 +171,17 @@ export const OrderFactory = {
   },
 };
 
-// ─── JWT payload (for AuthMiddleware / Gateway tests) ─────────────────────
+// ─── Charge utile JWT (tests AuthMiddleware / Gateway) ────────────────────
 
+/**
+ * Le jeton ne porte que l'identité : le rôle est relu en base par AuthGuard.
+ */
 export const JwtPayloadFactory = {
   create(overrides: Record<string, unknown> = {}) {
+    const n = seq();
     return {
-      sub: `user-${seq()}`,
-      email: `test${seq()}@flashmenu.test`,
-      role: 'owner',
-      platformRole: 'user',
-      tenantId: `tenant-${seq()}`,
+      sub: `user-${n}`,
+      email: `test${n}@flashmenu.test`,
       iat: Math.floor(Date.now() / 1000),
       exp: Math.floor(Date.now() / 1000) + 900,
       ...overrides,

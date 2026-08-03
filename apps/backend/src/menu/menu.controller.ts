@@ -14,60 +14,62 @@ import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
 import { PaginationQueryDto } from '../common/dto/pagination-query.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { Public } from '../common/decorators/public.decorator';
-import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
-import type { Tenant } from '@prisma/client';
 
 @Controller('/menu')
-@UseGuards(AuthGuard, TenantGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class MenuController {
   constructor(private readonly menuService: MenuService) {}
 
-  @Public()
+  // Ces deux routes portaient un @Public() hérité de l'époque où la carte
+  // publique passait encore par ce contrôleur. En pratique elles restaient
+  // fermées : le service exigeait un tenantId, absent pour un appel anonyme,
+  // et renvoyait donc une 403. Ce filet disparaissant avec le multi-tenant,
+  // le @Public() serait devenu réel — exposant la carte d'administration,
+  // articles indisponibles compris. La carte destinée aux clients est servie
+  // par /public-menu, qui ne renvoie que ce qui est effectivement vendable.
   @Get()
+  @Roles('owner', 'manager', 'chef', 'waiter', 'cashier')
   findAll(
-    @CurrentTenant() tenant: Tenant | undefined,
     @Query() query: PaginationQueryDto,
     @Query('availableOnly') availableOnly: string,
   ) {
-    return this.menuService.findAll(
-      tenant?.id,
-      query,
-      availableOnly === 'true',
-    );
+    return this.menuService.findAll(query, availableOnly === 'true');
   }
 
-  @Public()
+  /**
+   * Carte complète du poste de caisse, options comprises. Déclarée avant
+   * `:id` — sans quoi Nest interpréterait « pos-catalogue » comme un
+   * identifiant d'article.
+   */
+  @Get('pos-catalogue')
+  @Roles('owner', 'manager', 'chef', 'waiter', 'cashier')
+  findPosCatalogue() {
+    return this.menuService.findPosCatalogue();
+  }
+
   @Get(':id')
-  findOne(
-    @CurrentTenant() tenant: Tenant | undefined,
-    @Param('id') id: string,
-  ) {
-    return this.menuService.findOne(tenant?.id, id);
+  @Roles('owner', 'manager', 'chef', 'waiter', 'cashier')
+  findOne(@Param('id') id: string) {
+    return this.menuService.findOne(id);
   }
 
   @Post()
-  @Roles('owner', 'manager', 'head_chef')
-  create(@CurrentTenant() tenant: Tenant, @Body() data: CreateMenuItemDto) {
-    return this.menuService.create(tenant.id, data);
+  @Roles('owner', 'manager', 'chef')
+  create(@Body() data: CreateMenuItemDto) {
+    return this.menuService.create(data);
   }
 
   @Patch(':id')
-  @Roles('owner', 'manager', 'head_chef')
-  update(
-    @CurrentTenant() tenant: Tenant | undefined,
-    @Param('id') id: string,
-    @Body() data: UpdateMenuItemDto,
-  ) {
-    return this.menuService.update(tenant?.id, id, data);
+  @Roles('owner', 'manager', 'chef')
+  update(@Param('id') id: string, @Body() data: UpdateMenuItemDto) {
+    return this.menuService.update(id, data);
   }
 
   @Delete(':id')
-  @Roles('owner', 'manager', 'head_chef')
-  remove(@CurrentTenant() tenant: Tenant | undefined, @Param('id') id: string) {
-    return this.menuService.remove(tenant?.id, id);
+  @Roles('owner', 'manager', 'chef')
+  remove(@Param('id') id: string) {
+    return this.menuService.remove(id);
   }
 }

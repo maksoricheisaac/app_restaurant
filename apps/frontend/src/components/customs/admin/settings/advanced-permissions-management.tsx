@@ -25,10 +25,14 @@ import {
   ROLE_LABELS,
   PERMISSION_LABELS,
   PERMISSION_CATEGORIES,
-  ROLE_PERMISSIONS,
   USER_ROLES,
 } from "@/types/permissions";
-import { useRolePermissions, useUpdateRolePermissions } from "@/hooks/api/usePermissions";
+import {
+  useRolePermissions,
+  useAllRolePermissions,
+  useUpdateRolePermissions,
+  useResetRolePermissions,
+} from "@/hooks/api/usePermissions";
 import {
   getAllUsersWithPermissions,
   getUserPermissions,
@@ -86,21 +90,23 @@ export function AdvancedPermissionsManagement() {
   });
 
   const { data: rolePermissionsData, isLoading: isLoadingPermissions } = useRolePermissions(selectedRole ?? '');
+  const { data: allRolePermissions } = useAllRolePermissions();
   const updateMutation = useUpdateRolePermissions();
+  const resetMutation = useResetRolePermissions();
 
-  const currentPermissions = rolePermissionsData?.data?.permissions || [];
+  /** Nombre de permissions d'un rôle, tel que le serveur le connaît. */
+  const permissionCountFor = (role: UserRole): number =>
+    allRolePermissions?.find((r) => r.role === role)?.permissions.length ?? 0;
 
-  // Une fois les permissions persistées du rôle chargées, elles remplacent
-  // les valeurs par défaut posées par handleEditRole — sinon toute
-  // personnalisation déjà sauvegardée côté backend était silencieusement
-  // écrasée par ROLE_PERMISSIONS dès la sauvegarde suivante.
+  // Le serveur est seul juge des permissions d'un rôle : il renvoie celles
+  // enregistrées, ou la matrice d'usine si le rôle n'a jamais été personnalisé.
+  // Le frontend ne recalcule plus rien — c'était la seconde source de vérité
+  // que la refonte visait à supprimer.
+  const currentPermissions: Permission[] = rolePermissionsData?.permissions ?? [];
+
   useEffect(() => {
     if (!selectedRole || selectedUser || !rolePermissionsData) return;
-    const perms =
-      currentPermissions.length > 0
-        ? currentPermissions
-        : ROLE_PERMISSIONS[selectedRole] || [];
-    setEditingPermissions(new Set(perms));
+    setEditingPermissions(new Set(currentPermissions));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rolePermissionsData, selectedRole, selectedUser]);
 
@@ -126,14 +132,10 @@ export function AdvancedPermissionsManagement() {
     setSelectedUser(user);
     setSelectedRole(null);
     
-    // Charger les permissions de l'utilisateur
+    // Permissions effectives calculées par le serveur : rôle + dérogations,
+    // y compris les retraits (granted=false), qu'une simple union manquait.
     const userPerms = await getUserPermissions(user.id);
-    const allPerms = new Set([
-      ...userPerms.rolePermissions,
-      ...userPerms.customPermissions.filter(p => p.granted).map(p => p.permission),
-    ]);
-    
-    setEditingPermissions(allPerms);
+    setEditingPermissions(new Set(userPerms.effective));
     setIsEditDialogOpen(true);
   };
 
@@ -141,9 +143,9 @@ export function AdvancedPermissionsManagement() {
   const handleEditRole = (role: UserRole) => {
     setSelectedRole(role);
     setSelectedUser(null);
-    
-    const rolePerms = ROLE_PERMISSIONS[role] || [];
-    setEditingPermissions(new Set(rolePerms));
+    // La sélection est remplie par l'effet ci-dessus, dès que le serveur a
+    // répondu — on n'affiche pas d'état intermédiaire deviné localement.
+    setEditingPermissions(new Set());
     setIsEditDialogOpen(true);
   };
 
@@ -175,14 +177,28 @@ export function AdvancedPermissionsManagement() {
     }
   };
 
-  // Réinitialiser aux permissions par défaut du rôle
-  const handleResetToDefault = () => {
-    if (selectedUser) {
-      const defaultPerms = ROLE_PERMISSIONS[selectedUser.role] || [];
-      setEditingPermissions(new Set(defaultPerms));
-    } else if (selectedRole) {
-      const defaultPerms = ROLE_PERMISSIONS[selectedRole] || [];
-      setEditingPermissions(new Set(defaultPerms));
+  /**
+   * Réinitialisation aux permissions d'usine. C'est le serveur qui détient
+   * la matrice de référence : on la lui demande plutôt que de la rejouer ici.
+   */
+  const handleResetToDefault = async () => {
+    try {
+      if (selectedRole) {
+        const restored = (await resetMutation.mutateAsync(selectedRole)) as {
+          permissions: Permission[];
+        };
+        setEditingPermissions(new Set(restored.permissions ?? []));
+        toast.success("Permissions du rôle réinitialisées");
+      } else if (selectedUser) {
+        // Pour une personne, « par défaut » signifie : les droits de son rôle,
+        // sans aucune dérogation individuelle.
+        const perms = await getUserPermissions(selectedUser.id);
+        setEditingPermissions(new Set(perms.rolePermissions));
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Réinitialisation impossible",
+      );
     }
   };
 
@@ -290,9 +306,8 @@ export function AdvancedPermissionsManagement() {
             <TabsContent value="roles" className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {Object.entries(USER_ROLES)
-                  .filter(([key]) => !['USER'].includes(key)) // Exclure le rôle USER
                   .map(([, role]) => {
-                    const rolePerms = ROLE_PERMISSIONS[role as UserRole] || [];
+                    const permCount = permissionCountFor(role as UserRole);
                     return (
                       <Card key={role} className="hover:bg-accent/50 transition-colors">
                         <CardHeader>
@@ -300,7 +315,7 @@ export function AdvancedPermissionsManagement() {
                             {ROLE_LABELS[role as UserRole]}
                           </CardTitle>
                           <CardDescription>
-                            {rolePerms.length} permission(s)
+                            {permCount} permission(s)
                           </CardDescription>
                         </CardHeader>
                         <CardContent>

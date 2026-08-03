@@ -1,98 +1,194 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Flash Menu — API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API NestJS 11 du logiciel de gestion. PostgreSQL via Prisma 7, temps réel via
+Socket.IO.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Elle sert **un seul restaurant**. Aucune table ne porte de colonne de
+cloisonnement : une requête n'a jamais besoin d'être « scopée », et l'oubli
+d'un filtre de sécurité — principale classe de bugs de l'ancienne architecture
+multi-tenant — est devenu impossible par construction.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
+## Démarrer
 
 ```bash
-$ pnpm install
+cp .env.example .env       # DATABASE_URL et JWT_SECRET sont obligatoires
+pnpm install
+pnpm exec prisma migrate deploy
+pnpm exec prisma generate
+pnpm start:dev             # → http://localhost:4000/api/v1
 ```
 
-## Compile and run the project
+Contrôle de santé : `GET /api/v1/health`.
+
+Sur une base vierge, `GET /api/v1/setup/status` répond `{"required": true}` :
+c'est ce qui déclenche l'assistant de première installation côté frontend.
+
+---
+
+## Scripts
+
+| Commande | Effet |
+|---|---|
+| `pnpm start:dev` | API en watch |
+| `pnpm build` | Compile vers `dist/` — entrée : **`dist/main.js`** |
+| `pnpm start:prod` | `node dist/main` (après `build`) |
+| `pnpm test` | Tests unitaires Jest |
+| `pnpm test:cov` | Couverture |
+| `pnpm lint:ci` | Lint sans correction |
+| `pnpm seed-owner` | (Re)crée le compte propriétaire — **dev uniquement** |
+| `pnpm seed-test` | Jeu de données pour la suite Playwright |
+| `pnpm db:reset` | ⚠️ **Vide la base** et réinstalle un établissement de démo |
+
+> `db:reset` et `seed-owner` exigent `SEED_OWNER_PASSWORD` (et
+> `SEED_MANAGER_PASSWORD` pour `db:reset`). En production, le propriétaire est
+> créé par l'assistant `/setup`, jamais par un seed.
+
+`tsconfig.build.json` fixe `rootDir: ./src` et exclut `prisma/`. Sans cela,
+TypeScript déduirait la racine du paquet et émettrait `dist/src/main.js`, alors
+que `start:prod` et le Dockerfile lancent `node dist/main`.
+
+---
+
+## Architecture d'une requête authentifiée
+
+```
+AuthMiddleware   JWT → req.user = { id, email }        ← identité seule
+      ▼
+AuthGuard        SELECT User → rôle et statut à jour   ← 1 requête SQL
+      ▼                        rejette si inactif
+RolesGuard       user.role ∈ @Roles(...) ?             ← en mémoire
+      ▼
+Controller       service.method(...)                    ← aucun identifiant
+      ▼                                                   d'établissement
+Service          prisma.x.findMany({ where: { deletedAt: null } })
+```
+
+**Le rôle n'est jamais lu depuis le JWT.** Il est relu en base à chaque
+requête. C'est une requête SQL — celle qui remplace les deux que faisait
+l'ancienne chaîne (résolution du tenant, puis du membership) — et elle rend la
+révocation immédiate : un employé rétrogradé ou désactivé perd ses droits dès
+la requête suivante, pas à l'expiration de son jeton.
+
+Le décorateur `@Public()` dispense des deux gardes : carte publique, suivi de
+commande, acceptation d'invitation, assistant d'installation.
+
+---
+
+## Modules
+
+| Module | Responsabilité |
+|---|---|
+| `auth` | Connexion, refresh avec rotation et détection de rejeu, mot de passe oublié |
+| `restaurant` | Configuration de l'établissement (identité, service, caisse, impression, horaires, zones de livraison) **et** assistant de première installation |
+| `staff` | Équipe, rôles, invitations, transfert de propriété |
+| `permissions` | Permissions par rôle et dérogations individuelles |
+| `menu`, `categories` | Carte, options et suppléments, carte publique, commande client |
+| `orders` | Commandes, machine d'état, écran cuisine |
+| `cash-register` | Encaissement, sessions de caisse, réconciliation |
+| `inventory` | Ingrédients, recettes, mouvements de stock |
+| `tables`, `reservations`, `customers`, `messages` | Salle, réservations, clients, contact |
+| `dashboard`, `reports` | Indicateurs et rapports |
+| `media`, `blob` | Upload d'images (Vercel Blob), conversion WebP |
+| `gateway` | Socket.IO — salon unique du personnel + suivi par commande |
+| `mail` | Emails transactionnels (SMTP, dégradation silencieuse si absent) |
+
+---
+
+## Principales routes
+
+Préfixe global : `/api/v1`.
+
+| Préfixe | Accès |
+|---|---|
+| `/setup`, `/setup/status` | Public — n'aboutit qu'une seule fois |
+| `/auth/*` | Public (connexion, refresh, réinitialisation) |
+| `/public-menu`, `/restaurant/public`, `/restaurant/opening-hours` | Public |
+| `/invites/:token` | Public — accepter une invitation crée le compte |
+| `/restaurant`, `/staff`, `/permissions` | Équipe, selon le rôle |
+| `/orders`, `/menu`, `/tables`, `/reservations`, `/customers`, `/inventory`, `/cash-register`, `/messages`, `/dashboard`, `/reports`, `/media` | Équipe, selon le rôle |
+
+---
+
+## Base de données
+
+26 modèles Prisma. Points saillants :
+
+**`Restaurant` est un singleton verrouillé par la base :**
+
+```sql
+CHECK ("id" = 'restaurant')
+```
+
+Créer un second établissement échoue au niveau de PostgreSQL. C'est aussi ce
+qui rend `POST /setup` sûr face à deux appels concurrents : le second viole la
+clé primaire.
+
+**Contraintes non exprimables en Prisma**, posées en SQL brut dans les
+migrations — ne les perdez pas en régénérant le schéma :
+
+| Index | Garantit |
+|---|---|
+| `Table_number_active_key` | Numéro de table unique, libéré par une suppression logique |
+| `Reservation_no_double_booking_key` | Pas de double réservation d'une table sur un créneau |
+| `CashRegisterSession_one_open_key` | Une seule session de caisse ouverte à la fois |
+| `StaffInvite_one_pending_per_email_key` | Une seule invitation en attente par adresse |
+| `User_role_check` | Rôle dans `owner, manager, waiter, chef, cashier` |
+
+**Suppression logique** (`deletedAt`) sur ce qui a une valeur comptable ou
+historique : commandes, paiements, réservations, carte, stock. Les clés
+étrangères des caissiers sont en `RESTRICT` — un employé ayant encaissé ne peut
+pas être effacé, il est désactivé.
+
+Migration depuis la version multi-établissement :
+[../docs/MIGRATION_SINGLE_RESTAURANT.md](../docs/MIGRATION_SINGLE_RESTAURANT.md).
+
+---
+
+## Temps réel
+
+Namespace `/ws`. Deux salons seulement :
+
+- **`staff`** — rejoint côté serveur à la poignée de main, après relecture du
+  compte en base. Le client n'émet rien : il ne peut pas y entrer de sa propre
+  initiative, et aucun oubli de `join` ne peut laisser un poste muet.
+- **`order-tracking-{orderId}`** — public. L'UUID reçu dans le lien de suivi
+  (122 bits d'entropie) tient lieu d'autorisation.
+
+Événements : `new-order`, `order-status-updated`, `low-stock-alert` (salon
+`staff`) ; `status-update` (suivi client).
+
+---
+
+## Variables d'environnement
+
+Obligatoires : `DATABASE_URL`, `JWT_SECRET` (≥ 32 caractères), `FRONTEND_URL`.
+
+Facultatives, chacune avec dégradation propre si absente : `SMTP_*`,
+`BLOB_READ_WRITE_TOKEN`, `REDIS_URL`, `SENTRY_DSN`, `MENU_SESSION_SECRET`.
+
+La validation est stricte au démarrage (`src/config/config.validation.ts`) :
+une variable manquante ou malformée arrête le processus plutôt que de laisser
+tourner un service à moitié configuré.
+
+Sans `REDIS_URL`, la limitation de débit est **en mémoire** — donc par instance
+et remise à zéro à chaque redémarrage. Redis est requis en multi-instance.
+
+Inventaire complet et impact des rotations :
+[../docs/SECRETS.md](../docs/SECRETS.md).
+
+---
+
+## Tests
 
 ```bash
-# development
-$ pnpm run start
-
-# watch mode
-$ pnpm run start:dev
-
-# production mode
-$ pnpm run start:prod
+pnpm test        # 26 suites, 207 tests
+pnpm test:cov
 ```
 
-## Run tests
+Les tests unitaires n'ont besoin d'aucune base : `src/__tests__/prisma.mock.ts`
+fournit un double de `PrismaService`. Ajouter un modèle Prisma implique de
+l'ajouter à la liste `PRISMA_MODELS` de ce fichier.
 
-```bash
-# unit tests
-$ pnpm run test
-
-# e2e tests
-$ pnpm run test:e2e
-
-# test coverage
-$ pnpm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ pnpm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
-
-## Resources
-
-Check out a few resources that may come in handy when working with NestJS:
-
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
-
-## Support
-
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
-
-## Stay in touch
-
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+Fabriques de données : `src/test/factories.ts`.

@@ -55,7 +55,7 @@ import {
   useCreateDeliveryZone,
   useUpdateDeliveryZone,
   useDeleteDeliveryZone,
-} from "@/hooks/api/useSettings";
+} from "@/hooks/api/useRestaurant";
 
 const zoneSchema = z.object({
   name: z.string().min(1, "Le nom est requis"),

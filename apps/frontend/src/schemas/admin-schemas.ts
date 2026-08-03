@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 // Constantes pour les rôles (synchronisées avec src/types/permissions.ts)
-const VALID_ROLES = ["admin", "owner", "manager", "head_chef", "chef", "waiter", "cashier", "user"] as const;
+const VALID_ROLES = ["owner", "manager", "waiter", "chef", "cashier"] as const;
 
 // --- Personnel Schemas ---
 export const PersonnelSchema = z.object({

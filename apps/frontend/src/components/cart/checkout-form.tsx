@@ -20,7 +20,7 @@ import { toast } from 'sonner';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useDeliveryZones, useSettings } from '@/hooks/api/useSettings';
+import { useDeliveryZones, useRestaurant } from '@/hooks/api/useRestaurant';
 import { OrderType } from '@/types/order';
 
 const checkoutSchema = z.object({
@@ -100,7 +100,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
   const totalWithDelivery = subtotal + deliveryFee;
 
   // Charger les paramètres du restaurant (services activés)
-  const { data: restaurantSettings } = useSettings();
+  const { data: restaurant } = useRestaurant();
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -111,18 +111,18 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
 
   // Si un type de commande par défaut est invalide selon les paramètres, le réinitialiser
   useEffect(() => {
-    if (!restaurantSettings) return;
+    if (!restaurant) return;
     const current = form.getValues('orderType');
-    if (current === 'dine_in' && restaurantSettings.dineInEnabled === false) {
+    if (current === 'dine_in' && restaurant.dineInEnabled === false) {
       form.resetField('orderType');
     }
-    if (current === 'takeaway' && restaurantSettings.takeawayEnabled === false) {
+    if (current === 'takeaway' && restaurant.takeawayEnabled === false) {
       form.resetField('orderType');
     }
-    if (current === 'delivery' && restaurantSettings.deliveryEnabled === false) {
+    if (current === 'delivery' && restaurant.deliveryEnabled === false) {
       form.resetField('orderType');
     }
-  }, [restaurantSettings, form]);
+  }, [restaurant, form]);
 
   const onSubmit = async (data: CheckoutFormData) => {
     try {
@@ -277,7 +277,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
             <div className="space-y-2">
               <Label className="text-sm font-medium">Type de commande *</Label>
               <div className="grid grid-cols-3 gap-2">
-                {(!restaurantSettings || restaurantSettings.dineInEnabled) && (
+                {(!restaurant || restaurant.dineInEnabled) && (
                   <div className="relative">
                     <Button 
                       type="button" 
@@ -302,13 +302,13 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                     )}
                   </div>
                 )}
-                {(!restaurantSettings || restaurantSettings.takeawayEnabled) && (
+                {(!restaurant || restaurant.takeawayEnabled) && (
                   <Button type="button" variant={orderType === 'takeaway' ? 'default' : 'outline'} onClick={() => form.setValue('orderType', 'takeaway')} className="flex flex-col h-20 cursor-pointer">
                     <ShoppingBag className="w-6 h-6 mb-1" />
                     <span className="text-xs">À emporter</span>
                   </Button>
                 )}
-                {(!restaurantSettings || restaurantSettings.deliveryEnabled) && (
+                {(!restaurant || restaurant.deliveryEnabled) && (
                   <Button type="button" variant={orderType === 'delivery' ? 'default' : 'outline'} onClick={() => form.setValue('orderType', 'delivery')} className="flex flex-col h-20 cursor-pointer">
                     <Truck className="w-6 h-6 mb-1" />
                     <span className="text-xs">Livraison</span>
@@ -316,7 +316,7 @@ export function CheckoutForm({ isOpen, onClose, onBack }: CheckoutFormProps) {
                 )}
               </div>
               {form.formState.errors.orderType && <p className="text-sm text-red-500">{form.formState.errors.orderType.message}</p>}
-              {!tableId && (!restaurantSettings || restaurantSettings.dineInEnabled) && (
+              {!tableId && (!restaurant || restaurant.dineInEnabled) && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mt-2">
                   <p className="text-xs text-amber-800">
                     <span className="font-semibold">📱 Commande sur place :</span> Scannez le QR code présent sur votre table pour activer cette option.

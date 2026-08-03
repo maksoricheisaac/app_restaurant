@@ -10,10 +10,10 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: [
           '/admin/',
-          '/super-admin/',
           '/auth/',
           '/invite/',
-          '/pending-invite',
+          '/setup',
+          '/menu/track/',
           '/api/',
           '/_next/',
         ],

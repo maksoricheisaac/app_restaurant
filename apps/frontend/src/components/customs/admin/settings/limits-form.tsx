@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useLimits, useUpdateLimits } from "@/hooks/api/useSettings";
+import { useRestaurant, useUpdateRestaurantService } from "@/hooks/api/useRestaurant";
 import { OrderLimitsSchema } from "@/schemas/admin-schemas";
 
 export function LimitsForm() {
@@ -21,8 +21,8 @@ export function LimitsForm() {
     },
   });
 
-  const { data: limitsData } = useLimits();
-  const updateMutation = useUpdateLimits();
+  const { data: limitsData } = useRestaurant();
+  const updateMutation = useUpdateRestaurantService();
 
   useEffect(() => {
     if (limitsData) {

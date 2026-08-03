@@ -123,9 +123,9 @@ export async function generateSalesReportPdf(
 
   // Cartes de métriques (sans émojis pour compatibilité PDF)
   const metrics = [
-    { label: 'Revenus totaux', value: formatPrice(data.revenue), symbol: '$' },
+    { label: 'CA encaisse', value: formatPrice(data.revenue), symbol: '$' },
     { label: 'Commandes', value: data.orders.toString(), symbol: '#' },
-    { label: 'Clients uniques', value: data.customers.toString(), symbol: '@' },
+    { label: 'Nouveaux clients', value: data.customers.toString(), symbol: '@' },
     { label: 'Panier moyen', value: formatPrice(data.avgOrder), symbol: '~' }
   ];
 

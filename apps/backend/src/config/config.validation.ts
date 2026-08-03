@@ -39,17 +39,6 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
 
-  // ── Paiement ──────────────────────────────────────────────────────────────
-  // Sélectionne le fournisseur actif (cf. apps/backend/src/payments). Aucun
-  // fournisseur n'est implémenté à ce jour — tous sont des placeholders
-  // inertes qui refusent toute opération. Le prochain fournisseur à
-  // implémenter est Moneroo ; ses variables d'environnement (MONEROO_*)
-  // seront ajoutées ici au moment de son implémentation, suivant le même
-  // schéma que les autres providers.
-  PAYMENT_PROVIDER: z
-    .enum(['stripe', 'paddle', 'flutterwave', 'paystack'])
-    .optional(),
-
   // ── Menu session token ────────────────────────────────────────────────────
   // Distinct from JWT_SECRET. Falls back to JWT_SECRET in dev if absent.
   MENU_SESSION_SECRET: z.string().min(16).optional(),

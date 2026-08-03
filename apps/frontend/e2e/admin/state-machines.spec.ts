@@ -6,6 +6,15 @@ import { API_BASE } from '../helpers';
  *
  * Vérifie que les transitions invalides sont refusées par le backend.
  */
+
+// Tous les tests de ce fichier interrogent l'API en ANONYME. Le projet
+// admin-chromium injecte pourtant un storageState authentifié : sans cette
+// remise à zéro, les requêtes partaient connectées. Elles passaient malgré
+// tout tant que le TenantGuard les rejetait faute d'en-tête tenant — donc
+// pour la mauvaise raison. Ce garde ayant disparu, l'anonymat doit être
+// explicite.
+test.use({ storageState: { cookies: [], origins: [] } });
+
 test.describe('Machine d\'état — Commandes (API)', () => {
   test('PATCH /orders/:id/status sans auth → 401', async ({ request }) => {
     const res = await request.patch(`${API_BASE}/orders/fake-order-id/status`, {

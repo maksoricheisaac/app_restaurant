@@ -1,24 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 
-const MAX_AGE = 7 * 24 * 3600; // 7 days, matches AuthContext SESSION_COOKIE_MAX_AGE
+const MAX_AGE = 7 * 24 * 3600; // 7 jours
 const IS_PROD = process.env.NODE_ENV === 'production';
 
 /**
  * POST /api/session
- * Sets httpOnly session + tenant context cookies after successful auth.
- * Body: { tenantId?: string; tenantSlug?: string }
  *
- * Called client-side after login/onboarding because document.cookie cannot
- * set httpOnly cookies — only the server can via Set-Cookie header.
+ * Pose le cookie httpOnly `session`, drapeau lu par le middleware pour éviter
+ * d'afficher l'administration à un visiteur manifestement non connecté.
+ * Appelé côté client après connexion, car `document.cookie` ne peut pas poser
+ * de cookie httpOnly — seul le serveur le peut, via Set-Cookie.
+ *
+ * Il n'y a plus de contexte d'établissement à transporter : le logiciel n'en
+ * sert qu'un seul.
  */
-export async function POST(request: NextRequest) {
-  let body: { tenantId?: string; tenantSlug?: string } = {};
-  try {
-    body = await request.json();
-  } catch {
-    // Empty body is allowed — sets session cookie only
-  }
-
+export async function POST() {
   const response = NextResponse.json({ ok: true });
 
   response.cookies.set('session', '1', {
@@ -29,45 +25,20 @@ export async function POST(request: NextRequest) {
     path: '/',
   });
 
-  if (body.tenantId) {
-    response.cookies.set('tenantId', body.tenantId, {
-      httpOnly: true,
-      secure: IS_PROD,
-      sameSite: 'lax',
-      maxAge: MAX_AGE,
-      path: '/',
-    });
-  }
-
-  if (body.tenantSlug) {
-    response.cookies.set('tenantSlug', body.tenantSlug, {
-      httpOnly: true,
-      secure: IS_PROD,
-      sameSite: 'lax',
-      maxAge: MAX_AGE,
-      path: '/',
-    });
-  }
-
   return response;
 }
 
-/**
- * DELETE /api/session
- * Clears all session cookies on logout.
- */
+/** DELETE /api/session — efface le drapeau de session à la déconnexion. */
 export async function DELETE() {
   const response = NextResponse.json({ ok: true });
 
-  for (const name of ['session', 'tenantId', 'tenantSlug']) {
-    response.cookies.set(name, '', {
-      httpOnly: true,
-      secure: IS_PROD,
-      sameSite: 'lax',
-      maxAge: 0,
-      path: '/',
-    });
-  }
+  response.cookies.set('session', '', {
+    httpOnly: true,
+    secure: IS_PROD,
+    sameSite: 'lax',
+    maxAge: 0,
+    path: '/',
+  });
 
   return response;
 }

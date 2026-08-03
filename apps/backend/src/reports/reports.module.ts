@@ -3,10 +3,10 @@ import { ReportsService } from './reports.service';
 import { ReportsController } from './reports.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
-import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
+import { RevenueModule } from '../common/revenue/revenue.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, FeatureFlagsModule],
+  imports: [PrismaModule, AuthModule, RevenueModule],
   controllers: [ReportsController],
   providers: [ReportsService],
 })

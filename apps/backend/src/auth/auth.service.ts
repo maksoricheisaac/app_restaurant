@@ -23,10 +23,7 @@ export class AuthService {
   ) {}
 
   async validateUser(email: string, pass: string): Promise<any> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      include: { memberships: { include: { tenant: true } } },
-    });
+    const user = await this.prisma.user.findUnique({ where: { email } });
 
     if (!user || !(await bcrypt.compare(pass, user.password))) {
       return null;
@@ -47,15 +44,11 @@ export class AuthService {
       );
     }
 
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: user.memberships?.[0]?.role || user.platformRole,
-      platformRole: user.platformRole,
-      tenantId: user.tenantId || user.memberships?.[0]?.tenantId,
-    };
+    if (user.status !== 'active') {
+      throw new UnauthorizedException('Ce compte est désactivé.');
+    }
 
-    const access_token = this.jwtService.sign(payload, { expiresIn: '15m' });
+    const access_token = this.signAccessToken(user);
     const refresh_token = await this.issueRefreshToken(user.id);
 
     return {
@@ -67,13 +60,35 @@ export class AuthService {
         name: user.name,
         firstName: user.firstName,
         lastName: user.lastName,
-        role: user.memberships?.[0]?.role,
-        platformRole: user.platformRole,
-        tenantId: user.tenantId,
+        role: user.role,
         image: user.image,
-        onboardingCompleted: user.onboardingCompleted,
       },
     };
+  }
+
+  /**
+   * Le jeton d'accès ne porte plus que l'identité. Le rôle est délibérément
+   * absent : il est relu en base par AuthGuard à chaque requête, pour qu'une
+   * rétrogradation prenne effet immédiatement et non à l'expiration du jeton.
+   */
+  private signAccessToken(user: { id: string; email: string }): string {
+    return this.jwtService.sign(
+      { sub: user.id, email: user.email },
+      { expiresIn: '15m' },
+    );
+  }
+
+  /**
+   * Émet un jeton d'accès pour un compte donné, sans passer par le formulaire
+   * de connexion. Utilisé par l'assistant de première installation, qui vient
+   * de créer le propriétaire et l'authentifie dans la foulée.
+   */
+  async issueAccessTokenFor(userId: string): Promise<string> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, email: true },
+    });
+    return this.signAccessToken(user);
   }
 
   async issueRefreshToken(userId: string): Promise<string> {
@@ -115,9 +130,7 @@ export class AuthService {
 
     const stored = await this.prisma.refreshToken.findUnique({
       where: { tokenHash },
-      include: {
-        user: { include: { memberships: { include: { tenant: true } } } },
-      },
+      include: { user: true },
     });
 
     if (!stored || stored.expiresAt < new Date()) {
@@ -151,16 +164,7 @@ export class AuthService {
     await this.prisma.refreshToken.delete({ where: { id: stored.id } });
     const newRawToken = await this.issueRefreshToken(stored.userId);
 
-    const user = stored.user;
-    const payload = {
-      email: user.email,
-      sub: user.id,
-      role: user.memberships?.[0]?.role || user.platformRole,
-      platformRole: user.platformRole,
-      tenantId: user.tenantId || user.memberships?.[0]?.tenantId,
-    };
-
-    const access_token = this.jwtService.sign(payload, { expiresIn: '15m' });
+    const access_token = this.signAccessToken(stored.user);
     return { access_token, refresh_token: newRawToken };
   }
 
@@ -202,7 +206,7 @@ export class AuthService {
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
+    return this.prisma.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -213,28 +217,11 @@ export class AuthService {
         image: true,
         phone: true,
         status: true,
-        platformRole: true,
-        tenantId: true,
+        role: true,
         emailVerified: true,
-        onboardingCompleted: true,
         createdAt: true,
-        memberships: {
-          select: { role: true, tenantId: true },
-          orderBy: { createdAt: 'asc' as const },
-          take: 1,
-        },
       },
     });
-    if (!user) return null;
-    const { memberships, ...rest } = user;
-    return {
-      ...rest,
-      // Mirror the login response: fall back to membership tenantId when the
-      // User.tenantId column is null (e.g. multi-manager / franchise accounts
-      // whose primary tenant link lives only in TenantMembership).
-      tenantId: rest.tenantId ?? memberships?.[0]?.tenantId ?? null,
-      role: memberships?.[0]?.role ?? null,
-    };
   }
 
   async forgotPassword(email: string) {
@@ -342,54 +329,5 @@ export class AuthService {
     });
 
     return msg;
-  }
-
-  async getAllUsers() {
-    return this.prisma.user.findMany({
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        platformRole: true,
-        status: true,
-        createdAt: true,
-        image: true,
-      },
-    });
-  }
-
-  async updateUserPlatformRole(userId: string, platformRole: string) {
-    const valid = ['user', 'support', 'super_admin'];
-    if (!valid.includes(platformRole))
-      throw new BadRequestException('Rôle invalide');
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { platformRole: platformRole as any },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        platformRole: true,
-        status: true,
-      },
-    });
-  }
-
-  async updateUserStatus(userId: string, status: string) {
-    const valid = ['active', 'inactive'];
-    if (!valid.includes(status))
-      throw new BadRequestException('Statut invalide');
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { status: status as any },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        platformRole: true,
-        status: true,
-      },
-    });
   }
 }

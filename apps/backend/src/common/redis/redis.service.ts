@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
 /**
- * Shared Redis client for cross-instance coordination (webhook idempotency,
+ * Client Redis partagé pour la coordination multi-instance (limitation de débit,
  * Socket.io adapter, etc.). Degrades gracefully to `null` when REDIS_URL is
  * not configured — callers must handle the single-instance fallback.
  */

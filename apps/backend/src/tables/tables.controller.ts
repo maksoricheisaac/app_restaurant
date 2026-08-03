@@ -12,48 +12,41 @@ import { TablesService } from './tables.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
-import type { Tenant } from '@prisma/client';
 
 @Controller('/tables')
-@UseGuards(AuthGuard, TenantGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class TablesController {
   constructor(private readonly tablesService: TablesService) {}
 
   @Get()
   @Roles('owner', 'manager', 'waiter', 'cashier')
-  findAll(@CurrentTenant() tenant: Tenant | undefined) {
-    return this.tablesService.findAll(tenant?.id);
+  findAll() {
+    return this.tablesService.findAll();
   }
 
   @Get('locations')
   @Roles('owner', 'manager', 'waiter', 'cashier')
-  findLocations(@CurrentTenant() tenant: Tenant) {
-    return this.tablesService.findLocations(tenant.id);
+  findLocations() {
+    return this.tablesService.findLocations();
   }
 
   @Post()
   @Roles('owner', 'manager')
-  create(@CurrentTenant() tenant: Tenant, @Body() data: CreateTableDto) {
-    return this.tablesService.create(tenant.id, data);
+  create(@Body() data: CreateTableDto) {
+    return this.tablesService.create(data);
   }
 
   @Patch(':id')
   @Roles('owner', 'manager')
-  update(
-    @CurrentTenant() tenant: Tenant | undefined,
-    @Param('id') id: string,
-    @Body() data: UpdateTableDto,
-  ) {
-    return this.tablesService.update(tenant?.id, id, data);
+  update(@Param('id') id: string, @Body() data: UpdateTableDto) {
+    return this.tablesService.update(id, data);
   }
 
   @Delete(':id')
   @Roles('owner', 'manager')
-  remove(@CurrentTenant() tenant: Tenant | undefined, @Param('id') id: string) {
-    return this.tablesService.remove(tenant?.id, id);
+  remove(@Param('id') id: string) {
+    return this.tablesService.remove(id);
   }
 }

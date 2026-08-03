@@ -34,16 +34,16 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { useOrders } from "@/hooks/api/useOrders";
 import { useCreateOrder, useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { useCustomers } from "@/hooks/api/useCustomers";
-import { useMenuItems, useMenuCategories } from "@/hooks/api/useMenu";
+import { usePosCatalogue, useMenuCategories } from "@/hooks/api/useMenu";
 import { useSocketEvent } from "@/hooks/useSocketEvent";
 import { useTables } from "@/hooks/api/useTables";
 import { Order, OrderStatus } from "@/types/order";
 import { createOrderSchema } from "@/schemas/validation";
 import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
-import { useTenantCurrency } from "@/hooks/useTenantCurrency";
+import { useRestaurantCurrency } from "@/hooks/api/useRestaurant";
 
 export default function OrdersPage() {
-  const formatCurrency = useTenantCurrency();
+  const formatCurrency = useRestaurantCurrency();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [type, setType] = useState<"dine_in" | "takeaway" | "delivery" | undefined>();
@@ -99,7 +99,7 @@ export default function OrdersPage() {
     limit,
   });
 
-  const { data: menuData } = useMenuItems();
+  const { data: catalogueData } = usePosCatalogue();
   const { data: categoriesData } = useMenuCategories();
   const { data: customersData } = useCustomers();
   const { data: tablesData } = useTables();
@@ -124,7 +124,36 @@ export default function OrdersPage() {
   const updateStatusMutation = useUpdateOrderStatus();
 
   const onSubmit = async (values: any) => {
-    createOrderMutation.mutate(values, {
+    // Charge utile explicite : le formulaire porte aussi de l'état d'écran
+    // (statut, total calculé, libellés des options) que l'API refuse — elle
+    // rejette tout champ inconnu. Seul le contrat de CreateOrderDto part.
+    const isDelivery = values.type === "delivery";
+    const payload = {
+      type: values.type,
+      tableId:
+        values.tableId && values.tableId !== "none" ? values.tableId : undefined,
+      customerId: values.userId || undefined,
+      specialNotes:
+        values.specialNotes && values.specialNotes.trim() !== "-"
+          ? values.specialNotes.trim()
+          : undefined,
+      deliveryAddress: isDelivery ? values.deliveryAddress || undefined : undefined,
+      deliveryZoneId: isDelivery ? values.deliveryZoneId || undefined : undefined,
+      deliveryFee: isDelivery ? values.deliveryFee || undefined : undefined,
+      items: (values.items || []).map((item: any) => ({
+        menuItemId: item.menuItemId,
+        quantity: item.quantity,
+        selectedOptionIds: item.selectedOptionIds?.length
+          ? item.selectedOptionIds
+          : undefined,
+        // Nom et prix ne servent qu'à un article hors carte : dès qu'il y a
+        // un menuItemId, le serveur les relit en base.
+        name: item.menuItemId ? undefined : item.name,
+        price: item.menuItemId ? undefined : item.price,
+      })),
+    };
+
+    createOrderMutation.mutate(payload, {
       onSuccess: () => {
         toast.success("Commande créée avec succès");
         setIsOpen(false);
@@ -281,7 +310,7 @@ export default function OrdersPage() {
               selectedOrder={selectedOrder}
               customers={customersData?.data || []}
               tables={Array.isArray(tablesData) ? tablesData : (tablesData?.data ?? [])}
-              menuItems={menuData?.data || []}
+              menuItems={Array.isArray(catalogueData) ? catalogueData : []}
               categories={Array.isArray(categoriesData) ? categoriesData : []}
             />
           </div>

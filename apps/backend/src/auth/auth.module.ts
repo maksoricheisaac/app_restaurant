@@ -3,8 +3,6 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigService, ConfigModule } from '@nestjs/config';
 import { AuthService } from './auth.service';
-import { OnboardingService } from './onboarding.service';
-import { OnboardingController } from './onboarding.controller';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AuthController } from './auth.controller';
@@ -27,8 +25,8 @@ import { MailModule } from '../mail/mail.module';
       inject: [ConfigService],
     }),
   ],
-  controllers: [OnboardingController, AuthController],
-  providers: [AuthService, OnboardingService, LocalStrategy, JwtStrategy],
+  controllers: [AuthController],
+  providers: [AuthService, LocalStrategy, JwtStrategy],
   // Export JwtModule so GatewayModule can use JwtService without re-registering
   exports: [AuthService, JwtModule],
 })

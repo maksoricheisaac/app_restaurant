@@ -9,6 +9,14 @@ import { API_BASE } from '../helpers';
  * Les tests UI nécessitent des storageStates par rôle (à configurer).
  */
 test.describe('RBAC — API layer', () => {
+  // Toutes les vérifications de ce bloc sont ANONYMES. Le projet
+  // admin-chromium injecte un storageState authentifié : sans cette remise à
+  // zéro, les requêtes partaient connectées. Elles passaient tout de même
+  // tant que le TenantGuard les rejetait faute d'en-tête tenant — donc pour
+  // la mauvaise raison. Ce garde ayant disparu, l'anonymat doit être
+  // explicite. Le bloc « UI layer » plus bas conserve, lui, la session.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test.describe('Routes requérant owner/manager', () => {
     test('GET /api/v1/reports/metrics requiert auth', async ({ request }) => {
       const res = await request.get(`${API_BASE}/reports/metrics`);
@@ -27,8 +35,8 @@ test.describe('RBAC — API layer', () => {
       expect([401, 403]).toContain(res.status());
     });
 
-    test('GET /api/v1/permissions requiert auth', async ({ request }) => {
-      const res = await request.get(`${API_BASE}/permissions`);
+    test('GET /api/v1/permissions/roles requiert auth', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/permissions/roles`);
       expect([401, 403]).toContain(res.status());
     });
   });
@@ -39,9 +47,9 @@ test.describe('RBAC — API layer', () => {
       expect(res.status()).toBe(200);
     });
 
-    test('GET /api/v1/public-menu/:slug — retourne 404 pour tenant inconnu', async ({ request }) => {
-      const res = await request.get(`${API_BASE}/public-menu/tenant-qui-nexiste-pas-xyz123`);
-      expect(res.status()).toBe(404);
+    test('GET /api/v1/public-menu — carte publique accessible sans auth', async ({ request }) => {
+      const res = await request.get(`${API_BASE}/public-menu`);
+      expect(res.status()).toBe(200);
     });
   });
 
@@ -50,34 +58,35 @@ test.describe('RBAC — API layer', () => {
       const res = await request.post(`${API_BASE}/auth/login`, {
         data: { email: 'not-an-email', password: 'test' },
       });
-      expect([400, 401]).toContain(res.status());
+      // 429 accepté : la limite de débit protège aussi cette route.
+      expect([400, 401, 429]).toContain(res.status());
     });
 
     test('POST /api/v1/auth/login — body vide → 400/401', async ({ request }) => {
       const res = await request.post(`${API_BASE}/auth/login`, { data: {} });
-      expect([400, 401]).toContain(res.status());
+      // 429 accepté : la limite de débit protège aussi cette route.
+      expect([400, 401, 429]).toContain(res.status());
     });
 
-    test('POST /api/v1/onboarding/register — mot de passe trop faible → 400', async ({ request }) => {
-      const res = await request.post(`${API_BASE}/onboarding/register`, {
+    test('POST /api/v1/setup — mot de passe trop faible → 400', async ({ request }) => {
+      const res = await request.post(`${API_BASE}/setup`, {
         data: {
-          firstName: 'Test',
-          lastName: 'User',
-          email: 'test@test.com',
-          password: '123',
-          restaurantName: 'Test Resto',
-          slug: 'test-resto',
-          country: 'FR',
-          currency: 'EUR',
-          timezone: 'Europe/Paris',
+          owner: {
+            firstName: 'Test',
+            lastName: 'User',
+            email: 'test@example.com',
+            password: '123',
+          },
+          restaurant: { name: 'X', currency: 'EUR', timezone: 'Europe/Paris' },
         },
       });
-      expect(res.status()).toBe(400);
+      // 400 si la validation rejette, 409 si l'établissement est déjà installé
+      expect([400, 409]).toContain(res.status());
     });
   });
 
-  test.describe('Tenant isolation — sans auth', () => {
-    test('POST /api/v1/orders sans tenant header → 401/403', async ({ request }) => {
+  test.describe('Routes métier fermées sans authentification', () => {
+    test('POST /api/v1/orders sans auth → 401/403', async ({ request }) => {
       const res = await request.post(`${API_BASE}/orders`, {
         data: { type: 'dine_in', items: [{ name: 'Test', quantity: 1, price: 10 }] },
       });
@@ -85,10 +94,8 @@ test.describe('RBAC — API layer', () => {
     });
 
     test('GET /api/v1/reservations sans auth → 401/403', async ({ request }) => {
-      const res = await request.get(`${API_BASE}/reservations`, {
-        headers: { 'x-tenant-id': 'tenant-qui-nexiste-pas' },
-      });
-      expect([401, 403, 404]).toContain(res.status());
+      const res = await request.get(`${API_BASE}/reservations`);
+      expect([401, 403]).toContain(res.status());
     });
   });
 });

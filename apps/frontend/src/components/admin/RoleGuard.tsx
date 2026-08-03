@@ -32,17 +32,17 @@ export function RoleGuard({
 }
 
 // Composants spécialisés pour des cas d'usage courants
-export function AdminOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
+export function OwnerOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <RoleGuard allowedRoles="admin" fallback={fallback}>
+    <RoleGuard allowedRoles="owner" fallback={fallback}>
       {children}
     </RoleGuard>
   );
 }
 
-export function ManagerOrAdmin({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
+export function OwnerOrManager({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <RoleGuard allowedRoles={['admin', 'manager']} fallback={fallback}>
+    <RoleGuard allowedRoles={['owner', 'manager']} fallback={fallback}>
       {children}
     </RoleGuard>
   );

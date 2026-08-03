@@ -5,6 +5,15 @@ export const menuService = {
     return api.get('/menu', { params });
   },
 
+  /**
+   * Carte complète du poste de caisse, options comprises et non paginée —
+   * la liste `/menu` en renvoie 10 par défaut, ce qui masquait la carte au
+   * serveur en salle.
+   */
+  getPosCatalogue: async () => {
+    return api.get('/menu/pos-catalogue');
+  },
+
   getItemById: async (id: string) => {
     return api.get(`/menu/${id}`);
   },

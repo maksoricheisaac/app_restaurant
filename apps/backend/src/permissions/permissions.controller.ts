@@ -6,78 +6,97 @@ import {
   Delete,
   Body,
   Param,
-  ParseEnumPipe,
   UseGuards,
+  BadRequestException,
 } from '@nestjs/common';
+import { Permission } from '@prisma/client';
 import { PermissionsService } from './permissions.service';
 import {
-  CreateStaffDto,
-  UpdateStaffDto,
   UpdateRolePermissionsDto,
+  SetUserPermissionDto,
 } from './dto/permissions.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { TenantRole } from '../common/constants/tenant-roles.constant';
-import type { Tenant } from '@prisma/client';
+import {
+  StaffRole,
+  ALL_STAFF_ROLES,
+} from '../common/constants/staff-roles.constant';
+
+function parseRole(role: string): StaffRole {
+  if (!(ALL_STAFF_ROLES as readonly string[]).includes(role)) {
+    throw new BadRequestException(
+      `Rôle inconnu. Attendu : ${ALL_STAFF_ROLES.join(', ')}`,
+    );
+  }
+  return role as StaffRole;
+}
 
 @Controller('/permissions')
-@UseGuards(AuthGuard, TenantGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class PermissionsController {
-  constructor(private readonly permissionsService: PermissionsService) {}
+  constructor(private readonly permissions: PermissionsService) {}
 
-  @Get('personnel')
+  @Get('catalog')
   @Roles('owner', 'manager')
-  getPersonnel(@CurrentTenant() tenant: Tenant) {
-    return this.permissionsService.getPersonnel(tenant.id);
+  getCatalog() {
+    return this.permissions.getCatalog();
   }
 
-  @Post('staff')
+  @Get('roles')
   @Roles('owner', 'manager')
-  createStaff(@CurrentTenant() tenant: Tenant, @Body() data: CreateStaffDto) {
-    return this.permissionsService.createStaff(tenant.id, data);
-  }
-
-  @Patch('staff/:id')
-  @Roles('owner', 'manager')
-  updateStaff(
-    @CurrentTenant() tenant: Tenant,
-    @CurrentUser() user: { id: string },
-    @Param('id') id: string,
-    @Body() data: UpdateStaffDto,
-  ) {
-    return this.permissionsService.updateStaff(tenant.id, id, data, user.id);
-  }
-
-  @Delete('staff/:id')
-  @Roles('owner')
-  deleteStaff(
-    @CurrentTenant() tenant: Tenant,
-    @CurrentUser() user: { id: string },
-    @Param('id') id: string,
-  ) {
-    return this.permissionsService.deleteStaff(tenant.id, id, user.id);
+  getAllRolePermissions() {
+    return this.permissions.getAllRolePermissions();
   }
 
   @Get('roles/:role')
   @Roles('owner', 'manager')
-  getRolePermissions(
-    @CurrentTenant() tenant: Tenant,
-    @Param('role', new ParseEnumPipe(TenantRole)) role: TenantRole,
-  ) {
-    return this.permissionsService.getRolePermissions(tenant.id, role);
+  getRolePermissions(@Param('role') role: string) {
+    return this.permissions.getRolePermissions(parseRole(role));
   }
 
   @Patch('roles/:role')
   @Roles('owner')
   updateRolePermissions(
-    @CurrentTenant() tenant: Tenant,
-    @Param('role', new ParseEnumPipe(TenantRole)) role: TenantRole,
+    @Param('role') role: string,
     @Body() data: UpdateRolePermissionsDto,
   ) {
-    return this.permissionsService.updateRolePermissions(tenant.id, role, data);
+    return this.permissions.updateRolePermissions(parseRole(role), data);
+  }
+
+  @Post('roles/:role/reset')
+  @Roles('owner')
+  resetRolePermissions(@Param('role') role: string) {
+    return this.permissions.resetRolePermissions(parseRole(role));
+  }
+
+  @Get('users/:userId')
+  @Roles('owner', 'manager')
+  getUserPermissions(@Param('userId') userId: string) {
+    return this.permissions.getUserPermissions(userId);
+  }
+
+  @Patch('users/:userId')
+  @Roles('owner')
+  setUserPermission(
+    @Param('userId') userId: string,
+    @Body() data: SetUserPermissionDto,
+  ) {
+    return this.permissions.setUserPermission(userId, data);
+  }
+
+  @Delete('users/:userId/:permission')
+  @Roles('owner')
+  clearUserPermission(
+    @Param('userId') userId: string,
+    @Param('permission') permission: string,
+  ) {
+    if (!(permission in Permission)) {
+      throw new BadRequestException('Permission inconnue');
+    }
+    return this.permissions.clearUserPermission(
+      userId,
+      permission as Permission,
+    );
   }
 }

@@ -1,10 +1,9 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 const NOT_DELETED = { deletedAt: null };
 
 export interface UpsertCustomerInput {
-  tenantId: string;
   name?: string | null;
   email?: string | null;
   phone?: string | null;
@@ -14,14 +13,12 @@ export interface UpsertCustomerInput {
 export class CustomersService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string | undefined, filters: any) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findAll(filters: any) {
     const { search, page = 1, limit = 10 } = filters;
     const take = Math.min(Number(limit), 100);
     const skip = (page - 1) * take;
 
     const where = {
-      tenantId,
       ...NOT_DELETED,
       ...(search
         ? {
@@ -56,29 +53,27 @@ export class CustomersService {
     };
   }
 
-  async findOne(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  findOne(id: string) {
     return this.prisma.customer.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
       include: { orders: { take: 10, orderBy: { createdAt: 'desc' } } },
     });
   }
 
   /**
-   * Upsert a customer from an order or reservation interaction.
-   * Matches on email if provided, then phone, otherwise creates a new record.
-   * This is the ONLY path to create customers — no manual creation endpoint.
+   * Crée ou met à jour un client à partir d'une commande ou d'une réservation.
+   * Rapprochement sur l'email s'il est fourni, sinon sur le téléphone.
+   * C'est le SEUL chemin de création d'un client — il n'existe pas
+   * d'endpoint de création manuelle.
    */
   async upsertFromInteraction(
     input: UpsertCustomerInput,
   ): Promise<string | null> {
-    const { tenantId, name, email, phone } = input;
+    const { name, email, phone } = input;
     if (!email && !phone && !name) return null;
 
-    // Try to find existing (non-deleted) customer by email or phone
     const existing = await this.prisma.customer.findFirst({
       where: {
-        tenantId,
         deletedAt: null,
         ...(email ? { email } : phone ? { phone } : {}),
       },
@@ -86,7 +81,7 @@ export class CustomersService {
     });
 
     if (existing) {
-      // Update name/phone if we now have more data
+      // Complète la fiche si l'interaction apporte des informations nouvelles
       const updateData: any = {};
       if (name) updateData.name = name;
       if (phone) updateData.phone = phone;
@@ -101,7 +96,6 @@ export class CustomersService {
 
     const customer = await this.prisma.customer.create({
       data: {
-        tenantId,
         name: name ?? undefined,
         email: email ?? undefined,
         phone: phone ?? undefined,
@@ -110,18 +104,13 @@ export class CustomersService {
     return customer.id;
   }
 
-  async update(tenantId: string | undefined, id: string, data: any) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    return this.prisma.customer.update({
-      where: { id, tenantId },
-      data,
-    });
+  update(id: string, data: any) {
+    return this.prisma.customer.update({ where: { id }, data });
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  remove(id: string) {
     return this.prisma.customer.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
   }

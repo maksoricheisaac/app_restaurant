@@ -9,8 +9,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
-import { TenantsModule } from './tenants/tenants.module';
-import { MembershipsModule } from './memberships/memberships.module';
+import { RestaurantModule } from './restaurant/restaurant.module';
+import { StaffModule } from './staff/staff.module';
 import { OrdersModule } from './orders/orders.module';
 import { MenuModule } from './menu/menu.module';
 import { CategoriesModule } from './categories/categories.module';
@@ -19,17 +19,13 @@ import { ReservationsModule } from './reservations/reservations.module';
 import { CashRegisterModule } from './cash-register/cash-register.module';
 import { TablesModule } from './tables/tables.module';
 import { CustomersModule } from './customers/customers.module';
-import { SettingsModule } from './settings/settings.module';
 import { MessagesModule } from './messages/messages.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GatewayModule } from './gateway/gateway.module';
 import { PermissionsModule } from './permissions/permissions.module';
 import { ReportsModule } from './reports/reports.module';
-import { BillingModule } from './billing/billing.module';
 import { MailModule } from './mail/mail.module';
 import { HealthModule } from './health/health.module';
-import { PlansModule } from './plans/plans.module';
-import { DomainsModule } from './domains/domains.module';
 import { MediaModule } from './media/media.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthMiddleware } from './common/middleware/auth.middleware';
@@ -38,6 +34,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { JwtModule } from '@nestjs/jwt';
 import { validateConfig } from './config/config.validation';
 import { RedisModule } from './common/redis/redis.module';
+import { AuditModule } from './common/audit/audit.module';
 
 @Module({
   imports: [
@@ -90,9 +87,10 @@ import { RedisModule } from './common/redis/redis.module';
     }),
     RedisModule,
     PrismaModule,
+    AuditModule,
     AuthModule,
-    TenantsModule,
-    MembershipsModule,
+    RestaurantModule,
+    StaffModule,
     OrdersModule,
     MenuModule,
     CategoriesModule,
@@ -101,17 +99,13 @@ import { RedisModule } from './common/redis/redis.module';
     CashRegisterModule,
     TablesModule,
     CustomersModule,
-    SettingsModule,
     MessagesModule,
     DashboardModule,
     GatewayModule,
     PermissionsModule,
     ReportsModule,
-    BillingModule,
     MailModule,
     HealthModule,
-    PlansModule,
-    DomainsModule,
     MediaModule,
   ],
   controllers: [AppController],

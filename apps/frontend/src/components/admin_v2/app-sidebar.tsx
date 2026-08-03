@@ -11,10 +11,8 @@ import {
 import { NavGroup } from '@/components/admin_v2/nav-group'
 import { NavUser } from '@/components/admin_v2/nav-user'
 import { getSidebarData } from '@/components/admin_v2/data/sidebar-data'
-import { getSuperAdminSidebarData } from '@/components/admin_v2/data/super-admin-sidebar-data'
-import { usePlanUsage } from '@/hooks/api/usePlanUsage'
 import Link from 'next/link'
-import { ChefHat, Utensils, ShieldCheck } from 'lucide-react'
+import { ChefHat, Utensils } from 'lucide-react'
 
 interface AppSidebarProps {
   user: {
@@ -28,32 +26,17 @@ interface AppSidebarProps {
     unreadMessages: number
     pendingReservations: number
   }
-  isSuperAdmin?: boolean
 }
 
-export function AppSidebar({ user, isSuperAdmin, counts, ...props }: AppSidebarProps) {
+export function AppSidebar({ user, counts, ...props }: AppSidebarProps) {
   const { state } = useSidebar()
   const isCollapsed = state === 'collapsed'
 
-  // Entitlements du plan (features) — pour verrouiller les modules non inclus.
-  // Non appelé pour le Super Admin (pas de tenant courant).
-  const { data: planUsage } = usePlanUsage({ enabled: !isSuperAdmin })
-  const features = planUsage?.features
-
-  const sidebarData = isSuperAdmin
-    ? getSuperAdminSidebarData()
-    : getSidebarData(counts ?? { pendingOrders: 0, unreadMessages: 0, pendingReservations: 0 })
-
-  // Marque comme verrouillé tout module dont la feature n'est pas dans le plan.
-  // Tant que les entitlements ne sont pas chargés, on ne verrouille rien (évite
-  // un flash de cadenas). Le Super Admin n'est jamais restreint.
-  if (!isSuperAdmin && features) {
-    for (const group of sidebarData.navGroups) {
-      for (const item of group.items) {
-        if (item.feature) item.locked = features[item.feature] === false
-      }
-    }
-  }
+  // Tous les modules sont disponibles : le logiciel est installé pour cet
+  // établissement, il n'y a plus de fonctionnalité à débloquer.
+  const sidebarData = getSidebarData(
+    counts ?? { pendingOrders: 0, unreadMessages: 0, pendingReservations: 0 },
+  )
 
   return (
     <Sidebar collapsible='icon' variant='floating' {...props}>
@@ -61,7 +44,7 @@ export function AppSidebar({ user, isSuperAdmin, counts, ...props }: AppSidebarP
       {/* Header — logo adaptatif selon l'état collapsed/expanded */}
       <SidebarHeader className="overflow-hidden p-2">
         <Link
-          href={isSuperAdmin ? '/super-admin/dashboard' : '/admin/dashboard'}
+          href='/admin/dashboard'
           className={cn(
             'flex items-center rounded-xl transition-all duration-200 ease-linear',
             'hover:bg-sidebar-accent group overflow-hidden',
@@ -74,27 +57,16 @@ export function AppSidebar({ user, isSuperAdmin, counts, ...props }: AppSidebarP
           <div className="relative flex-shrink-0">
             <div className={cn(
               'rounded-lg shadow-sm transition-all duration-200 ease-linear',
-              isSuperAdmin
-                ? 'bg-orange-600 group-hover:bg-orange-700'
-                : 'bg-primary group-hover:bg-primary/90',
+              'bg-primary group-hover:bg-primary/90',
               isCollapsed ? 'p-1.5' : 'p-2'
             )}>
-              {isSuperAdmin ? (
-                <ShieldCheck className={cn(
-                  'text-white transition-all duration-200 ease-linear',
-                  isCollapsed ? 'h-4 w-4' : 'h-5 w-5'
-                )} />
-              ) : (
-                <>
-                  <ChefHat className={cn(
-                    'text-primary-foreground transition-all duration-200 ease-linear',
-                    isCollapsed ? 'h-4 w-4' : 'h-5 w-5'
-                  )} />
-                  {/* Icône décorative cachée en mode collapsed pour éviter le débordement */}
-                  {!isCollapsed && (
-                    <Utensils className="h-2.5 w-2.5 absolute -bottom-0.5 -right-0.5 text-primary-foreground/70" />
-                  )}
-                </>
+              <ChefHat className={cn(
+                'text-primary-foreground transition-all duration-200 ease-linear',
+                isCollapsed ? 'h-4 w-4' : 'h-5 w-5'
+              )} />
+              {/* Icône décorative cachée en mode collapsed pour éviter le débordement */}
+              {!isCollapsed && (
+                <Utensils className="h-2.5 w-2.5 absolute -bottom-0.5 -right-0.5 text-primary-foreground/70" />
               )}
             </div>
           </div>
@@ -107,13 +79,10 @@ export function AppSidebar({ user, isSuperAdmin, counts, ...props }: AppSidebarP
               : 'min-w-0 flex-1 opacity-100'
           )}>
             <span className="font-bold text-base truncate block text-sidebar-foreground whitespace-nowrap">
-              {isSuperAdmin ? 'Flash Menu HQ' : 'Flash Menu'}
+              Flash Menu
             </span>
-            <p className={cn(
-              'text-[10px] truncate font-semibold uppercase tracking-widest whitespace-nowrap',
-              isSuperAdmin ? 'text-orange-500' : 'text-primary'
-            )}>
-              {isSuperAdmin ? 'Super Admin' : 'Administration'}
+            <p className="text-[10px] truncate font-semibold uppercase tracking-widest whitespace-nowrap text-primary">
+              Administration
             </p>
           </div>
         </Link>

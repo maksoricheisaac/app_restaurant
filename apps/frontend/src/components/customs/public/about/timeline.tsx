@@ -1,26 +1,27 @@
-import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { SectionHeading } from "@/components/customs/public/vitrine/section-heading"
 import { Reveal } from "@/components/motion/reveal"
 
+/** ⚠️ Contenu à personnaliser par le restaurant. */
 const MILESTONES = [
   {
-    year: "2023",
-    title: "Les premières lignes de code",
-    description: "Trois personnes, un prototype de menu QR testé dans un seul restaurant partenaire. Le déclic : les commandes arrivent en cuisine sans erreur.",
+    year: "L'ouverture",
+    title: "Une salle, une carte courte",
+    description: "Quelques tables, une poignée de plats travaillés chaque jour. Le parti pris de départ : mieux vaut faire peu, et bien.",
   },
   {
-    year: "2024",
-    title: "La plateforme prend forme",
-    description: "Kitchen Display, caisse et réservations rejoignent le menu. Les 100 premiers établissements adoptent Flash Menu.",
+    year: "La carte",
+    title: "Les saisons prennent la main",
+    description: "La carte se met à suivre les arrivages plutôt qu'un menu figé. Les habitués reviennent pour voir ce qui a changé.",
   },
   {
-    year: "2025",
-    title: "Passage à l’échelle",
-    description: "Architecture multi-tenant, rapports temps réel et paiements en ligne. Le cap des 300 restaurants est franchi.",
+    year: "L'équipe",
+    title: "La salle et la cuisine s'accordent",
+    description: "Commandes, cuisine et caisse travaillent sur les mêmes informations. Moins d'allers-retours, plus de temps pour vous.",
   },
   {
-    year: "2026",
-    title: "Plus de 500 restaurants",
-    description: "Onboarding en 2 minutes, support 7j/7 et une feuille de route dictée par la communauté. Et ce n’est qu’un début.",
+    year: "Aujourd'hui",
+    title: "Sur place, à emporter, livré",
+    description: "La carte est consultable en ligne, la réservation prend quelques secondes, et le suivi de commande se fait en direct.",
   },
 ]
 
@@ -30,7 +31,7 @@ export const AboutTimeline = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeading
           eyebrow="Le chemin parcouru"
-          title={<>De l’idée à <span className="font-display-italic text-gradient-warm">500 restaurants</span></>}
+          title={<>Notre <span className="font-display-italic text-gradient-warm">parcours</span></>}
         />
 
         <div className="mt-16 relative">

@@ -39,7 +39,7 @@ Une sauvegarde jamais restaurée n'est pas une sauvegarde. Avant toute mise en p
 
 1. Restaurer le dernier backup sur une base de données de test (`flash_menu_restore_test`).
 2. Lancer `pnpm exec prisma migrate status` dessus pour confirmer que le schéma restauré correspond aux migrations appliquées.
-3. Vérifier un échantillon de données métier critiques (tenants, commandes, paiements) via une requête de contrôle.
+3. Vérifier un échantillon de données métier critiques (restaurant, commandes, paiements) via une requête de contrôle.
 4. Consigner la date et le résultat de ce test — à répéter au minimum trimestriellement.
 
 ## Décision — Déploiement

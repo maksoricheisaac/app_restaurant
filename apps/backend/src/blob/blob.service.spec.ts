@@ -97,22 +97,21 @@ describe('BlobService', () => {
   describe('uploadImage', () => {
     it('uploads a valid JPEG and returns metadata', async () => {
       put.mockResolvedValue({
-        url: 'https://blob.vercel.app/tenants/t1/menu-items/abc.webp',
-        pathname: 'tenants/t1/menu-items/abc.webp',
+        url: 'https://blob.vercel.app/menu-items/abc.webp',
+        pathname: 'menu-items/abc.webp',
       });
 
       const result = await service.uploadImage({
         buffer: JPEG_HEADER,
         mimeType: 'image/jpeg',
-        tenantId: 't1',
         context: 'menu-items',
       });
 
       expect(result.url).toContain('blob.vercel.app');
-      expect(result.pathname).toContain('tenants/t1/menu-items');
+      expect(result.pathname).toContain('menu-items');
       expect(result.contentType).toBe('image/webp');
       expect(put).toHaveBeenCalledWith(
-        expect.stringContaining('tenants/t1/menu-items/'),
+        expect.stringContaining('menu-items/'),
         expect.any(Buffer),
         expect.objectContaining({
           access: 'public',
@@ -132,7 +131,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: makePngBuffer(),
           mimeType: 'image/png',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).resolves.toBeDefined();
@@ -148,7 +146,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: makeWebPBuffer(),
           mimeType: 'image/webp',
-          tenantId: 't1',
           context: 'categories',
         }),
       ).resolves.toBeDefined();
@@ -159,7 +156,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: JPEG_HEADER,
           mimeType: 'image/gif',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -171,7 +167,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: fakeJpeg,
           mimeType: 'image/jpeg',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -183,7 +178,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: svg,
           mimeType: 'image/jpeg',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).rejects.toThrow(BadRequestException);
@@ -196,7 +190,6 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: JPEG_HEADER,
           mimeType: 'image/jpeg',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).rejects.toThrow(InternalServerErrorException);
@@ -209,32 +202,12 @@ describe('BlobService', () => {
         service.uploadImage({
           buffer: JPEG_HEADER,
           mimeType: 'image/jpeg',
-          tenantId: 't1',
           context: 'menu-items',
         }),
       ).rejects.toThrow(InternalServerErrorException);
 
       // eslint-disable-next-line @typescript-eslint/unbound-method -- jest.Mocked<T> method reference, not an actual unbound `this` call
       expect(monitoringService.captureError).toHaveBeenCalled();
-    });
-
-    it('uses tenant-scoped pathname for isolation', async () => {
-      put.mockResolvedValue({
-        url: 'https://blob.vercel.app/x.webp',
-        pathname: 'tenants/tenant-A/menu-items/x.webp',
-      });
-
-      await service.uploadImage({
-        buffer: JPEG_HEADER,
-        mimeType: 'image/jpeg',
-        tenantId: 'tenant-A',
-        context: 'menu-items',
-      });
-
-      const [calledPathname] = put.mock.calls[0];
-      expect(calledPathname).toMatch(
-        /^tenants\/tenant-A\/menu-items\/.+\.webp$/,
-      );
     });
   });
 
@@ -243,8 +216,8 @@ describe('BlobService', () => {
   describe('deleteImage', () => {
     it('calls Vercel del() with correct pathname', async () => {
       del.mockResolvedValue(undefined);
-      await service.deleteImage('tenants/t1/menu-items/old.webp');
-      expect(del).toHaveBeenCalledWith('tenants/t1/menu-items/old.webp', {
+      await service.deleteImage('old.webp');
+      expect(del).toHaveBeenCalledWith('old.webp', {
         token: 'test-token',
       });
     });
@@ -280,16 +253,12 @@ describe('BlobService', () => {
       const result = await service.replaceImage({
         buffer: JPEG_HEADER,
         mimeType: 'image/jpeg',
-        tenantId: 't1',
         context: 'menu-items',
-        oldPathname: 'tenants/t1/menu-items/old.webp',
+        oldPathname: 'old.webp',
       });
 
       expect(result.url).toContain('new.webp');
-      expect(del).toHaveBeenCalledWith(
-        'tenants/t1/menu-items/old.webp',
-        expect.anything(),
-      );
+      expect(del).toHaveBeenCalledWith('old.webp', expect.anything());
     });
 
     it('skips delete when oldPathname is null', async () => {
@@ -301,7 +270,6 @@ describe('BlobService', () => {
       await service.replaceImage({
         buffer: JPEG_HEADER,
         mimeType: 'image/jpeg',
-        tenantId: 't1',
         context: 'menu-items',
         oldPathname: null,
       });
@@ -316,9 +284,8 @@ describe('BlobService', () => {
         service.replaceImage({
           buffer: JPEG_HEADER,
           mimeType: 'image/jpeg',
-          tenantId: 't1',
           context: 'menu-items',
-          oldPathname: 'tenants/t1/menu-items/old.webp',
+          oldPathname: 'old.webp',
         }),
       ).rejects.toThrow(InternalServerErrorException);
 

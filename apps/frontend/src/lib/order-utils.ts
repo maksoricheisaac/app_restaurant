@@ -30,7 +30,7 @@ export const ORDER_STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * Format a monetary amount using the tenant's configured currency.
+ * Formate un montant dans la devise configurée pour l'établissement.
  * Falls back to EUR when the currency code is absent or invalid.
  *
  * Usage:

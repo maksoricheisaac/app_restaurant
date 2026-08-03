@@ -23,6 +23,7 @@ import { Throttle } from '@nestjs/throttler';
 import { MenuService } from './menu.service';
 import { MenuSessionService } from './menu-session.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RestaurantService } from '../restaurant/restaurant.service';
 import {
   PublicOrderService,
   PublicCreateOrderDto,
@@ -62,76 +63,46 @@ export class PublicCreateReservationDto {
   phone?: string;
 }
 
+/**
+ * Carte publique et prise de commande client.
+ *
+ * Il n'y a plus de slug dans les URL : ces routes servent l'unique
+ * établissement, comme le site vitrine qui les consomme.
+ */
 @Controller('/public-menu')
 export class PublicMenuController {
   constructor(
     private readonly menuService: MenuService,
     private readonly prisma: PrismaService,
+    private readonly restaurant: RestaurantService,
     private readonly publicOrderService: PublicOrderService,
     private readonly menuSession: MenuSessionService,
     private readonly reservationsService: ReservationsService,
   ) {}
 
+  /** Résolution d'un QR code de table vers le numéro de table affiché. */
   @Public()
   @Throttle({ short: { limit: 60, ttl: 60_000 } })
   @Get('by-table/:tableId')
   async findByTableId(@Param('tableId') tableId: string) {
-    const table = await this.prisma.table.findUnique({
-      where: { id: tableId },
-      include: { tenant: { select: { slug: true, name: true } } },
+    const table = await this.prisma.table.findFirst({
+      where: { id: tableId, deletedAt: null },
+      select: { id: true, number: true },
     });
     if (!table) throw new NotFoundException('Table introuvable');
-    return {
-      slug: table.tenant.slug,
-      tenantName: table.tenant.name,
-      tableId,
-      tableNumber: table.number,
-    };
+
+    return { tableId: table.id, tableNumber: table.number };
   }
 
   @Public()
   @Throttle({ short: { limit: 30, ttl: 60_000 } })
-  @Get(':slug')
-  async findBySlug(@Param('slug') slug: string) {
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { slug, deletedAt: null },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        logo: true,
-        bannerUrl: true,
-        primaryColor: true,
-        cuisineType: true,
-        currency: true,
-      },
-    });
-
-    if (!tenant) throw new NotFoundException('Restaurant introuvable');
-
-    const [menu, settings, deliveryZones] = await Promise.all([
-      this.menuService.findPublicMenu(tenant.id),
-      this.prisma.restaurantSettings.findUnique({
-        where: { tenantId: tenant.id },
-        select: {
-          description: true,
-          phone: true,
-          email: true,
-          address: true,
-          website: true,
-          facebookUrl: true,
-          instagramUrl: true,
-          twitterUrl: true,
-          youtubeUrl: true,
-          dineInEnabled: true,
-          takeawayEnabled: true,
-          deliveryEnabled: true,
-          maxReservationGuests: true,
-          maxDaysInAdvance: true,
-        },
-      }),
+  @Get()
+  async findPublicMenu() {
+    const [restaurant, menu, deliveryZones] = await Promise.all([
+      this.restaurant.getPublicProfile(),
+      this.menuService.findPublicMenu(),
       this.prisma.deliveryZone.findMany({
-        where: { tenantId: tenant.id, isActive: true, deletedAt: null },
+        where: { isActive: true, deletedAt: null },
         orderBy: { price: 'asc' },
         select: {
           id: true,
@@ -143,78 +114,55 @@ export class PublicMenuController {
       }),
     ]);
 
-    // Types de service proposés au client public (par défaut activés si settings absent).
     const services = {
-      dineIn: settings?.dineInEnabled ?? true,
-      takeaway: settings?.takeawayEnabled ?? true,
-      delivery: settings?.deliveryEnabled ?? false,
+      dineIn: restaurant.dineInEnabled,
+      takeaway: restaurant.takeawayEnabled,
+      delivery: restaurant.deliveryEnabled,
     };
 
-    // Public settings only — on ne renvoie pas les toggles internes en double.
-    const publicSettings = settings
-      ? {
-          description: settings.description,
-          phone: settings.phone,
-          email: settings.email,
-          address: settings.address,
-          website: settings.website,
-          facebookUrl: settings.facebookUrl,
-          instagramUrl: settings.instagramUrl,
-          twitterUrl: settings.twitterUrl,
-          youtubeUrl: settings.youtubeUrl,
-        }
-      : null;
-
     return {
-      tenant: { ...tenant, settings: publicSettings },
+      restaurant,
       menu,
       services,
       deliveryZones: services.delivery ? deliveryZones : [],
       limits: {
-        maxReservationGuests: settings?.maxReservationGuests ?? 20,
-        maxDaysInAdvance: settings?.maxDaysInAdvance ?? 30,
+        maxReservationGuests: restaurant.maxReservationGuests,
+        maxDaysInAdvance: restaurant.maxDaysInAdvance,
       },
-      // Short-lived HMAC token required to submit orders — prevents scripted flooding
-      sessionToken: this.menuSession.generate(slug),
+      // Jeton HMAC de courte durée exigé pour commander — coupe les envois
+      // scriptés qui n'ont jamais chargé la carte.
+      sessionToken: this.menuSession.generate(),
     };
   }
 
   @Public()
   @Throttle({ orders: { limit: 5, ttl: 60_000 * 60 } })
-  @Post(':slug/order')
+  @Post('order')
   createOrder(
-    @Param('slug') slug: string,
     @Body() dto: PublicCreateOrderDto,
     @Headers('x-menu-session') sessionToken?: string,
   ) {
-    return this.publicOrderService.createOrder(slug, dto, sessionToken);
+    return this.publicOrderService.createOrder(dto, sessionToken);
   }
 
   @Public()
   @Throttle({ orders: { limit: 5, ttl: 60_000 * 60 } })
-  @Post(':slug/reservation')
+  @Post('reservation')
   async createReservation(
-    @Param('slug') slug: string,
     @Body() dto: PublicCreateReservationDto,
     @Headers('x-menu-session') sessionToken?: string,
   ) {
-    // Même garde-fou anti-scraping/flooding que les commandes publiques.
-    if (!this.menuSession.verify(slug, sessionToken)) {
+    // Même garde-fou anti-flooding que les commandes publiques.
+    if (!this.menuSession.verify(sessionToken)) {
       throw new ForbiddenException(
         'Session de menu invalide ou expirée. Veuillez recharger la page.',
       );
     }
 
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { slug, deletedAt: null },
-      select: { id: true },
-    });
-    if (!tenant) throw new NotFoundException('Restaurant introuvable');
-
     // Un client public ne choisit jamais tableId/status directement — la
     // réservation entre toujours en 'pending', une table est assignée par
-    // le staff. stripHtml empêche un XSS stocké via le nom du client.
-    return this.reservationsService.create(tenant.id, {
+    // l'équipe. stripHtml empêche un XSS stocké via le nom du client.
+    return this.reservationsService.create({
       date: dto.date,
       time: dto.time,
       guests: dto.guests,

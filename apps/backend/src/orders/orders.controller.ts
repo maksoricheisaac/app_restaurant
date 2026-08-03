@@ -10,80 +10,61 @@ import {
   Query,
 } from '@nestjs/common';
 import { OrdersService } from './orders.service';
-import { FeatureFlagsService } from '../feature-flags/feature-flags.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { Public } from '../common/decorators/public.decorator';
-import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
-import type { Tenant } from '@prisma/client';
 
 @Controller('/orders')
-@UseGuards(AuthGuard, TenantGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class OrdersController {
-  constructor(
-    private readonly ordersService: OrdersService,
-    private readonly featureFlags: FeatureFlagsService,
-  ) {}
+  constructor(private readonly ordersService: OrdersService) {}
 
   @Get()
-  @Roles('owner', 'manager', 'waiter', 'cashier', 'head_chef', 'chef')
-  findAll(
-    @CurrentTenant() tenant: Tenant | undefined,
-    @Query() filters: OrderFiltersDto,
-  ) {
-    return this.ordersService.findAll(tenant?.id, filters);
+  @Roles('owner', 'manager', 'waiter', 'cashier', 'chef')
+  findAll(@Query() filters: OrderFiltersDto) {
+    return this.ordersService.findAll(filters);
   }
 
   /**
-   * Kitchen Display System — Pro feature only.
-   * Returns active orders (pending + preparing) for kitchen staff.
+   * Écran cuisine (KDS) — commandes actives (en attente + en préparation).
    */
   @Get('kitchen')
-  @Roles('owner', 'manager', 'head_chef', 'chef')
-  async getKitchenOrders(@CurrentTenant() tenant: Tenant) {
-    await this.featureFlags.assertPlanFeature(tenant.id, 'kds');
-    return this.ordersService.findKitchenOrders(tenant.id);
+  @Roles('owner', 'manager', 'chef')
+  getKitchenOrders() {
+    return this.ordersService.findKitchenOrders();
   }
 
   @Get(':id')
-  @Roles('owner', 'manager', 'waiter', 'cashier', 'head_chef', 'chef')
-  findOne(
-    @CurrentTenant() tenant: Tenant | undefined,
-    @Param('id') id: string,
-  ) {
-    return this.ordersService.findOne(tenant?.id, id);
+  @Roles('owner', 'manager', 'waiter', 'cashier', 'chef')
+  findOne(@Param('id') id: string) {
+    return this.ordersService.findOne(id);
   }
 
   @Post()
   @Roles('owner', 'manager', 'waiter', 'cashier')
-  create(
-    @CurrentTenant() tenant: Tenant,
-    @Body() data: CreateOrderDto,
-    @CurrentUser() user: any,
-  ) {
-    return this.ordersService.create(tenant.id, data, user?.id);
+  create(@Body() data: CreateOrderDto, @CurrentUser() user: any) {
+    return this.ordersService.create(data, user?.id);
   }
 
   @Patch(':id/status')
-  @Roles('owner', 'manager', 'waiter', 'head_chef', 'chef')
+  @Roles('owner', 'manager', 'waiter', 'chef')
   updateStatus(
-    @CurrentTenant() tenant: Tenant | undefined,
     @Param('id') id: string,
     @Body() dto: UpdateOrderStatusDto,
+    @CurrentUser() user: any,
   ) {
-    return this.ordersService.updateStatus(tenant?.id, id, dto);
+    return this.ordersService.updateStatus(id, dto, user);
   }
 
   @Delete(':id')
   @Roles('owner', 'manager')
-  remove(@CurrentTenant() tenant: Tenant | undefined, @Param('id') id: string) {
-    return this.ordersService.remove(tenant?.id, id);
+  remove(@Param('id') id: string) {
+    return this.ordersService.remove(id);
   }
 
   @Public()

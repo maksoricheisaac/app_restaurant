@@ -1,31 +1,32 @@
-import { Zap, ShieldCheck, HeartHandshake, Sparkles } from "lucide-react"
-import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { Leaf, ChefHat, HeartHandshake, Clock } from "lucide-react"
+import { SectionHeading } from "@/components/customs/public/vitrine/section-heading"
 import { Stagger } from "@/components/motion/stagger"
 
+/** ⚠️ Contenu à personnaliser par le restaurant. */
 const VALUES = [
   {
-    icon: Sparkles,
-    title: "La simplicité d’abord",
+    icon: Leaf,
+    title: "Des produits choisis",
     description:
-      "Chaque écran doit s’expliquer tout seul. Si une fonctionnalité a besoin d’un manuel, c’est qu’elle est mal conçue.",
+      "Nous travaillons avec des producteurs que nous connaissons, et la carte suit les saisons plutôt que l'inverse.",
   },
   {
-    icon: Zap,
-    title: "Le temps réel, vraiment",
+    icon: ChefHat,
+    title: "Fait maison",
     description:
-      "Une commande, un paiement, une table qui se libère : tout se propage instantanément. Zéro double saisie, zéro décalage.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Vos données, à vous",
-    description:
-      "Isolation stricte entre établissements, chiffrement, hébergement européen, conformité RGPD. La confiance se gagne dans les détails.",
+      "Les préparations sont réalisées sur place, chaque jour. Ce qui ne peut pas l'être ne figure pas sur la carte.",
   },
   {
     icon: HeartHandshake,
-    title: "Proches de nos clients",
+    title: "L'accueil avant tout",
     description:
-      "Un support humain qui connaît le métier, des mises à jour chaque semaine, et une feuille de route dictée par vos retours.",
+      "Une table, ce n'est pas qu'une assiette. On prend le temps de vous installer, de conseiller, de revenir vers vous.",
+  },
+  {
+    icon: Clock,
+    title: "Le respect du temps",
+    description:
+      "Le vôtre comme celui de la cuisine : commande en ligne, suivi en direct, et pas d'attente inutile en salle.",
   },
 ]
 
@@ -34,9 +35,9 @@ export const AboutValues = () => {
     <section className="py-20 sm:py-28 bg-background">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <SectionHeading
-          eyebrow="Nos valeurs"
-          title={<>Ce qui guide <span className="font-display-italic text-gradient-warm">chaque décision</span></>}
-          description="Quatre principes que nous ne négocions pas, du premier prototype à chaque nouvelle fonctionnalité."
+          eyebrow="Nos engagements"
+          title={<>Ce qui ne change <span className="font-display-italic text-gradient-warm">jamais</span></>}
+          description="Quatre principes qui tiennent, du choix des producteurs au dernier service."
         />
 
         <Stagger className="mt-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-5">

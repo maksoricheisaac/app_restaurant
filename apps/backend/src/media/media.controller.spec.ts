@@ -1,17 +1,15 @@
 import { MediaController } from './media.controller';
 
-const TENANT = { id: 'tenant-1', logoPathname: 'old-logo.jpg' } as any;
 const FILE = { buffer: Buffer.from('x'), mimetype: 'image/jpeg' } as any;
 const REQ = { requestId: 'req-1' } as any;
 
 /**
- * MediaController ne fait plus que déléguer à MediaService (la logique
- * elle-même — validation tenant, upload/suppression blob, écriture DB,
- * nettoyage des blobs orphelins — est testée dans media.service.spec.ts).
- * Ces tests vérifient uniquement que chaque route appelle la bonne méthode
- * de service avec les bons arguments.
+ * MediaController ne fait que déléguer à MediaService — la logique elle-même
+ * (upload/suppression blob, écriture en base, nettoyage des blobs orphelins)
+ * est couverte par media.service.spec.ts. Ces tests vérifient uniquement que
+ * chaque route appelle la bonne méthode avec les bons arguments.
  */
-describe('MediaController — delegation to MediaService', () => {
+describe('MediaController — délégation à MediaService', () => {
   function buildController() {
     const mediaService = {
       uploadMenuItemImage: jest
@@ -22,14 +20,14 @@ describe('MediaController — delegation to MediaService', () => {
         .fn()
         .mockResolvedValue({ url: 'u', pathname: 'p' }),
       deleteCategoryImage: jest.fn().mockResolvedValue({ message: 'ok' }),
-      uploadTenantLogo: jest
+      uploadRestaurantLogo: jest
         .fn()
         .mockResolvedValue({ url: 'u', pathname: 'p' }),
-      deleteTenantLogo: jest.fn().mockResolvedValue({ message: 'ok' }),
-      uploadTenantBanner: jest
+      deleteRestaurantLogo: jest.fn().mockResolvedValue({ message: 'ok' }),
+      uploadRestaurantBanner: jest
         .fn()
         .mockResolvedValue({ url: 'u', pathname: 'p' }),
-      deleteTenantBanner: jest.fn().mockResolvedValue({ message: 'ok' }),
+      deleteRestaurantBanner: jest.fn().mockResolvedValue({ message: 'ok' }),
     };
     return {
       controller: new MediaController(mediaService as any),
@@ -37,84 +35,87 @@ describe('MediaController — delegation to MediaService', () => {
     };
   }
 
-  it('uploadMenuItemImage delegates with tenantId, id, file, requestId', async () => {
+  it("délègue l'upload d'image de plat", async () => {
     const { controller, mediaService } = buildController();
-    await controller.uploadMenuItemImage(TENANT, 'item-1', FILE, REQ);
+
+    await controller.uploadMenuItemImage('item-1', FILE, REQ);
+
     expect(mediaService.uploadMenuItemImage).toHaveBeenCalledWith(
-      'tenant-1',
       'item-1',
       FILE,
       'req-1',
     );
   });
 
-  it('deleteMenuItemImage delegates with tenantId, id, requestId', async () => {
+  it("délègue la suppression d'image de plat", async () => {
     const { controller, mediaService } = buildController();
-    await controller.deleteMenuItemImage(TENANT, 'item-1', REQ);
+
+    await controller.deleteMenuItemImage('item-1', REQ);
+
     expect(mediaService.deleteMenuItemImage).toHaveBeenCalledWith(
-      'tenant-1',
       'item-1',
       'req-1',
     );
   });
 
-  it('uploadCategoryImage delegates with tenantId, id, file, requestId', async () => {
+  it("délègue l'upload d'image de catégorie", async () => {
     const { controller, mediaService } = buildController();
-    await controller.uploadCategoryImage(TENANT, 'cat-1', FILE, REQ);
+
+    await controller.uploadCategoryImage('cat-1', FILE, REQ);
+
     expect(mediaService.uploadCategoryImage).toHaveBeenCalledWith(
-      'tenant-1',
       'cat-1',
       FILE,
       'req-1',
     );
   });
 
-  it('deleteCategoryImage delegates with tenantId, id, requestId', async () => {
+  it("délègue la suppression d'image de catégorie", async () => {
     const { controller, mediaService } = buildController();
-    await controller.deleteCategoryImage(TENANT, 'cat-1', REQ);
+
+    await controller.deleteCategoryImage('cat-1', REQ);
+
     expect(mediaService.deleteCategoryImage).toHaveBeenCalledWith(
-      'tenant-1',
       'cat-1',
       'req-1',
     );
   });
 
-  it('uploadTenantLogo delegates with tenantId, current logoPathname, file, requestId', async () => {
+  it("délègue l'upload du logo de l'établissement", async () => {
     const { controller, mediaService } = buildController();
-    await controller.uploadTenantLogo(TENANT, FILE, REQ);
-    expect(mediaService.uploadTenantLogo).toHaveBeenCalledWith(
-      'tenant-1',
-      'old-logo.jpg',
+
+    await controller.uploadRestaurantLogo(FILE, REQ);
+
+    expect(mediaService.uploadRestaurantLogo).toHaveBeenCalledWith(
       FILE,
       'req-1',
     );
   });
 
-  it('deleteTenantLogo delegates with tenantId, requestId', async () => {
+  it("délègue la suppression du logo de l'établissement", async () => {
     const { controller, mediaService } = buildController();
-    await controller.deleteTenantLogo(TENANT, REQ);
-    expect(mediaService.deleteTenantLogo).toHaveBeenCalledWith(
-      'tenant-1',
-      'req-1',
-    );
+
+    await controller.deleteRestaurantLogo(REQ);
+
+    expect(mediaService.deleteRestaurantLogo).toHaveBeenCalledWith('req-1');
   });
 
-  it('uploadTenantBanner delegates with tenantId, file, requestId', async () => {
+  it("délègue l'upload de la bannière", async () => {
     const { controller, mediaService } = buildController();
-    await controller.uploadTenantBanner(TENANT, FILE, REQ);
-    expect(mediaService.uploadTenantBanner).toHaveBeenCalledWith(
-      'tenant-1',
+
+    await controller.uploadRestaurantBanner(FILE, REQ);
+
+    expect(mediaService.uploadRestaurantBanner).toHaveBeenCalledWith(
       FILE,
       'req-1',
     );
   });
 
-  it('deleteTenantBanner delegates with tenantId, requestId', async () => {
+  it('délègue la suppression de la bannière', async () => {
     const { controller, mediaService } = buildController();
-    await controller.deleteTenantBanner(TENANT, REQ);
-    expect(mediaService.deleteTenantBanner).toHaveBeenCalledWith(
-      'tenant-1',
-      'req-1',
-    );
+
+    await controller.deleteRestaurantBanner(REQ);
+
+    expect(mediaService.deleteRestaurantBanner).toHaveBeenCalledWith('req-1');
   });
 });

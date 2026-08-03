@@ -21,9 +21,9 @@ export async function apiRequest(
 
 export async function loginViaUI(page: Page, email: string, password: string) {
   await page.goto('/auth/login');
-  await page.getByLabel(/email/i).fill(email);
-  await page.getByLabel(/mot de passe/i).fill(password);
-  await page.getByRole('button', { name: /connexion/i }).click();
+  await page.getByLabel('Adresse e-mail', { exact: true }).fill(email);
+  await page.getByLabel('Mot de passe', { exact: true }).fill(password);
+  await page.getByRole('button', { name: /se connecter/i }).click();
 }
 
 export async function waitForAdminDashboard(page: Page) {

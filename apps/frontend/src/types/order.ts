@@ -3,14 +3,27 @@ export type DashboardOrderStatus = "pending" | "preparing" | "ready" | "served" 
 
 export type OrderType = "dine_in" | "takeaway" | "delivery";
 
+/**
+ * Option retenue sur une ligne de commande, telle que figée au moment de la
+ * commande. Le libellé est conservé même si l'option change ensuite sur la
+ * carte : c'est ce qui a réellement été commandé.
+ */
+export interface OrderItemOption {
+  groupName: string;
+  optionName: string;
+  priceDelta: number;
+}
+
 export interface OrderItem {
   id: string;
   orderId: string;
   menuItemId: string | null;
   name: string;
   quantity: number;
+  /** Prix unitaire options comprises. */
   price: number;
   image?: string | null;
+  options?: OrderItemOption[] | null;
 }
 
 export interface CustomerInfo {

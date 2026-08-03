@@ -20,6 +20,19 @@ export const orderItemSchema = z.object({
   quantity: z.number().min(1),
   price: z.number().min(0),
   image: z.string().optional(),
+  // Options et suppléments retenus. Le serveur revalide la sélection et
+  // relit chaque prix en base : ce qui part d'ici n'est qu'une intention.
+  selectedOptionIds: z.array(z.string()).optional(),
+  // Libellés conservés pour l'affichage du récapitulatif avant envoi.
+  options: z
+    .array(
+      z.object({
+        groupName: z.string(),
+        optionName: z.string(),
+        priceDelta: z.number(),
+      }),
+    )
+    .optional(),
 });
 
 export const createOrderSchema = z.object({

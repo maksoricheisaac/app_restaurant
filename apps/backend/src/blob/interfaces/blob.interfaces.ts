@@ -2,8 +2,8 @@ export type BlobUploadContext =
   | 'menu-items'
   | 'categories'
   | 'avatars'
-  | 'tenant-logo'
-  | 'tenant-banner';
+  | 'restaurant-logo'
+  | 'restaurant-banner';
 
 export interface UploadedBlob {
   url: string;
@@ -15,7 +15,6 @@ export interface UploadedBlob {
 export interface UploadImageParams {
   buffer: Buffer;
   mimeType: string;
-  tenantId: string;
   context: BlobUploadContext;
 }
 

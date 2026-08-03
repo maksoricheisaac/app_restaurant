@@ -1,15 +1,15 @@
 import { useAuth } from '@/contexts/AuthContext';
 
-export type UserRole = 'admin' | 'manager' | 'user';
+export type UserRole = 'owner' | 'manager' | 'waiter' | 'chef' | 'cashier';
 
 export function useRole() {
   const { user, isLoading } = useAuth();
   
   const role = user?.role as UserRole | undefined;
   
-  const isAdmin = role === 'admin';
+  const isOwner = role === 'owner';
   const isManager = role === 'manager';
-  const isAdminOrManager = isAdmin || isManager;
+  const isOwnerOrManager = isOwner || isManager;
   
   const hasRole = (requiredRole: UserRole | UserRole[]): boolean => {
     if (!role) return false;
@@ -21,16 +21,16 @@ export function useRole() {
     return role === requiredRole;
   };
   
-  const hasPermission = (permission: 'read' | 'write' | 'admin'): boolean => {
+  const hasPermission = (permission: 'read' | 'write' | 'owner'): boolean => {
     if (!role) return false;
     
     switch (permission) {
-      case 'admin':
-        return isAdmin;
+      case 'owner':
+        return isOwner;
       case 'write':
-        return isAdminOrManager;
+        return isOwnerOrManager;
       case 'read':
-        return isAdminOrManager; // Les utilisateurs normaux n'ont pas accès aux données admin
+        return isOwnerOrManager; // Les utilisateurs normaux n'ont pas accès aux données admin
       default:
         return false;
     }
@@ -40,15 +40,15 @@ export function useRole() {
     user,
     role,
     isLoading,
-    isAdmin,
+    isOwner,
     isManager,
-    isAdminOrManager,
+    isOwnerOrManager,
     hasRole,
     hasPermission,
     // Helpers pour des vérifications courantes
-    canAccessAdmin: isAdminOrManager,
-    canModifySettings: isAdmin,
-    canViewReports: isAdminOrManager,
-    canManageUsers: isAdmin,
+    canAccessAdmin: isOwnerOrManager,
+    canModifySettings: isOwner,
+    canViewReports: isOwnerOrManager,
+    canManageUsers: isOwner,
   };
 } 

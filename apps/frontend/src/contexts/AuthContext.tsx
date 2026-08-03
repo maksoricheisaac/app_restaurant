@@ -8,11 +8,9 @@ export interface User {
   name: string;
   firstName?: string;
   lastName?: string;
-  role?: string | null; // Membership role: owner, manager, waiter, etc.
-  platformRole?: 'super_admin' | 'support' | 'user' | string;
-  tenantId?: string | null;
+  /** owner | manager | waiter | chef | cashier */
+  role?: string | null;
   image?: string | null;
-  onboardingCompleted?: boolean;
 }
 
 interface AuthContextType {
@@ -33,45 +31,21 @@ async function apiFetch(path: string, init?: RequestInit) {
 }
 
 /**
- * Synchronise le `tenantId` de session (httpOnly cookie via /api/session +
- * localStorage pour l'api-client). AuthContext ne gère QUE le tenantId : il le
- * connaît de façon fiable depuis le profil / la réponse de login.
- *
- * Le `tenantSlug` est délibérément géré par TenantContext (source de vérité
- * unique, via persistTenant après résolution du tenant). Historiquement,
- * AuthContext passait `tenantSlug=null` en dur ici, ce qui effaçait le slug
- * fraîchement posé par TenantContext à chaque checkAuth/login/setUser — bug
- * corrigé en ne touchant plus du tout au slug.
- *
- * /api/session (POST) ne pose/écrase un cookie que s'il est présent dans le
- * body : n'envoyer que `tenantId` laisse donc le cookie `tenantSlug` intact.
+ * Le cookie httpOnly `session` n'est qu'un drapeau lu par le middleware pour
+ * son contrôle optimiste. L'authentification réelle repose sur le cookie
+ * `token` posé par le backend, et le rôle effectif est relu en base à chaque
+ * requête — le client ne détient aucune information de droits.
  */
-async function setSessionCookies(tenantId?: string | null): Promise<void> {
-  if (typeof window !== 'undefined') {
-    if (tenantId) {
-      localStorage.setItem('tenantId', tenantId);
-    } else {
-      localStorage.removeItem('tenantId');
-    }
-  }
-
+async function setSessionFlag(): Promise<void> {
   try {
-    await fetch('/api/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ tenantId: tenantId ?? undefined }),
-    });
-  } catch { /* non-blocking */ }
+    await fetch('/api/session', { method: 'POST' });
+  } catch { /* non bloquant */ }
 }
 
-async function clearSessionCookies(): Promise<void> {
-  if (typeof window !== 'undefined') {
-    localStorage.removeItem('tenantId');
-    localStorage.removeItem('tenantSlug');
-  }
+async function clearSessionFlag(): Promise<void> {
   try {
     await fetch('/api/session', { method: 'DELETE' });
-  } catch { /* non-blocking */ }
+  } catch { /* non bloquant */ }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -85,30 +59,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         let res = await apiFetch('/auth/profile');
 
         if (res.status === 401) {
-          // Try silent refresh — expected to fail on public pages (no session)
+          // Rafraîchissement silencieux — échoue normalement sur les pages
+          // publiques, où aucune session n'existe.
           const refreshed = await apiFetch('/auth/refresh', { method: 'POST' });
           if (refreshed.ok) {
             res = await apiFetch('/auth/profile');
           } else {
-            // Unauthenticated visitor — not an error, just a public page
-            clearSessionCookies();
+            await clearSessionFlag();
             setUserState(null);
             return;
           }
         }
 
         if (res.ok) {
-          const profile = await res.json();
-          setUserState(profile);
-          // Synchronise le cookie tenantId httpOnly + localStorage (le slug
-          // reste géré par TenantContext).
-          await setSessionCookies(profile?.tenantId);
+          setUserState(await res.json());
+          await setSessionFlag();
         } else {
-          await clearSessionCookies();
+          await clearSessionFlag();
           setUserState(null);
         }
       } catch {
-        // Network error on mount — stay logged out silently
+        // Erreur réseau au montage — on reste déconnecté silencieusement
       } finally {
         setIsLoading(false);
       }
@@ -118,12 +89,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setUser = (u: User | null) => {
     setUserState(u);
-    // Sync httpOnly cookies + localStorage — fire-and-forget
-    if (u) {
-      void setSessionCookies(u.tenantId);
-    } else {
-      void clearSessionCookies();
-    }
+    if (u) void setSessionFlag();
+    else void clearSessionFlag();
   };
 
   const login = async (email: string, password: string): Promise<User> => {
@@ -136,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       if (!response.ok) {
-        // Lire le vrai message d'erreur du backend pour l'afficher à l'utilisateur
+        // Remonter le vrai message du backend plutôt qu'un libellé générique
         const err = await response.json().catch(() => ({}));
         const message = err?.message || 'Identifiants invalides';
         throw new Error(typeof message === 'string' ? message : message[0]);
@@ -145,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json();
       const loggedUser: User = data.user;
       setUserState(loggedUser);
-      await setSessionCookies(loggedUser?.tenantId);
+      await setSessionFlag();
       return loggedUser;
     } finally {
       setIsLoading(false);
@@ -157,11 +124,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await apiFetch('/auth/logout', { method: 'POST' });
     } catch { /* ignore */ }
     setUserState(null);
-    await clearSessionCookies();
-    // Purge tout le cache React Query — sur un appareil partagé (tablette
-    // caisse/cuisine), les données du tenant précédent (commandes, clients,
-    // stats) ne doivent jamais pouvoir s'afficher pour le compte suivant,
-    // même brièvement le temps du premier refetch.
+    await clearSessionFlag();
+    // Purge du cache React Query : sur un appareil partagé (tablette caisse ou
+    // cuisine), les données affichées pour un employé ne doivent jamais
+    // réapparaître, même brièvement, pour le suivant.
     queryClient.clear();
   };
 

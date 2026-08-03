@@ -23,20 +23,21 @@ import {
   Loader2
 } from "lucide-react";
 import { toast } from "sonner";
-import { usePersonnel, useCreateStaff, useUpdateStaff, useDeleteStaff } from "@/hooks/api/usePermissions";
+import { useStaff, useCreateStaff, useUpdateStaff, useRemoveStaff } from "@/hooks/api/useStaff";
 import { generateSecurePassword } from "@/utils/passwordUtils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "@radix-ui/react-alert-dialog";
 import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ROLE_LABELS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from "@/types/permissions";
+import { ROLE_LABELS, OWNER, MANAGER, CHEF, WAITER, CASHIER } from "@/types/permissions";
 
-type StaffRole = "admin" | "owner" | "manager" | "head_chef" | "chef" | "waiter" | "cashier";
+type StaffRole = "owner" | "manager" | "chef" | "waiter" | "cashier";
 
+// Le propriétaire figure ici pour l'affichage des badges. Il n'est pas
+// assignable : le backend rejette « owner » sur la création comme sur la
+// modification — ce rôle ne change que par le transfert de propriété.
 const roles = [
-  { value: ADMIN, label: ROLE_LABELS[ADMIN], color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200" },
   { value: OWNER, label: ROLE_LABELS[OWNER], color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
   { value: MANAGER, label: ROLE_LABELS[MANAGER], color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  { value: HEAD_CHEF, label: ROLE_LABELS[HEAD_CHEF], color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
   { value: CHEF, label: ROLE_LABELS[CHEF], color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   { value: WAITER, label: ROLE_LABELS[WAITER], color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   { value: CASHIER, label: ROLE_LABELS[CASHIER], color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" }
@@ -61,16 +62,16 @@ export function PersonnelManagement() {
 
   // Chargements des données
 
-  const { data: personnelData, isLoading: personnelLoading } = usePersonnel();
+  const { data: personnelData, isLoading: personnelLoading } = useStaff();
   const createMutation = useCreateStaff();
   const updateMutation = useUpdateStaff();
-  const deleteMutation = useDeleteStaff();
+  const deleteMutation = useRemoveStaff();
 
   const personnel: any[] = (personnelData as any)?.data ?? personnelData ?? [];
 
   const stats = {
     total: personnel.length,
-    active: personnel.filter((p: any) => p.user?.status !== 'inactive').length,
+    active: personnel.filter((p: any) => p.status !== 'inactive').length,
     byRole: personnel.reduce((acc: Record<string, number>, p: any) => {
       const role = p.role ?? 'unknown';
       acc[role] = (acc[role] ?? 0) + 1;
@@ -90,7 +91,7 @@ export function PersonnelManagement() {
     meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
     },
   })
 
@@ -105,7 +106,7 @@ export function PersonnelManagement() {
     meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
     },
   })
 
@@ -134,7 +135,7 @@ export function PersonnelManagement() {
     meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
       queryClient.invalidateQueries({ queryKey: ["stats-data"] });
     },
   });
@@ -164,7 +165,7 @@ export function PersonnelManagement() {
     meta: { skipGlobalErrorToast: true },
     onSettled: () => {
       // Rafraîchir immédiatement les données
-      queryClient.invalidateQueries({ queryKey: ["personnel-data"] });
+      queryClient.invalidateQueries({ queryKey: ["staff"] });
       queryClient.invalidateQueries({ queryKey: ["stats-data"] });
     },
   });

@@ -4,16 +4,10 @@ import { ReactNode } from 'react';
 import { SocketProvider } from '@/components/providers/SocketProvider';
 
 /**
- * Client wrapper that provides the Socket.io context to the admin layout tree.
- * Lives outside the Server Component boundary so the SocketProvider (which uses
- * useEffect) can be mounted correctly.
+ * Frontière client qui fournit le contexte Socket.io à l'arbre
+ * d'administration. Vit hors du Server Component pour que SocketProvider
+ * (qui utilise useEffect) puisse être monté correctement.
  */
-export function AdminSocketWrapper({
-  children,
-  tenantId,
-}: {
-  children: ReactNode;
-  tenantId?: string;
-}) {
-  return <SocketProvider tenantId={tenantId}>{children}</SocketProvider>;
+export function AdminSocketWrapper({ children }: { children: ReactNode }) {
+  return <SocketProvider>{children}</SocketProvider>;
 }

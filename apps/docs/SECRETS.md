@@ -67,7 +67,6 @@ avec un commentaire expliquant pourquoi c'est sûr.
 | `MENU_SESSION_SECRET` | HMAC anti-flood des sessions de commande publiques | Sessions de commande en cours invalidées |
 | `BLOB_READ_WRITE_TOKEN` | Accès Vercel Blob (upload médias) | Aucun impact utilisateur, juste re-déploiement |
 | `SENTRY_DSN` | Reporting d'erreurs | Aucun impact fonctionnel |
-| `REDIS_URL` / `REDIS_PASSWORD` | Rate limiting distribué, idempotence webhooks, Socket.io adapter | Voir `docs/adr/005-redis-scaling-strategy.md` |
-| `PAYMENT_PROVIDER` + secrets par provider | Voir `docs/adr/004-billing-architecture.md` (architecture agnostique) | Dépend du provider actif |
+| `REDIS_URL` / `REDIS_PASSWORD` | Rate limiting distribué, idempotence, adaptateur Socket.io | Voir `docs/adr/005-redis-scaling-strategy.md` |
 | `SMTP_*` | Envoi d'emails (auth, notifications) | Aucun impact sur les sessions |
-| `SEED_ADMIN_PASSWORD` / `SEED_MANAGER_PASSWORD` | Comptes de seed (dev/test uniquement) | Jamais utilisé en production |
+| `SEED_OWNER_PASSWORD` / `SEED_MANAGER_PASSWORD` | Comptes de seed (dev/test uniquement) — en production le propriétaire est créé par l'assistant `/setup` | Jamais utilisé en production |

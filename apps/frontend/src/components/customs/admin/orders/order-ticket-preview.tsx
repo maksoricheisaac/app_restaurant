@@ -18,8 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Order, OrderStatus, OrderType } from "@/types/order";
-import { useTenant } from "@/contexts/TenantContext";
-import { useSettings } from "@/hooks/api/useSettings";
+import { useRestaurant } from "@/hooks/api/useRestaurant";
 import QRCode from "qrcode";
 
 interface OrderTicketPreviewProps {
@@ -40,8 +39,7 @@ export function OrderTicketPreview({
 }: OrderTicketPreviewProps) {
   const [paperWidth, setPaperWidth] = useState<"57" | "80">("80");
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
-  const { tenant } = useTenant();
-  const { data: settings } = useSettings();
+  const { data: restaurant } = useRestaurant();
   
   // Générer le QR code
   useEffect(() => {
@@ -80,13 +78,13 @@ export function OrderTicketPreview({
         statusLabels: statusLabels as Record<string, string>,
         typeLabels: typeLabels as Record<string, string>,
         fileName: `commande_${order.id}.pdf`,
-        restaurant: tenant ? {
-          name:         tenant.name,
-          logoUrl:      tenant.logo,
-          primaryColor: tenant.primaryColor,
-          phone:        (settings as any)?.phone ?? null,
-          email:        (settings as any)?.email ?? null,
-          address:      (settings as any)?.address ?? null,
+        restaurant: restaurant ? {
+          name:         restaurant.name,
+          logoUrl:      restaurant.logo,
+          primaryColor: restaurant.primaryColor,
+          phone:        (restaurant as any)?.phone ?? null,
+          email:        (restaurant as any)?.email ?? null,
+          address:      (restaurant as any)?.address ?? null,
         } : undefined,
       });
       onClose();
@@ -124,16 +122,16 @@ export function OrderTicketPreview({
           {/* En-tête du ticket */}
           <Card className="border-2 border-gray-300 bg-white shadow-lg">
             <CardHeader className="text-center pb-3 pt-6">
-              {tenant?.logo && (
+              {restaurant?.logo && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={tenant.logo} alt={tenant.name} className="h-14 w-14 object-contain rounded-xl mx-auto mb-3" />
+                <img src={restaurant.logo} alt={restaurant.name} className="h-14 w-14 object-contain rounded-xl mx-auto mb-3" />
               )}
               <CardTitle className="text-2xl font-bold text-black mb-1">
-                {tenant?.name ?? 'Votre Restaurant'}
+                {restaurant?.name ?? 'Votre Restaurant'}
               </CardTitle>
-              {((settings as any)?.phone || (settings as any)?.address) && (
+              {((restaurant as any)?.phone || (restaurant as any)?.address) && (
                 <p className="text-xs text-gray-500">
-                  {[(settings as any)?.phone, (settings as any)?.address].filter(Boolean).join(' • ')}
+                  {[(restaurant as any)?.phone, (restaurant as any)?.address].filter(Boolean).join(' • ')}
                 </p>
               )}
               <p className="text-base text-black font-normal mt-1">--- Ticket de Commande ---</p>
@@ -167,7 +165,16 @@ export function OrderTicketPreview({
                 <div className="border-t border-dashed border-gray-400 pt-3 space-y-3">
                   {order.orderItems.map((item) => (
                     <div key={item.id} className="flex justify-between items-start text-sm text-black">
-                      <span className="font-normal flex-1">{item.quantity} x {item.name}</span>
+                      <span className="font-normal flex-1">
+                        {item.quantity} x {item.name}
+                        {item.options && item.options.length > 0 && (
+                          <span className="block text-xs text-gray-600">
+                            {item.options
+                              .map((o) => `${o.groupName} : ${o.optionName}`)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </span>
                       <span className="font-bold ml-4">{formatAmountForPdf(item.price * item.quantity)} FCFA</span>
                     </div>
                   ))}

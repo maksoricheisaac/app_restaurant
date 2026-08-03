@@ -19,22 +19,41 @@ export enum OrderType {
 }
 
 export class OrderItemDto {
-  @IsString()
-  @IsNotEmpty()
-  name: string;
-
   @IsNumber()
   @Min(1)
   quantity: number;
 
-  // Price is accepted from internal staff (POS) but validated in service against DB
-  @IsNumber()
-  @Min(0)
-  price: number;
-
   @IsOptional()
   @IsUUID()
   menuItemId?: string;
+
+  /**
+   * Options et suppléments retenus, tous groupes confondus. Le service
+   * revalide `required`/`minSelect`/`maxSelect` et relit chaque `priceDelta`
+   * en base — la sélection du poste de caisse n'est pas crue sur parole.
+   */
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
+  selectedOptionIds?: string[];
+
+  /**
+   * Libellé d'un article hors carte. Ignoré dès que `menuItemId` est fourni :
+   * le nom faisant foi est alors celui de la carte.
+   */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  /**
+   * Prix d'un article hors carte. Ignoré dès que `menuItemId` est fourni :
+   * le prix est alors systématiquement relu en base.
+   */
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  price?: number;
 
   @IsOptional()
   @IsString()

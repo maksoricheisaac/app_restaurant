@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useSocialLinks, useUpdateSocialLinks } from "@/hooks/api/useSettings";
+import { useRestaurant, useUpdateSocialLinks } from "@/hooks/api/useRestaurant";
 import { SocialLinksSchema } from "@/schemas/admin-schemas";
 
 export function SocialLinksForm() {
@@ -25,12 +25,17 @@ export function SocialLinksForm() {
     },
   });
 
-  const { data: socialData } = useSocialLinks();
+  const { data: socialData } = useRestaurant();
   const updateMutation = useUpdateSocialLinks();
 
   useEffect(() => {
     if (socialData) {
-      form.reset(socialData);
+      form.reset({
+        facebookUrl:  socialData.facebookUrl  ?? "",
+        instagramUrl: socialData.instagramUrl ?? "",
+        twitterUrl:   socialData.twitterUrl   ?? "",
+        youtubeUrl:   socialData.youtubeUrl   ?? "",
+      });
     }
   }, [socialData, form]);
 

@@ -8,7 +8,6 @@ import { CartProvider } from "@/contexts/CartContext";
 import { QueryProvider } from "./tanstack-query-provider";
 import { StructuredData } from "@/components/seo/structured-data";
 import { AuthProvider } from "@/contexts/AuthContext";
-import { TenantProvider } from "@/contexts/TenantContext";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -17,8 +16,7 @@ const inter = Inter({
 });
 
 // Fraunces — serif éditorial variable (chaleureux, premium) réservé aux grands
-// titres. C'est la signature typographique qui distingue Flash Menu des SaaS
-// génériques tout-Inter. `opsz`/`SOFT` adoucissent le rendu pour l'hospitalité.
+// titres. `opsz`/`SOFT` adoucissent le rendu pour l'hospitalité.
 const fraunces = Fraunces({
   subsets: ["latin"],
   display: 'swap',
@@ -28,8 +26,8 @@ const fraunces = Fraunces({
 });
 
 export const metadata: Metadata = {
-  title: "Flash Menu - SaaS de Gestion Restaurant",
-  description: "Digitalisez votre restaurant avec Flash Menu",
+  title: "Flash Menu",
+  description: "Le logiciel de gestion du restaurant",
 };
 
 export default function RootLayout({
@@ -58,19 +56,17 @@ export default function RootLayout({
         >
           <QueryProvider>
             <AuthProvider>
-              <TenantProvider>
-                <CartProvider>
-                  <ErrorBoundary>
+              <CartProvider>
+                <ErrorBoundary>
                   {children}
-                  </ErrorBoundary>
-                  <Toaster 
-                    position="top-right"
-                    richColors
-                    closeButton
-                    duration={4000}
-                  />
-                </CartProvider>
-              </TenantProvider>
+                </ErrorBoundary>
+                <Toaster
+                  position="top-right"
+                  richColors
+                  closeButton
+                  duration={4000}
+                />
+              </CartProvider>
             </AuthProvider>
           </QueryProvider>
         </ThemeProvider>

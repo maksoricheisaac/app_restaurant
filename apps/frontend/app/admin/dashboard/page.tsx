@@ -13,13 +13,12 @@ import {
   DashboardOrdersSection
 } from "@/components/admin/dashboard";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
-import { PlanUsageCard } from "@/components/admin/PlanUsageCard";
 import { Permission } from "@/types/permissions";
 import { useDashboardStats, useLatestOrders } from "@/hooks/api/useDashboard";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { SetupBanner } from "@/components/admin/setup-banner";
 import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
-import { useTenantCurrency } from "@/hooks/useTenantCurrency";
+import { useRestaurantCurrency } from "@/hooks/api/useRestaurant";
 
 export default function AdminDashboard() {
   const queryClient = useQueryClient();
@@ -32,7 +31,7 @@ export default function AdminDashboard() {
   const [isTicketPreviewOpen, setIsTicketPreviewOpen] = useState(false);
 
   const updateOrderMutation = useUpdateOrderStatus();
-  const formatCurrency = useTenantCurrency();
+  const formatCurrency = useRestaurantCurrency();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
@@ -109,8 +108,6 @@ export default function AdminDashboard() {
         statsData={statsData}
         isLoading={isLoadingStats}
       />
-
-      <PlanUsageCard />
 
       <DashboardOrdersSection
         viewMode={viewMode}

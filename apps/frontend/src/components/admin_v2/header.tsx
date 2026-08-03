@@ -21,20 +21,12 @@ const PAGE_TITLES: Record<string, string> = {
   '/admin/messages':             'Messages',
   '/admin/reservations':         'Réservations',
   '/admin/reports':              'Rapports',
-  '/admin/billing':              'Abonnement',
   '/admin/settings':             'Paramètres',
   '/admin/settings/permissions': 'Permissions',
   '/admin/support':              'Support',
   '/admin/onboarding':           'Configuration initiale',
   // Super Admin
   '/super-admin/dashboard':      'Vue d\'ensemble',
-  '/super-admin/tenants':        'Restaurants',
-  '/super-admin/users':          'Utilisateurs',
-  '/super-admin/billing':        'Facturation',
-  '/super-admin/plans':          'Abonnements',
-  '/super-admin/settings':       'Paramètres globaux',
-  '/super-admin/maintenance':    'Maintenance',
-  '/super-admin/domains':        'Domaines',
 }
 
 interface HeaderProps extends React.HTMLAttributes<HTMLElement> {

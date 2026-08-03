@@ -12,7 +12,6 @@
 
 interface ErrorContext {
   userId?: string;
-  tenantId?: string;
   context?: string;
   extra?: Record<string, unknown>;
 }
@@ -38,7 +37,6 @@ export const monitoring = {
           event: 'frontend_error',
           message: err.message,
           userId: ctx?.userId,
-          tenantId: ctx?.tenantId,
           context: ctx?.context,
         }),
       );
@@ -48,7 +46,6 @@ export const monitoring = {
     // import * as Sentry from '@sentry/nextjs';
     // Sentry.withScope((scope) => {
     //   if (ctx?.userId) scope.setUser({ id: ctx.userId });
-    //   if (ctx?.tenantId) scope.setTag('tenantId', ctx.tenantId);
     //   if (ctx?.context) scope.setTag('context', ctx.context);
     //   if (ctx?.extra) scope.setExtras(ctx.extra);
     //   Sentry.captureException(err);
@@ -62,7 +59,7 @@ export const monitoring = {
     // Sentry.addBreadcrumb({ category: ctx.category, message: ctx.message, level: ctx.level, data: ctx.data });
   },
 
-  setUser(user: { id: string; email: string; tenantId?: string } | null): void {
+  setUser(user: { id: string; email: string } | null): void {
     if (isDev) {
       console.debug('[monitoring] setUser', user?.id ?? 'logout');
     }

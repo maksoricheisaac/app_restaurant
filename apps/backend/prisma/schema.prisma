@@ -7,197 +7,113 @@ datasource db {
   provider = "postgresql"
 }
 
-// --- CORE SAAS MODELS ---
+// ─────────────────────────────────────────────────────────────────────────────
+// LOGICIEL MONO-ÉTABLISSEMENT
+//
+// Cette base décrit UN SEUL restaurant. Il n'y a plus de notion de tenant, de
+// plan, d'abonnement ni de quota : toute ligne de toute table appartient, par
+// construction, à l'unique établissement décrit par le modèle `Restaurant`.
+//
+// Conséquence directe : aucune table ne porte de colonne de cloisonnement.
+// Une requête n'a plus jamais besoin d'être « scopée » — l'oubli d'un filtre
+// de sécurité, principale classe de bugs de l'ancienne architecture, devient
+// structurellement impossible.
+// ─────────────────────────────────────────────────────────────────────────────
 
-model Tenant {
-  id           String       @id @default(uuid())
-  name         String
-  // Pas de @unique ici : l'unicité réelle est un index unique PARTIEL
-  // (WHERE "deletedAt" IS NULL) créé en SQL brut dans une migration, pour
-  // qu'un tenant soft-deleted libère son slug/ses identifiants de paiement
-  // au lieu de les squatter indéfiniment. Voir migration
-  // add_tenant_soft_delete_partial_unique_constraints.
-  slug         String       // Utilisé pour {slug}.flashmenu.app
-  // Clé du plan (Plan.key) — plus une enum figée : les plans sont désormais
-  // pilotés par les données (table Plan), administrables depuis le Super Admin.
-  // Couplage lâche par clé (pas de FK dure) pour qu'un plan puisse être
-  // désactivé/soft-deleted sans bloquer les tenants qui y sont rattachés.
-  plan         String       @default("free")
-  status       TenantStatus @default(active)
-  logo             String?
-  logoPathname     String?   // Blob pathname for cleanup on replace/delete
-  bannerUrl        String?   // Public URL (Vercel Blob)
-  bannerPathname   String?   // Internal blob pathname for delete/replace
-  primaryColor String   @default("#f97316")
-  country      String?
-  currency     String   @default("EUR")
-  timezone     String   @default("Europe/Paris")
-  cuisineType  String?
-  onboardingCompleted Boolean @default(false)
-
-  // Fournisseur de paiement agnostique — voir apps/backend/src/payments.
-  // paymentProvider identifie quel PaymentProvider a créé l'abonnement
-  // (ex: "moneroo", "stripe"...) afin de pouvoir router les opérations
-  // ultérieures (statut, annulation) vers le bon provider.
-  paymentProvider             String?
-  // Idem slug : unicité imposée par un index partiel WHERE "deletedAt" IS NULL.
-  paymentCustomerId           String?
-  paymentSubscriptionId       String?
-  subscriptionStatus    String?   // active | past_due | canceled | trialing | unpaid
-  subscriptionCurrentPeriodEnd DateTime?
-  gracePeriodEndsAt     DateTime? // paid grace after payment failure (3 days)
-
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime? // Soft delete — la suppression physique d'un tenant est interdite
-
-  // Relations métier
-  memberships         TenantMembership[]
-  membershipInvites   MembershipInvite[]
-  users               User[]
-  customers           Customer[]
-  orders              Order[]
-  menuItems           MenuItem[]
-  menuCategories      MenuCategory[]
-  tables              Table[]
-  reservations        Reservation[]
-  ingredients         Ingredient[]
-  recipes             Recipe[]
-  stockMovements      StockMovement[]
-  payments            Payment[]
-  transactions        Transaction[]
-  cashRegisterSessions CashRegisterSession[]
-  deliveryZones       DeliveryZone[]
-  openingHours        OpeningHours[]
-  exceptionalClosures ExceptionalClosure[]
-  settings            RestaurantSettings[]
-  messages            Message[]
-  reports             Report[]
-  featureFlags        FeatureFlag[]
-  domains             Domain[]
-  rolePermissions     RolePermission[]
-  userPermissions     UserPermission[]
-
-  @@index([slug])
-  @@index([deletedAt])
-}
-
-/// Plan d'abonnement piloté par les données. Source de vérité UNIQUE des
-/// prix, limites, features et méta-marketing des offres. Administrable
-/// entièrement depuis le Super Admin (CRUD). Tenant.plan référence `key`.
+/// Identité, configuration et paramétrage de l'unique établissement.
 ///
-/// Convention limites : `-1` = illimité. Le backend convertit vers le
-/// sentinel applicatif (UNLIMITED) au moment de la lecture.
-model Plan {
-  id           String  @id @default(uuid())
-  key          String  @unique // 'free' | 'pro' | 'enterprise' | clé custom
-  name         String
-  tagline      String?
-  description  String?
+/// Singleton strict : la colonne `id` est verrouillée par une contrainte SQL
+/// CHECK (id = 'restaurant') posée en migration. Toute tentative d'insérer un
+/// second établissement échoue au niveau de la base, pas seulement du code.
+model Restaurant {
+  id String @id @default("restaurant")
 
-  monthlyPrice Int     @default(0) // unités majeures de la devise (ex: euros)
-  annualPrice  Int     @default(0)
-  currency     String  @default("EUR")
+  // ── Identité ──────────────────────────────────────────────────────────────
+  name        String
+  slogan      String?
+  description String?
+  cuisineType String?
 
-  // Limites (-1 = illimité)
-  maxMenuItems     Int @default(-1)
-  maxTables        Int @default(-1)
-  maxStaffMembers  Int @default(-1)
-  maxMonthlyOrders Int @default(-1)
+  logo           String? // URL publique (Vercel Blob)
+  logoPathname   String? // Chemin interne blob, pour suppression/remplacement
+  bannerUrl      String?
+  bannerPathname String?
+  primaryColor   String  @default("#f97316")
 
-  // Fonctionnalités : map extensible { kds, advancedReports, apiAccess,
-  // multiSite, customBranding, ... }. JSON pour ajouter une feature sans
-  // migration de schéma.
-  features   Json     @default("{}")
-  highlights String[] // arguments marketing (page pricing / onboarding)
+  // ── Coordonnées ───────────────────────────────────────────────────────────
+  phone   String?
+  email   String?
+  address String?
+  website String?
 
-  badge     String? // ex: "Le plus populaire"
-  isActive  Boolean @default(true) // souscriptible / applique ses limites
-  isPublic  Boolean @default(true) // visible pricing + onboarding
-  sortOrder Int     @default(0)
+  // ── Localisation ──────────────────────────────────────────────────────────
+  country  String?
+  currency String @default("EUR")
+  timezone String @default("Europe/Paris")
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime? // Soft delete — un plan référencé n'est jamais supprimé physiquement
+  // ── Réseaux sociaux ───────────────────────────────────────────────────────
+  facebookUrl  String?
+  instagramUrl String?
+  twitterUrl   String?
+  youtubeUrl   String?
 
-  @@index([isActive, isPublic])
-  @@index([deletedAt])
+  // ── Service & prise de commande ───────────────────────────────────────────
+  dineInEnabled        Boolean @default(true)
+  takeawayEnabled      Boolean @default(true)
+  deliveryEnabled      Boolean @default(true)
+  maxOrdersPerHour     Int     @default(10)
+  maxOrdersPerUserHour Int     @default(3)
+  maxReservationGuests Int     @default(20)
+  maxDaysInAdvance     Int     @default(30)
+
+  // ── Caisse ────────────────────────────────────────────────────────────────
+  /// Méthode proposée par défaut à l'encaissement.
+  defaultPaymentMethod PaymentMethod @default(cash)
+  /// Taux de TVA appliqué, en pourcentage (ex. 20 = 20 %).
+  taxRate              Decimal       @default(0)
+  /// true = les prix du menu sont TTC, false = HT (taxe ajoutée à l'encaissement).
+  taxIncluded          Boolean       @default(true)
+  /// Exige l'ouverture d'une session de caisse avant tout encaissement espèces.
+  requireCashSession   Boolean       @default(true)
+  /// Fond de caisse proposé par défaut à l'ouverture de session.
+  defaultOpeningFloat  Decimal       @default(0)
+
+  // ── Impression ────────────────────────────────────────────────────────────
+  /// Nom de l'imprimante ticket (tel que déclaré par le poste de caisse).
+  receiptPrinterName String?
+  /// Nom de l'imprimante cuisine. Null = même imprimante que les tickets.
+  kitchenPrinterName String?
+  /// Largeur du papier en millimètres (58 ou 80 sur la quasi-totalité des
+  /// imprimantes thermiques du marché).
+  receiptPaperWidth  Int     @default(80)
+  receiptHeader      String?
+  receiptFooter      String?
+  autoPrintReceipt   Boolean @default(false)
+  /// Envoi automatique du bon de préparation en cuisine à la validation.
+  autoPrintKitchenTicket Boolean @default(true)
+
+  // ── Première installation ─────────────────────────────────────────────────
+  /// Passe à true à la fin de l'assistant de première installation. Une fois
+  /// true, l'assistant ne réapparaît jamais.
+  setupCompleted   Boolean   @default(false)
+  setupCompletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
-model TenantMembership {
-  id          String   @id @default(uuid())
-  tenantId    String
-  userId      String
-  role        String // owner, manager, waiter, head_chef, chef, cashier
-  permissions String[] // Override optionnel de permissions
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+// ─────────────────────────────────────────────────────────────────────────────
+// ÉQUIPE & ACCÈS
+// ─────────────────────────────────────────────────────────────────────────────
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tenantId])
-  @@index([tenantId])
-}
-
-/// Invitation d'un employé n'ayant pas encore de compte FlashMenu. Suit le
-/// même patron que RefreshToken/emailVerificationToken : seul le hash
-/// SHA-256 du jeton est stocké, le jeton brut n'existe que dans le lien
-/// envoyé par email. Si l'email invité correspond déjà à un compte existant,
-/// MembershipsService.invite() garde le chemin rapide historique (ajout
-/// immédiat) sans passer par cette table.
-model MembershipInvite {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  email     String
-  role      String
-  tokenHash String       @unique
-  status    InviteStatus @default(pending)
-
-  invitedBy     String
-  invitedByUser User     @relation("InviteInvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
-
-  expiresAt  DateTime
-  acceptedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([tenantId])
-  @@index([tenantId, status])
-  @@index([email])
-}
-
-enum InviteStatus {
-  pending
-  accepted
-  declined
-  revoked
-  expired
-}
-
-model Domain {
-  id       String  @id @default(uuid())
-  domain   String  @unique
-  tenantId String
-  verified Boolean @default(false)
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-}
-
-model FeatureFlag {
-  id       String  @id @default(uuid())
-  tenantId String
-  key      String
-  enabled  Boolean @default(false)
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([tenantId, key])
-  @@index([tenantId])
-}
-
+/// Membre de l'équipe. Le rôle est porté directement par l'utilisateur : il
+/// n'existe qu'un établissement, donc au plus un rôle par personne. C'est ce
+/// qui a permis de supprimer la table de liaison TenantMembership et, avec
+/// elle, une requête SQL sur chaque appel authentifié.
+///
+/// Valeurs autorisées de `role` : owner | manager | waiter | chef | cashier.
+/// Contrainte CHECK posée en migration (voir StaffRole dans
+/// src/common/constants/staff-roles.constant.ts).
 model User {
   id            String  @id @default(uuid())
   name          String
@@ -208,40 +124,118 @@ model User {
   password      String
   image         String?
   phone         String?
-  status        UserStatus   @default(active)
-  platformRole  PlatformRole @default(user)
 
-  // Onboarding : seul l'état « terminé » est persisté. Les données du wizard
-  // (restaurant, plan…) ne touchent la base qu'à la finalisation, dans une
-  // transaction unique (voir OnboardingService.completeOnboarding).
-  onboardingCompleted Boolean @default(false)
+  status UserStatus @default(active)
+  role   String     @default("waiter")
 
-  emailVerificationToken   String?   @unique
-  emailVerificationExpiry  DateTime?
+  emailVerificationToken  String?   @unique
+  emailVerificationExpiry DateTime?
 
-  passwordResetToken       String?   @unique
-  passwordResetExpiry      DateTime?
-
-  // Relation multi-tenant
-  tenantId    String? // Dernier tenant accédé ou tenant principal
-  tenant      Tenant?            @relation(fields: [tenantId], references: [id])
-  memberships TenantMembership[]
+  passwordResetToken  String?   @unique
+  passwordResetExpiry DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders          Order[]
-  payments        Payment[]
-  reservations    Reservation[]
-  stockMovements  StockMovement[]
-  transactions    Transaction[]
-  userPermissions UserPermission[]
-  refreshTokens   RefreshToken[]
+  orders             Order[]
+  payments           Payment[]
+  reservations       Reservation[]
+  stockMovements     StockMovement[]
+  transactions       Transaction[]
+  userPermissions    UserPermission[]
+  refreshTokens      RefreshToken[]
   cashSessionsOpened CashRegisterSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashRegisterSession[] @relation("CashSessionClosedBy")
-  invitesSent        MembershipInvite[]    @relation("InviteInvitedBy")
+  invitesSent        StaffInvite[]        @relation("InviteInvitedBy")
+  auditLogs          AuditLog[]
 
-  @@index([tenantId])
+  @@index([role])
+}
+
+/// Piste d'audit des opérations sensibles : qui a fait quoi, sur quoi, quand,
+/// et avec quel résultat.
+///
+/// Écrite en base et non plus seulement dans les journaux applicatifs — un
+/// fichier de log tourne, n'est pas interrogeable et ne survit pas à un
+/// redéploiement. C'est le socle des exigences d'inaltérabilité de la
+/// comptabilité (phase 4) : la table est en écriture seule côté application,
+/// aucun service n'expose de mise à jour ni de suppression.
+///
+/// Aucune contrainte d'unicité : deux actions identiques à la même
+/// milliseconde sont deux faits distincts, tous deux à conserver.
+model AuditLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  /// Auteur. Null pour un appel anonyme (parcours client public).
+  /// `onDelete: SetNull` : la suppression d'un compte ne doit jamais effacer
+  /// la trace de ce qu'il a fait — d'où la dénormalisation ci-dessous.
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Identité recopiée au moment du fait : survit à la suppression du compte.
+  userEmail String?
+  userRole  String?
+
+  /// Action métier normalisée : « payment.process », « order.update_status »…
+  action String
+  /// Nature et identifiant de l'objet touché, quand ils sont identifiables.
+  entity   String?
+  entityId String?
+
+  method     String
+  path       String
+  statusCode Int
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  durationMs Int?
+
+  /// État avant / après, pour les actions qui modifient une donnée sensible.
+  /// Renseignés par les services qui connaissent réellement ces deux états ;
+  /// pour une création, seul `after` a un sens.
+  before Json?
+  after  Json?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
+}
+
+/// Invitation d'un employé n'ayant pas encore de compte. Seul le hash SHA-256
+/// du jeton est stocké ; le jeton brut n'existe que dans le lien envoyé par
+/// email.
+///
+/// Unicité supplémentaire non exprimable en Prisma : un index unique PARTIEL
+/// sur (email) WHERE status='pending' garantit qu'une adresse n'a jamais deux
+/// invitations en attente — voir StaffInvite_one_pending_per_email_key dans la
+/// migration single_restaurant.
+model StaffInvite {
+  id String @id @default(uuid())
+
+  email     String
+  role      String
+  tokenHash String       @unique
+  status    InviteStatus @default(pending)
+
+  invitedBy     String
+  invitedByUser User   @relation("InviteInvitedBy", fields: [invitedBy], references: [id], onDelete: Cascade)
+
+  expiresAt  DateTime
+  acceptedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([status])
+  @@index([email])
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  declined
+  revoked
+  expired
 }
 
 model RefreshToken {
@@ -257,10 +251,31 @@ model RefreshToken {
   @@index([userId, usedAt])
 }
 
+/// Permissions par défaut d'un rôle. Une ligne par rôle.
+model RolePermission {
+  id          String       @id @default(uuid())
+  role        String       @unique
+  permissions Permission[]
+}
+
+/// Dérogation individuelle : accorde (granted=true) ou retire (granted=false)
+/// une permission à un utilisateur, par-dessus les permissions de son rôle.
+model UserPermission {
+  id         String     @id @default(uuid())
+  userId     String
+  permission Permission
+  granted    Boolean    @default(true)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLIENTS
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Customer {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id String @id @default(uuid())
 
   name         String?
   email        String?
@@ -269,43 +284,19 @@ model Customer {
   externalId   String? // google id
   isAnonymous  Boolean @default(false)
 
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
   deletedAt DateTime? // Soft delete
 
   orders Order[]
 
-  @@index([tenantId])
   @@index([email])
-  @@index([tenantId, deletedAt])
+  @@index([deletedAt])
 }
 
-model RestaurantSettings {
-  id       String @id @default(uuid())
-  tenantId String @unique
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  name                 String
-  phone                String?
-  email                String?
-  address              String?
-  description          String?
-  website              String?
-  logo                 String?
-
-  deliveryEnabled      Boolean @default(true)
-  takeawayEnabled      Boolean @default(true)
-  dineInEnabled        Boolean @default(true)
-  maxOrdersPerHour     Int     @default(10)
-  maxOrdersPerUserHour Int     @default(3)
-  maxReservationGuests Int     @default(20)
-  maxDaysInAdvance     Int     @default(30)
-
-  facebookUrl          String?
-  instagramUrl         String?
-  twitterUrl           String?
-  youtubeUrl           String?
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// SALLE
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Table {
   id       String      @id @default(uuid())
@@ -313,29 +304,24 @@ model Table {
   seats    Int
   location String?
   status   TableStatus @default(available)
-  tenantId String
-  tenant   Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  deletedAt DateTime? // Soft delete — unicité (tenantId, number) gérée applicativement
+  deletedAt DateTime? // Soft delete — unicité de `number` gérée par index partiel
 
   orders       Order[]
   reservations Reservation[]
 
-  // Contrainte unique retirée au profit d'un index simple + vérification applicative
-  // pour permettre le soft delete (un nouveau numéro peut remplacer un table supprimée)
-  @@index([tenantId, number])
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
+  // Unicité réelle : index unique PARTIEL sur (number) WHERE "deletedAt" IS NULL,
+  // créé en SQL brut — une table supprimée libère son numéro.
+  @@index([number])
+  @@index([deletedAt])
 }
 
 model Reservation {
-  id       String            @id @default(uuid())
-  date     DateTime
-  time     String?
-  guests   Int?
-  status   ReservationStatus @default(pending)
-  tenantId String
-  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id     String            @id @default(uuid())
+  date   DateTime
+  time   String?
+  guests Int?
+  status ReservationStatus @default(pending)
 
   customerName String?
   email        String?
@@ -348,52 +334,50 @@ model Reservation {
   table Table? @relation(fields: [tableId], references: [id])
   user  User?  @relation(fields: [userId], references: [id])
 
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
-  @@index([tenantId, date]) // Filtrage par date (dashboard, liste des réservations)
+  @@index([deletedAt])
+  @@index([date])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CARTE
+// ─────────────────────────────────────────────────────────────────────────────
 
 model MenuCategory {
   id            String    @id @default(uuid())
   name          String
-  tenantId      String
-  imageUrl      String?   // Public URL (Vercel Blob)
-  imagePathname String?   // Internal blob pathname for delete/replace
-  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  deletedAt     DateTime? // Soft delete
+  imageUrl      String?
+  imagePathname String?
+  deletedAt     DateTime?
 
   items MenuItem[]
 
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
+  @@index([deletedAt])
 }
 
 model MenuItem {
   id            String       @id @default(uuid())
   name          String
   description   String?
-  price         Decimal      // Decimal pour éviter les erreurs d'arrondi sur les prix
-  image         String?      // Public URL (Vercel Blob) — aliased as imageUrl
-  imagePathname String?      // Internal blob pathname for delete/replace
+  price         Decimal // Decimal pour éviter les erreurs d'arrondi sur les prix
+  image         String? // URL publique (Vercel Blob) — exposée comme imageUrl
+  imagePathname String?
   available     Boolean      @default(true)
-  tenantId      String
-  tenant        Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   categoryId    String
   category      MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  deletedAt     DateTime?    // Soft delete
+  deletedAt     DateTime?
 
   orderItems   OrderItemsOnOrders[]
   recipes      Recipe[]
   optionGroups MenuItemOptionGroup[]
 
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
+  @@index([categoryId])
+  @@index([deletedAt])
 }
 
 /// Groupe d'options d'un plat (ex. « Cuisson », « Suppléments »).
 /// - required + minSelect : force un choix minimal (ex. cuisson obligatoire).
-/// - maxSelect : 1 = choix unique (radio), >1 = multi borné, 0 = illimité (checkbox).
-/// La validation required/min/max est TOUJOURS refaite côté serveur à la commande.
+/// - maxSelect : 1 = choix unique (radio), >1 = multi borné, 0 = illimité.
+/// La validation required/min/max est TOUJOURS refaite côté serveur.
 model MenuItemOptionGroup {
   id         String   @id @default(uuid())
   menuItemId String
@@ -413,24 +397,28 @@ model MenuItemOptionGroup {
   @@index([menuItemId, deletedAt])
 }
 
-/// Option individuelle au sein d'un groupe. priceDelta s'ajoute (ou se retranche)
-/// au prix du plat. Le prix réel facturé est TOUJOURS relu en base au moment de
-/// la commande, jamais fait confiance au client.
+/// Option individuelle au sein d'un groupe. `priceDelta` s'ajoute (ou se
+/// retranche) au prix du plat. Le prix réel facturé est TOUJOURS relu en base
+/// au moment de la commande, jamais fait confiance au client.
 model MenuItemOption {
   id      String              @id @default(uuid())
   groupId String
   group   MenuItemOptionGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  name      String
-  priceDelta Decimal @default(0) // Decimal pour précision financière
-  available Boolean @default(true)
-  sortOrder Int     @default(0)
+  name       String
+  priceDelta Decimal @default(0)
+  available  Boolean @default(true)
+  sortOrder  Int     @default(0)
 
-  deletedAt DateTime? // Soft delete
+  deletedAt DateTime?
 
   @@index([groupId])
   @@index([groupId, deletedAt])
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMANDES
+// ─────────────────────────────────────────────────────────────────────────────
 
 model Order {
   id        String      @id @default(uuid())
@@ -438,8 +426,6 @@ model Order {
   updatedAt DateTime    @updatedAt
   status    OrderStatus @default(pending)
   type      OrderType   @default(dine_in)
-  tenantId  String
-  tenant    Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   userId     String?
   customerId String?
@@ -447,12 +433,12 @@ model Order {
 
   deliveryZoneId  String?
   deliveryAddress String?
-  deliveryFee     Decimal? // Decimal pour précision financière
-  total           Decimal? // Decimal pour précision financière
+  deliveryFee     Decimal?
+  total           Decimal?
   ipAddress       String?
   specialNotes    String?
 
-  deletedAt DateTime? // Soft delete — protège l'historique des commandes (comptabilité)
+  deletedAt DateTime? // Soft delete — protège l'historique (comptabilité)
 
   user           User?                @relation(fields: [userId], references: [id])
   customer       Customer?            @relation(fields: [customerId], references: [id])
@@ -463,10 +449,9 @@ model Order {
   stockMovements StockMovement[]
   transactions   Transaction[]
 
-  @@index([tenantId])
-  @@index([tenantId, status])    // Filtrage par statut (dashboard, KDS)
-  @@index([tenantId, createdAt]) // Comptage mensuel quota + rapports
-  @@index([tenantId, deletedAt]) // Exclusion soft-delete
+  @@index([status]) // KDS, tableau de bord
+  @@index([createdAt]) // Rapports, historique
+  @@index([deletedAt])
 }
 
 model OrderItemsOnOrders {
@@ -477,72 +462,76 @@ model OrderItemsOnOrders {
   price      Decimal // Snapshot du prix (plat + options) au moment de la commande
   name       String
   image      String?
-  // Snapshot des options choisies : [{ groupName, optionName, priceDelta }].
-  // Figé à la commande pour rester lisible même si l'option est modifiée/supprimée.
+  /// Snapshot des options choisies : [{ groupName, optionName, priceDelta }].
+  /// Figé à la commande pour rester lisible même si l'option change ensuite.
   options    Json?
 
   order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CAISSE
+// ─────────────────────────────────────────────────────────────────────────────
+
 model Payment {
-  id        String        @id @default(uuid())
-  orderId   String        @unique
-  tenantId  String
-  tenant    Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  amount    Decimal       // Decimal pour précision financière
+  id      String @id @default(uuid())
+  orderId String @unique
+
+  amount    Decimal
   method    PaymentMethod
   status    PaymentStatus @default(completed)
   cashierId String
-  // Session de caisse ouverte au moment du paiement, si une l'était — sert
-  // à la réconciliation de fermeture de session. Nullable : un paiement
-  // reste valide même sans session ouverte (carte/en ligne, ou tenant qui
-  // n'utilise pas le cycle de session).
+
+  /// Session de caisse ouverte au moment du paiement, si une l'était — sert à
+  /// la réconciliation de fermeture. Nullable : un paiement carte/en ligne
+  /// reste valide sans session ouverte.
   cashSessionId String?
   cashSession   CashRegisterSession? @relation(fields: [cashSessionId], references: [id])
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
 
-  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  // Restrict : empêche la suppression d'un caissier s'il a des paiements historiques
-  cashier User  @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@index([tenantId])
-  @@index([tenantId, createdAt]) // Filtrage par période (clôture de caisse)
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Restrict : empêche la suppression d'un caissier ayant des paiements historiques
+  cashier User @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt]) // Clôture de caisse, rapports
   @@index([cashSessionId])
 }
 
-/// Cycle de vie d'une session de caisse : ouverture (fond de caisse initial),
+/// Cycle de vie d'une session de caisse : ouverture (fond de caisse),
 /// activité (paiements liés via Payment.cashSessionId), fermeture avec
-/// réconciliation (montant compté vs attendu). Un seul index PARTIEL
-/// (WHERE status='open') garantit qu'un tenant n'a jamais deux sessions
-/// ouvertes simultanément — voir migration add_cash_register_session.
+/// réconciliation (compté vs attendu).
+///
+/// Un index unique PARTIEL (WHERE status='open') garantit qu'il n'existe
+/// jamais deux sessions ouvertes simultanément.
 model CashRegisterSession {
-  id       String            @id @default(uuid())
-  tenantId String
-  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  status   CashSessionStatus @default(open)
+  id     String            @id @default(uuid())
+  status CashSessionStatus @default(open)
 
-  openedBy     String
-  openedByUser User     @relation("CashSessionOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
-  openedAt     DateTime @default(now())
+  openedBy      String
+  openedByUser  User     @relation("CashSessionOpenedBy", fields: [openedBy], references: [id], onDelete: Restrict)
+  openedAt      DateTime @default(now())
   openingAmount Decimal // Fond de caisse initial (espèces)
 
-  closedBy      String?
-  closedByUser  User?     @relation("CashSessionClosedBy", fields: [closedBy], references: [id], onDelete: Restrict)
-  closedAt      DateTime?
-  // Montant compté physiquement dans le tiroir à la fermeture
+  closedBy     String?
+  closedByUser User?     @relation("CashSessionClosedBy", fields: [closedBy], references: [id], onDelete: Restrict)
+  closedAt     DateTime?
+  /// Montant compté physiquement dans le tiroir à la fermeture
   closingAmount Decimal?
-  // openingAmount + total des paiements cash de la session (calculé à la fermeture)
+  /// openingAmount + total des paiements espèces de la session
   expectedAmount Decimal?
-  // closingAmount - expectedAmount : positif = surplus, négatif = manque
+  /// closingAmount - expectedAmount : positif = surplus, négatif = manque
   variance       Decimal?
   notes          String?
 
   payments Payment[]
 
-  @@index([tenantId])
-  @@index([tenantId, status])
+  @@index([status])
+  @@index([openedAt])
 }
 
 enum CashSessionStatus {
@@ -550,152 +539,10 @@ enum CashSessionStatus {
   closed
 }
 
-model Ingredient {
-  id       String @id @default(uuid())
-  name     String
-  unit     String
-  stock    Float  @default(0)   // Quantité en stock (mesure physique, Float suffisant)
-  price    Decimal?             // Prix d'achat (Decimal pour précision financière)
-  minStock Float?               // Seuil d'alerte (mesure physique)
-  supplier String?
-  isActive Boolean @default(true)
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  deletedAt DateTime?           // Soft delete
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  stockMovements StockMovement[]
-  recipes        Recipe[]
-
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
-}
-
-model Recipe {
-  id           String @id @default(uuid())
-  // Dénormalisé depuis menuItem.tenantId : sans cette colonne, tout
-  // scoping tenant sur Recipe exige une jointure imbriquée via menuItem,
-  // ce qui rend trivial d'oublier le filtre dans une future requête.
-  tenantId     String
-  menuItemId   String
-  ingredientId String
-  quantity     Float  // Quantité de l'ingrédient dans la recette (mesure physique)
-
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
-  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
-
-  @@unique([menuItemId, ingredientId])
-  @@index([tenantId])
-}
-
-model Message {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  customerName String
-  email        String
-  phone        String?
-  subject      String?
-  message      String
-  read         Boolean       @default(false)
-  status       MessageStatus @default(new)
-  createdAt    DateTime      @default(now())
-  deletedAt    DateTime?     // Soft delete
-
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
-  @@index([tenantId, status])  // perf: filter by status per tenant
-}
-
-model Report {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  title     String
-  type      String
-  createdAt DateTime @default(now())
-
-  @@index([tenantId])
-}
-
-model RolePermission {
-  id          String       @id @default(uuid())
-  tenantId    String
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  role        String
-  permissions Permission[]
-
-  @@unique([tenantId, role])
-}
-
-model UserPermission {
-  id         String     @id @default(uuid())
-  userId     String
-  tenantId   String
-  permission Permission
-  granted    Boolean    @default(true)
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant     Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, tenantId, permission])
-  @@index([tenantId])
-}
-
-model DeliveryZone {
-  id       String @id @default(uuid())
-  tenantId String
-  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-
-  name         String
-  description  String?
-  price        Decimal  // Decimal pour précision financière
-  minOrder     Decimal? // Decimal pour précision financière
-  deliveryTime Int?
-  isActive     Boolean  @default(true)
-  polygon      String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  deletedAt    DateTime? // Soft delete
-
-  orders Order[]
-
-  @@index([tenantId])
-  @@index([tenantId, deletedAt])
-}
-
-model OpeningHours {
-  id        String    @id @default(uuid())
-  tenantId  String
-  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  dayOfWeek DayOfWeek
-  openTime  String
-  closeTime String
-  isClosed  Boolean   @default(false)
-
-  @@unique([tenantId, dayOfWeek])
-}
-
-model ExceptionalClosure {
-  id       String   @id @default(uuid())
-  tenantId String
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  date     DateTime
-  reason   String?
-
-  @@index([tenantId])
-}
-
 model Transaction {
   id          String          @id @default(uuid())
-  tenantId    String
-  tenant      Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   type        TransactionType
-  amount      Decimal         // Decimal pour précision financière
+  amount      Decimal
   method      PaymentMethod
   description String?
   cashierId   String
@@ -703,18 +550,53 @@ model Transaction {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  // Restrict : empêche la suppression d'un caissier s'il a des transactions historiques
+  // Restrict : empêche la suppression d'un caissier ayant des transactions historiques
   cashier User   @relation(fields: [cashierId], references: [id], onDelete: Restrict)
   order   Order? @relation(fields: [orderId], references: [id])
 
-  @@index([tenantId])
-  @@index([tenantId, createdAt]) // Filtrage par période (dashboard, rapports)
+  @@index([createdAt])
+  @@index([orderId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STOCK
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Ingredient {
+  id        String    @id @default(uuid())
+  name      String
+  unit      String
+  stock     Float     @default(0) // Quantité en stock (mesure physique)
+  price     Decimal? // Prix d'achat (Decimal pour précision financière)
+  minStock  Float? // Seuil d'alerte
+  supplier  String?
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  stockMovements StockMovement[]
+  recipes        Recipe[]
+
+  @@index([deletedAt])
+}
+
+model Recipe {
+  id           String @id @default(uuid())
+  menuItemId   String
+  ingredientId String
+  quantity     Float // Quantité de l'ingrédient dans la recette
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  menuItem   MenuItem   @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+
+  @@unique([menuItemId, ingredientId])
+  @@index([ingredientId])
 }
 
 model StockMovement {
   id           String            @id @default(uuid())
-  tenantId     String
-  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ingredientId String
   type         StockMovementType
   quantity     Float
@@ -727,26 +609,76 @@ model StockMovement {
   user       User?      @relation(fields: [userId], references: [id])
   order      Order?     @relation(fields: [orderId], references: [id])
 
-  @@index([tenantId])
+  @@index([ingredientId])
+  @@index([createdAt])
 }
 
-enum TenantStatus {
-  active
-  suspended
-  trial
-  expired
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVRAISON & HORAIRES
+// ─────────────────────────────────────────────────────────────────────────────
+
+model DeliveryZone {
+  id           String    @id @default(uuid())
+  name         String
+  description  String?
+  price        Decimal
+  minOrder     Decimal?
+  deliveryTime Int?
+  isActive     Boolean   @default(true)
+  polygon      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  orders Order[]
+
+  @@index([deletedAt])
 }
+
+model OpeningHours {
+  id        String    @id @default(uuid())
+  dayOfWeek DayOfWeek @unique
+  openTime  String
+  closeTime String
+  isClosed  Boolean   @default(false)
+}
+
+model ExceptionalClosure {
+  id     String   @id @default(uuid())
+  date   DateTime
+  reason String?
+
+  @@index([date])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMUNICATION & RAPPORTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Message {
+  id           String        @id @default(uuid())
+  customerName String
+  email        String
+  phone        String?
+  subject      String?
+  message      String
+  read         Boolean       @default(false)
+  status       MessageStatus @default(new)
+  createdAt    DateTime      @default(now())
+  deletedAt    DateTime?
+
+  @@index([status])
+  @@index([deletedAt])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ÉNUMÉRATIONS
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum UserStatus {
   active
   inactive
   banned
-}
-
-enum PlatformRole {
-  user
-  support
-  super_admin
 }
 
 enum TableStatus {

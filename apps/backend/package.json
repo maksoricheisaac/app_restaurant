@@ -23,7 +23,7 @@
     "test:integration": "jest --config ./test/jest-integration.json --forceExit",
     "test:e2e:prepare": "npx prisma migrate deploy && ts-node --project tsconfig.json prisma/seed-test.ts",
     "test:e2e:reset": "npx prisma migrate reset --force --skip-generate",
-    "seed-admin": "ts-node prisma/seed-admin.ts",
+    "seed-owner": "ts-node prisma/seed-owner.ts",
     "seed-test": "ts-node --project tsconfig.json prisma/seed-test.ts",
     "db:reset": "ts-node prisma/reset-db.ts"
   },

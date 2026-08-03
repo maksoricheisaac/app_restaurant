@@ -1,14 +1,13 @@
 import {
   Injectable,
-  ForbiddenException,
   BadRequestException,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
-import { PlanLimitService } from '../plans/plans.service';
-import { CustomersService } from '../customers/customers.service';
-import { InventoryService } from '../inventory/inventory.service';
+import { AuditService } from '../common/audit/audit.service';
+import { OrderCreationService } from './order-creation.service';
+import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
@@ -27,19 +26,16 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private eventsService: EventsService,
-    private planLimitService: PlanLimitService,
-    private customersService: CustomersService,
-    private inventoryService: InventoryService,
+    private orderCreation: OrderCreationService,
+    private audit: AuditService,
   ) {}
 
-  async findAll(tenantId: string | undefined, filters: OrderFiltersDto) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findAll(filters: OrderFiltersDto) {
     const { status, type, page = 1, limit = 10 } = filters;
     const skip = (page - 1) * Math.min(limit, 100);
     const take = Math.min(limit, 100);
 
     const where = {
-      tenantId,
       deletedAt: null, // exclure les soft-deleted
       ...(status ? { status } : {}),
       ...(type ? { type } : {}),
@@ -71,10 +67,9 @@ export class OrdersService {
     };
   }
 
-  async findOne(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  findOne(id: string) {
     return this.prisma.order.findFirst({
-      where: { id, tenantId, deletedAt: null },
+      where: { id, deletedAt: null },
       include: {
         orderItems: true,
         table: true,
@@ -84,134 +79,39 @@ export class OrdersService {
     });
   }
 
-  async create(tenantId: string, data: CreateOrderDto, userId?: string) {
-    // Enforce monthly order quota before accepting the order.
-    await this.planLimitService.assertMonthlyOrderLimit(tenantId);
-
-    const { items, customerName, customerEmail, customerPhone, ...orderData } =
-      data;
-
-    // Auto-upsert customer from order interaction (name/email/phone)
-    let resolvedCustomerId = data.customerId ?? null;
-    if (
-      !resolvedCustomerId &&
-      (customerName || customerEmail || customerPhone)
-    ) {
-      resolvedCustomerId = await this.customersService.upsertFromInteraction({
-        tenantId,
-        name: customerName,
-        email: customerEmail,
-        phone: customerPhone,
-      });
-    }
-
-    // Re-fetch prices from DB for any item with a menuItemId — never trust client prices.
-    const menuItemIds = items
-      .filter((i) => i.menuItemId)
-      .map((i) => i.menuItemId!);
-    const dbMenuItems =
-      menuItemIds.length > 0
-        ? await this.prisma.menuItem.findMany({
-            where: { id: { in: menuItemIds }, tenantId, deletedAt: null },
-            select: { id: true, name: true, price: true, image: true },
-          })
-        : [];
-
-    const priceMap = new Map(dbMenuItems.map((m) => [m.id, m]));
-
-    // All referenced menuItems must belong to this tenant and be non-deleted.
-    for (const item of items) {
-      if (item.menuItemId && !priceMap.has(item.menuItemId)) {
-        throw new BadRequestException(
-          `Article inconnu ou indisponible: ${item.menuItemId}`,
-        );
-      }
-    }
-
-    const sanitizedItems = items.map((item) => {
-      const db = item.menuItemId ? priceMap.get(item.menuItemId)! : null;
-      return {
+  /**
+   * Prise de commande au comptoir. Adaptateur : traduit le DTO du POS en
+   * entrée canonique et délègue au chemin unique de création, partagé avec
+   * le parcours client public — options et suppléments compris.
+   */
+  create(data: CreateOrderDto, userId?: string) {
+    return this.orderCreation.create({
+      channel: 'pos',
+      type: data.type,
+      items: data.items.map((item) => ({
         menuItemId: item.menuItemId,
-        // Authoritative price from DB when menuItemId is known; staff-supplied price only for
-        // manual/custom items (no menuItemId) in the internal POS flow.
-        price: db ? Number(db.price) : item.price,
-        name: db ? db.name : item.name,
         quantity: item.quantity,
-        image: db ? db.image : item.image,
-      };
+        selectedOptionIds: item.selectedOptionIds,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+      })),
+      tableId: data.tableId,
+      deliveryZoneId: data.deliveryZoneId,
+      deliveryAddress: data.deliveryAddress,
+      deliveryFee: data.deliveryFee,
+      specialNotes: data.specialNotes,
+      customerId: data.customerId,
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      userId,
     });
-
-    const itemsTotal = sanitizedItems.reduce(
-      (sum, i) => sum + i.price * i.quantity,
-      0,
-    );
-    const total = itemsTotal + (data.deliveryFee ?? 0);
-
-    const { order, lowStockWarnings } = await this.prisma.$transaction(
-      async (tx) => {
-        // Un tableId doit appartenir au tenant résolu — sans ce contrôle, un
-        // UUID de table d'un autre restaurant pouvait être attaché à la
-        // commande sans aucune vérification serveur.
-        if (orderData.tableId) {
-          const table = await tx.table.findFirst({
-            where: { id: orderData.tableId, tenantId, deletedAt: null },
-            select: { id: true },
-          });
-          if (!table) {
-            throw new BadRequestException(
-              'Table introuvable pour ce restaurant',
-            );
-          }
-        }
-
-        const createdOrder = await tx.order.create({
-          data: {
-            ...orderData,
-            tenantId,
-            userId,
-            customerId: resolvedCustomerId ?? orderData.customerId,
-            total,
-            orderItems: {
-              create: sanitizedItems.map((item) => ({
-                menuItemId: item.menuItemId,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                image: item.image,
-              })),
-            },
-          },
-          include: { orderItems: true, table: true },
-        });
-
-        // Décrémente le stock des ingrédients (via les recettes définies) —
-        // rejette toute la commande si le stock est insuffisant.
-        const warnings = await this.inventoryService.decrementStockForOrder(
-          tx,
-          tenantId,
-          createdOrder.id,
-          sanitizedItems.map((i) => ({
-            menuItemId: i.menuItemId,
-            quantity: i.quantity,
-          })),
-        );
-
-        return { order: createdOrder, lowStockWarnings: warnings };
-      },
-    );
-
-    this.eventsService.emitToTenant(tenantId, 'new-order', order);
-    for (const warning of lowStockWarnings) {
-      this.eventsService.emitToTenant(tenantId, 'low-stock-alert', warning);
-    }
-
-    return order;
   }
 
-  async findKitchenOrders(tenantId: string) {
+  findKitchenOrders() {
     return this.prisma.order.findMany({
       where: {
-        tenantId,
         status: { in: ['pending', 'preparing'] },
         deletedAt: null,
       },
@@ -226,15 +126,13 @@ export class OrdersService {
   }
 
   async updateStatus(
-    tenantId: string | undefined,
     id: string,
     dto: UpdateOrderStatusDto,
+    actor?: { id: string; email?: string; role?: string },
   ) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-
     // Valider la transition d'état avant mise à jour
     const current = await this.prisma.order.findFirst({
-      where: { id, tenantId, deletedAt: null },
+      where: { id, deletedAt: null },
       select: { status: true },
     });
 
@@ -248,34 +146,47 @@ export class OrdersService {
     }
 
     const order = await this.prisma.order.update({
-      where: { id, tenantId },
+      where: { id },
       data: { status: dto.status },
     });
 
-    this.eventsService.emitToTenant(tenantId, 'order-status-updated', {
+    // Entrée d'audit métier : contrairement au middleware, ce service connaît
+    // l'état antérieur — c'est le seul endroit où `before` peut être exact.
+    this.audit.recordDetached({
+      action: 'order.status_changed',
+      entity: 'order',
+      entityId: id,
+      userId: actor?.id ?? null,
+      userEmail: actor?.email ?? null,
+      userRole: actor?.role ?? null,
+      before: { status: current.status },
+      after: { status: dto.status },
+    });
+
+    this.eventsService.emitToStaff('order-status-updated', {
       id,
       status: dto.status,
     });
-    this.eventsService.emitToRoom(`order-tracking-${id}`, 'status-update', {
+    this.eventsService.emitToOrderTracking(id, 'status-update', {
       status: dto.status,
     });
 
     return order;
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    // Soft-delete : préserve l'historique comptable et les relations (payment, stockMovements)
+  remove(id: string) {
+    // Soft-delete : préserve l'historique comptable et les relations
+    // (paiement, mouvements de stock).
     return this.prisma.order.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
   }
 
   async getTracking(id: string) {
     // findFirst (pas findUnique) : deletedAt n'est pas une clé unique, mais
-    // une commande soft-deleted ne doit plus être trackable publiquement.
-    return this.prisma.order.findFirst({
+    // une commande soft-deleted ne doit plus être suivie publiquement.
+    const order = await this.prisma.order.findFirst({
       where: { id, deletedAt: null },
       select: {
         id: true,
@@ -289,15 +200,6 @@ export class OrdersService {
         deliveryAddress: true,
         table: { select: { number: true } },
         deliveryZone: { select: { name: true, deliveryTime: true } },
-        tenant: {
-          select: {
-            name: true,
-            logo: true,
-            primaryColor: true,
-            currency: true,
-            slug: true,
-          },
-        },
         orderItems: {
           select: {
             id: true,
@@ -310,5 +212,14 @@ export class OrdersService {
         },
       },
     });
+
+    if (!order) return null;
+
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { id: RESTAURANT_ID },
+      select: { name: true, logo: true, primaryColor: true, currency: true },
+    });
+
+    return { ...order, restaurant };
   }
 }

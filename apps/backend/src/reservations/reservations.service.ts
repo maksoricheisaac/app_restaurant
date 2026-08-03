@@ -1,10 +1,11 @@
 import {
   Injectable,
-  ForbiddenException,
   ConflictException,
   BadRequestException,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 import { CustomersService } from '../customers/customers.service';
 import { MailService } from '../mail/mail.service';
 import { CreateReservationDto } from './dto/create-reservation.dto';
@@ -25,12 +26,10 @@ export class ReservationsService {
     private mailService: MailService,
   ) {}
 
-  async findAll(tenantId: string | undefined, filters: any) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findAll(filters: any) {
     const { date, status } = filters;
     return this.prisma.reservation.findMany({
       where: {
-        tenantId,
         deletedAt: null, // exclure les soft-deleted
         ...(date ? { date: new Date(date) } : {}),
         ...(status ? { status } : {}),
@@ -43,13 +42,12 @@ export class ReservationsService {
     });
   }
 
-  async create(tenantId: string, data: CreateReservationDto, userId?: string) {
+  async create(data: CreateReservationDto, userId?: string) {
     const reservation = await this.prisma.$transaction(async (tx) => {
       // Protection contre les doubles réservations sur la même table au même créneau
       if (data.tableId && data.date && data.time) {
         const conflict = await tx.reservation.findFirst({
           where: {
-            tenantId,
             tableId: data.tableId,
             date: new Date(data.date),
             time: data.time,
@@ -65,10 +63,9 @@ export class ReservationsService {
         }
       }
 
-      // Auto-upsert customer from reservation contact details
+      // Rattache ou crée la fiche client depuis les coordonnées saisies
       if (data.customerName || data.email || data.phone) {
         await this.customersService.upsertFromInteraction({
-          tenantId,
           name: data.customerName ?? undefined,
           email: data.email ?? undefined,
           phone: data.phone ?? undefined,
@@ -78,7 +75,6 @@ export class ReservationsService {
       return tx.reservation.create({
         data: {
           ...data,
-          tenantId,
           userId,
           date: new Date(data.date),
         },
@@ -88,13 +84,13 @@ export class ReservationsService {
     // Best-effort, hors transaction : l'échec de l'email ne doit jamais
     // faire échouer la réservation elle-même.
     if (data.email) {
-      const tenant = await this.prisma.tenant.findUnique({
-        where: { id: tenantId },
+      const restaurant = await this.prisma.restaurant.findUnique({
+        where: { id: RESTAURANT_ID },
         select: { name: true },
       });
       void this.mailService.sendReservationConfirmation({
         to: data.email,
-        restaurantName: tenant?.name ?? 'Flash Menu',
+        restaurantName: restaurant?.name ?? 'Le restaurant',
         customerName: data.customerName,
         date: reservation.date.toISOString(),
         time: data.time,
@@ -105,20 +101,14 @@ export class ReservationsService {
     return reservation;
   }
 
-  async updateStatus(
-    tenantId: string | undefined,
-    id: string,
-    dto: UpdateReservationStatusDto,
-  ) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-
+  async updateStatus(id: string, dto: UpdateReservationStatusDto) {
     // Lire l'état actuel pour valider la transition
     const current = await this.prisma.reservation.findFirst({
-      where: { id, tenantId, deletedAt: null },
+      where: { id, deletedAt: null },
       select: { status: true },
     });
 
-    if (!current) throw new ForbiddenException('Réservation introuvable');
+    if (!current) throw new NotFoundException('Réservation introuvable');
 
     const allowed = VALID_RESERVATION_TRANSITIONS[current.status] ?? [];
     if (!allowed.includes(dto.status)) {
@@ -128,15 +118,14 @@ export class ReservationsService {
     }
 
     return this.prisma.reservation.update({
-      where: { id, tenantId },
+      where: { id },
       data: { status: dto.status },
     });
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async remove(id: string) {
     return this.prisma.reservation.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
   }

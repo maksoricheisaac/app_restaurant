@@ -136,8 +136,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       if (requestId) scope.setTag('requestId', requestId);
       scope.setTag('path', request.url);
       scope.setTag('method', request.method);
-      const tenantId = request.headers['x-tenant-id'];
-      if (tenantId) scope.setTag('tenantId', String(tenantId));
       if (user?.id) scope.setUser({ id: user.id, email: user.email });
       Sentry.captureException(error);
     });
@@ -155,7 +153,6 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         method: request.method,
         path: request.url,
         userId: (request as any).user?.id ?? null,
-        tenantId: request.headers['x-tenant-id'] ?? null,
         error: error.message,
         stack: this.isProduction ? undefined : error.stack,
       }),

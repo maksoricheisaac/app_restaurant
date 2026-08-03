@@ -55,13 +55,13 @@ export class MessagesService {
     }
   }
 
-  async findAll(tenantId: string, filters: MessageFilters = {}) {
+  async findAll(filters: MessageFilters = {}) {
     const dateFilter = this.buildDateFilter(filters);
     const statusFilter =
       filters.status && filters.status !== 'all'
         ? { status: filters.status as any }
         : {};
-    const where = { tenantId, ...NOT_DELETED, ...dateFilter, ...statusFilter };
+    const where = { ...NOT_DELETED, ...dateFilter, ...statusFilter };
     const { skip, take, page, limit } = getSkipTake(
       filters.page,
       filters.limit,
@@ -80,22 +80,22 @@ export class MessagesService {
     return toPaginated(data, total, page, limit);
   }
 
-  async findOne(tenantId: string, id: string) {
+  async findOne(id: string) {
     const msg = await this.prisma.message.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
     });
     if (!msg) throw new NotFoundException('Message not found');
     return msg;
   }
 
-  async create(tenantId: string, data: CreateMessageDto) {
+  async create(data: CreateMessageDto) {
     return this.prisma.message.create({
-      data: { ...data, tenantId },
+      data: data,
     });
   }
 
-  async update(tenantId: string, id: string, data: UpdateMessageDto) {
-    await this.findOne(tenantId, id);
+  async update(id: string, data: UpdateMessageDto) {
+    await this.findOne(id);
 
     // Normalize: status → read (backward-compat with frontend sending status:'read')
     const updatePayload: any = { ...data };
@@ -111,8 +111,8 @@ export class MessagesService {
     return this.prisma.message.update({ where: { id }, data: updatePayload });
   }
 
-  async remove(tenantId: string, id: string) {
-    await this.findOne(tenantId, id);
+  async remove(id: string) {
+    await this.findOne(id);
     return this.prisma.message.update({
       where: { id },
       data: { deletedAt: new Date() },

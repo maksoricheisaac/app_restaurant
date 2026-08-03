@@ -1,6 +1,6 @@
 import { LazySection } from "@/components/common/LazySection"
 import { Star, Quote } from "lucide-react"
-import { SectionHeading } from "@/components/customs/public/saas/section-heading"
+import { SectionHeading } from "@/components/customs/public/vitrine/section-heading"
 import { Stagger } from "@/components/motion/stagger"
 
 const TESTIMONIALS = [

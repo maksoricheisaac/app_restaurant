@@ -7,8 +7,9 @@ import { NextResponse } from 'next/server';
  *   POST /api/v1/media/upload/menu-item/:id
  *   POST /api/v1/media/upload/category/:id
  *
- * Direct Vercel Blob uploads from the frontend are forbidden (multi-tenant
- * isolation and image processing require server-side handling).
+ * Les uploads Vercel Blob directs depuis le frontend sont interdits : le
+ * redimensionnement, la conversion WebP et la validation du type réel du
+ * fichier doivent se faire côté serveur.
  */
 export async function POST(): Promise<NextResponse> {
   return NextResponse.json(

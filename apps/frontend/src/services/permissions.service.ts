@@ -1,27 +1,24 @@
 import api from '@/lib/api-client';
 
+/**
+ * Permissions de l'équipe. Le CRUD des membres vit désormais dans
+ * `staff.service` — ce service ne traite plus que les droits.
+ */
 export const permissionsService = {
-  getPersonnel: async () => {
-    return api.get('/permissions/personnel');
-  },
+  getCatalog: async () => api.get('/permissions/catalog'),
 
-  createStaff: async (data: any) => {
-    return api.post('/permissions/staff', data);
-  },
+  getAllRolePermissions: async () => api.get('/permissions/roles'),
+  getRolePermissions: async (role: string) => api.get(`/permissions/roles/${role}`),
+  updateRolePermissions: async (role: string, permissions: string[]) =>
+    api.patch(`/permissions/roles/${role}`, { permissions }),
+  resetRolePermissions: async (role: string) =>
+    api.post(`/permissions/roles/${role}/reset`),
 
-  updateStaff: async (id: string, data: any) => {
-    return api.patch(`/permissions/staff/${id}`, data);
-  },
-
-  deleteStaff: async (id: string) => {
-    return api.delete(`/permissions/staff/${id}`);
-  },
-
-  getRolePermissions: async (role: string) => {
-    return api.get(`/permissions/roles/${role}`);
-  },
-
-  updateRolePermissions: async (role: string, permissions: string[]) => {
-    return api.patch(`/permissions/roles/${role}`, { permissions });
-  },
+  getUserPermissions: async (userId: string) => api.get(`/permissions/users/${userId}`),
+  setUserPermission: async (
+    userId: string,
+    data: { permission: string; granted: boolean },
+  ) => api.patch(`/permissions/users/${userId}`, data),
+  clearUserPermission: async (userId: string, permission: string) =>
+    api.delete(`/permissions/users/${userId}/${permission}`),
 };

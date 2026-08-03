@@ -1,16 +1,10 @@
-import {
-  ForbiddenException,
-  ConflictException,
-  BadRequestException,
-} from '@nestjs/common';
+import { ConflictException, BadRequestException } from '@nestjs/common';
 import { ReservationsService } from './reservations.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const T = 'tenant-1';
 const RES = {
   id: 'res-1',
   date: new Date('2026-06-15'),
-  tenantId: T,
   status: 'pending',
   guests: 4,
 };
@@ -42,45 +36,29 @@ describe('ReservationsService', () => {
       cb(prisma),
     );
     mockMailService.sendReservationConfirmation.mockResolvedValue(undefined);
-    prisma.tenant.findUnique.mockResolvedValue({ name: 'Le Maquis' });
+    prisma.restaurant.findUnique.mockResolvedValue({ name: 'Le Maquis' });
   });
 
   // ─── findAll ──────────────────────────────────────────────────────────────
 
   describe('findAll', () => {
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findAll(undefined, {})).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
-    it('queries reservations for the tenant only (excludes soft-deleted)', async () => {
-      prisma.reservation.findMany.mockResolvedValue([RES]);
-
-      await service.findAll(T, {});
-
-      const call = prisma.reservation.findMany.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
-      expect(call.where.deletedAt).toBe(null);
-    });
-
     it('applies date filter when provided', async () => {
       prisma.reservation.findMany.mockResolvedValue([]);
-      await service.findAll(T, { date: '2026-06-15' });
+      await service.findAll({ date: '2026-06-15' });
       const call = prisma.reservation.findMany.mock.calls[0][0];
       expect(call.where.date).toBeDefined();
     });
 
     it('applies status filter when provided', async () => {
       prisma.reservation.findMany.mockResolvedValue([]);
-      await service.findAll(T, { status: 'confirmed' });
+      await service.findAll({ status: 'confirmed' });
       const call = prisma.reservation.findMany.mock.calls[0][0];
       expect(call.where.status).toBe('confirmed');
     });
 
     it('orders by date ascending', async () => {
       prisma.reservation.findMany.mockResolvedValue([]);
-      await service.findAll(T, {});
+      await service.findAll({});
       const call = prisma.reservation.findMany.mock.calls[0][0];
       expect(call.orderBy).toEqual({ date: 'asc' });
     });
@@ -96,21 +74,11 @@ describe('ReservationsService', () => {
       email: 'alice@test.com',
     };
 
-    it('creates reservation with tenantId', async () => {
-      prisma.reservation.findFirst.mockResolvedValue(null); // no conflict
-      prisma.reservation.create.mockResolvedValue(RES);
-
-      await service.create(T, dto as any);
-
-      const call = prisma.reservation.create.mock.calls[0][0];
-      expect(call.data.tenantId).toBe(T);
-    });
-
     it('converts date string to Date object', async () => {
       prisma.reservation.findFirst.mockResolvedValue(null);
       prisma.reservation.create.mockResolvedValue(RES);
 
-      await service.create(T, dto as any);
+      await service.create(dto as any);
 
       const call = prisma.reservation.create.mock.calls[0][0];
       expect(call.data.date).toBeInstanceOf(Date);
@@ -120,7 +88,7 @@ describe('ReservationsService', () => {
       prisma.reservation.findFirst.mockResolvedValue(null);
       prisma.reservation.create.mockResolvedValue(RES);
 
-      await service.create(T, dto as any, 'user-1');
+      await service.create(dto as any, 'user-1');
 
       const call = prisma.reservation.create.mock.calls[0][0];
       expect(call.data.userId).toBe('user-1');
@@ -136,7 +104,7 @@ describe('ReservationsService', () => {
       // Conflict trouvé en base
       prisma.reservation.findFirst.mockResolvedValue({ id: 'existing-res' });
 
-      await expect(service.create(T, dtoWithTable as any)).rejects.toThrow(
+      await expect(service.create(dtoWithTable as any)).rejects.toThrow(
         ConflictException,
       );
       expect(prisma.reservation.create).not.toHaveBeenCalled();
@@ -147,16 +115,14 @@ describe('ReservationsService', () => {
       prisma.reservation.findFirst.mockResolvedValue(null); // no conflict
       prisma.reservation.create.mockResolvedValue(RES);
 
-      await expect(
-        service.create(T, dtoWithTable as any),
-      ).resolves.toBeDefined();
+      await expect(service.create(dtoWithTable as any)).resolves.toBeDefined();
     });
 
     it('sends a confirmation email when an email address is provided', async () => {
       prisma.reservation.findFirst.mockResolvedValue(null);
       prisma.reservation.create.mockResolvedValue(RES);
 
-      await service.create(T, dto as any);
+      await service.create(dto as any);
 
       expect(mockMailService.sendReservationConfirmation).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -172,7 +138,7 @@ describe('ReservationsService', () => {
       prisma.reservation.findFirst.mockResolvedValue(null);
       prisma.reservation.create.mockResolvedValue(RES);
 
-      await service.create(T, dtoWithoutEmail as any);
+      await service.create(dtoWithoutEmail as any);
 
       expect(
         mockMailService.sendReservationConfirmation,
@@ -183,14 +149,6 @@ describe('ReservationsService', () => {
   // ─── updateStatus ─────────────────────────────────────────────────────────
 
   describe('updateStatus — state machine', () => {
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(
-        service.updateStatus(undefined, 'res-1', {
-          status: 'confirmed',
-        } as any),
-      ).rejects.toThrow(ForbiddenException);
-    });
-
     it('allows valid transition pending → confirmed', async () => {
       prisma.reservation.findFirst.mockResolvedValue({ status: 'pending' });
       prisma.reservation.update.mockResolvedValue({
@@ -198,10 +156,9 @@ describe('ReservationsService', () => {
         status: 'confirmed',
       });
 
-      await service.updateStatus(T, 'res-1', { status: 'confirmed' } as any);
+      await service.updateStatus('res-1', { status: 'confirmed' } as any);
 
       const call = prisma.reservation.update.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
       expect(call.data.status).toBe('confirmed');
     });
 
@@ -212,7 +169,7 @@ describe('ReservationsService', () => {
         status: 'cancelled',
       });
 
-      await service.updateStatus(T, 'res-1', { status: 'cancelled' } as any);
+      await service.updateStatus('res-1', { status: 'cancelled' } as any);
 
       expect(prisma.reservation.update).toHaveBeenCalled();
     });
@@ -221,7 +178,7 @@ describe('ReservationsService', () => {
       prisma.reservation.findFirst.mockResolvedValue({ status: 'confirmed' });
 
       await expect(
-        service.updateStatus(T, 'res-1', { status: 'pending' } as any),
+        service.updateStatus('res-1', { status: 'pending' } as any),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -229,7 +186,7 @@ describe('ReservationsService', () => {
       prisma.reservation.findFirst.mockResolvedValue({ status: 'cancelled' });
 
       await expect(
-        service.updateStatus(T, 'res-1', { status: 'confirmed' } as any),
+        service.updateStatus('res-1', { status: 'confirmed' } as any),
       ).rejects.toThrow(BadRequestException);
     });
   });
@@ -237,23 +194,16 @@ describe('ReservationsService', () => {
   // ─── remove ───────────────────────────────────────────────────────────────
 
   describe('remove — soft-delete', () => {
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.remove(undefined, 'res-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
     it('soft-deletes reservation (sets deletedAt, does NOT call delete)', async () => {
       prisma.reservation.update.mockResolvedValue({
         ...RES,
         deletedAt: new Date(),
       });
 
-      await service.remove(T, 'res-1');
+      await service.remove('res-1');
 
       expect(prisma.reservation.delete).not.toHaveBeenCalled();
       const call = prisma.reservation.update.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
       expect(call.where.id).toBe('res-1');
       expect(call.data.deletedAt).toBeInstanceOf(Date);
     });

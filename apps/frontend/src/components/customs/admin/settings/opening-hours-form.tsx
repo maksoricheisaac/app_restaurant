@@ -15,7 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { useOpeningHours, useUpdateOpeningHours } from "@/hooks/api/useSettings";
+import { useOpeningHours, useUpdateOpeningHours } from "@/hooks/api/useRestaurant";
 import { OpeningHourSchema, DayOfWeek } from "@/schemas/admin-schemas";
 
 // Exceptional closures: backend endpoints not yet implemented — stubbed

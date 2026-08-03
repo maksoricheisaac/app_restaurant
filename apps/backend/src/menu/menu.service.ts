@@ -1,6 +1,5 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlanLimitService } from '../plans/plans.service';
 import { BlobService } from '../blob/blob.service';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
 import { UpdateMenuItemDto } from './dto/update-menu-item.dto';
@@ -12,16 +11,10 @@ const NOT_DELETED = { deletedAt: null };
 export class MenuService {
   constructor(
     private prisma: PrismaService,
-    private planLimitService: PlanLimitService,
     private blobService: BlobService,
   ) {}
 
-  async findAll(
-    tenantId: string | undefined,
-    query: PaginationQueryDto,
-    availableOnly = false,
-  ) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findAll(query: PaginationQueryDto, availableOnly = false) {
     const {
       page = 1,
       limit = 10,
@@ -34,7 +27,6 @@ export class MenuService {
     const skip = (page - 1) * take;
 
     const where: any = {
-      tenantId,
       ...NOT_DELETED,
       ...(availableOnly || query.availableOnly === 'true'
         ? { available: true }
@@ -79,43 +71,32 @@ export class MenuService {
     };
   }
 
-  async findOne(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findOne(id: string) {
     return this.prisma.menuItem.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
       include: { category: true, recipes: { include: { ingredient: true } } },
     });
   }
 
-  async create(tenantId: string, data: CreateMenuItemDto) {
-    await this.planLimitService.assertMenuItemLimit(tenantId);
-    return this.prisma.menuItem.create({
-      data: { ...data, tenantId },
-    });
+  async create(data: CreateMenuItemDto) {
+    return this.prisma.menuItem.create({ data });
   }
 
-  async update(
-    tenantId: string | undefined,
-    id: string,
-    data: UpdateMenuItemDto,
-  ) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async update(id: string, data: UpdateMenuItemDto) {
     return this.prisma.menuItem.update({
-      where: { id, tenantId },
+      where: { id },
       data,
     });
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-
+  async remove(id: string) {
     const item = await this.prisma.menuItem.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
       select: { imagePathname: true },
     });
 
     const result = await this.prisma.menuItem.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
 
@@ -127,9 +108,9 @@ export class MenuService {
     return result;
   }
 
-  async findPublicMenu(tenantId: string) {
+  async findPublicMenu() {
     const categories = await this.prisma.menuCategory.findMany({
-      where: { tenantId, ...NOT_DELETED },
+      where: NOT_DELETED,
       include: {
         items: {
           where: { available: true, ...NOT_DELETED },

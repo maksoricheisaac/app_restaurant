@@ -11,7 +11,6 @@ import {
   CreditCard,
   Blocks,
   ChefHat,
-  Zap,
   Calendar,
   MessageSquare,
 } from 'lucide-react'
@@ -42,7 +41,6 @@ export function getSidebarData(counts: {
             title: 'Cuisine (KDS)',
             url: '/admin/kitchen',
             icon: ChefHat,
-            feature: 'kds',
           },
           {
             title: 'Caisse',
@@ -100,12 +98,6 @@ export function getSidebarData(counts: {
             title: 'Rapports',
             url: '/admin/reports',
             icon: FileBarChart,
-            feature: 'advancedReports',
-          },
-          {
-            title: 'Abonnement',
-            url: '/admin/billing',
-            icon: Zap,
           },
           {
             title: 'Paramètres',

@@ -15,12 +15,9 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { MediaService } from './media.service';
 import { AuthGuard } from '../common/guards/auth.guard';
-import { TenantGuard } from '../common/guards/tenant.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { CurrentTenant } from '../common/decorators/current-tenant.decorator';
 import { MAX_FILE_SIZE_BYTES } from '../blob/constants/blob.constants';
-import type { Tenant } from '@prisma/client';
 import type { Request } from 'express';
 
 const uploadInterceptor = () =>
@@ -41,120 +38,81 @@ function requestIdOf(req: Request): string | undefined {
 }
 
 @Controller('/media')
-@UseGuards(AuthGuard, TenantGuard, RolesGuard)
+@UseGuards(AuthGuard, RolesGuard)
 export class MediaController {
   constructor(private readonly mediaService: MediaService) {}
 
   // ── Menu item image ──────────────────────────────────────────────────────
 
   @Post('/upload/menu-item/:id')
-  @Roles('owner', 'manager', 'head_chef')
+  @Roles('owner', 'manager', 'chef')
   @UseInterceptors(uploadInterceptor())
   uploadMenuItemImage(
-    @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    return this.mediaService.uploadMenuItemImage(
-      tenant.id,
-      id,
-      file,
-      requestIdOf(req),
-    );
+    return this.mediaService.uploadMenuItemImage(id, file, requestIdOf(req));
   }
 
   @Delete('/menu-item/:id/image')
-  @Roles('owner', 'manager', 'head_chef')
-  deleteMenuItemImage(
-    @CurrentTenant() tenant: Tenant,
-    @Param('id') id: string,
-    @Req() req: Request,
-  ) {
-    return this.mediaService.deleteMenuItemImage(
-      tenant.id,
-      id,
-      requestIdOf(req),
-    );
+  @Roles('owner', 'manager', 'chef')
+  deleteMenuItemImage(@Param('id') id: string, @Req() req: Request) {
+    return this.mediaService.deleteMenuItemImage(id, requestIdOf(req));
   }
 
   // ── Category image ───────────────────────────────────────────────────────
 
   @Post('/upload/category/:id')
-  @Roles('owner', 'manager', 'head_chef')
+  @Roles('owner', 'manager', 'chef')
   @UseInterceptors(uploadInterceptor())
   uploadCategoryImage(
-    @CurrentTenant() tenant: Tenant,
     @Param('id') id: string,
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    return this.mediaService.uploadCategoryImage(
-      tenant.id,
-      id,
-      file,
-      requestIdOf(req),
-    );
+    return this.mediaService.uploadCategoryImage(id, file, requestIdOf(req));
   }
 
   @Delete('/category/:id/image')
-  @Roles('owner', 'manager', 'head_chef')
-  deleteCategoryImage(
-    @CurrentTenant() tenant: Tenant,
-    @Param('id') id: string,
-    @Req() req: Request,
-  ) {
-    return this.mediaService.deleteCategoryImage(
-      tenant.id,
-      id,
-      requestIdOf(req),
-    );
+  @Roles('owner', 'manager', 'chef')
+  deleteCategoryImage(@Param('id') id: string, @Req() req: Request) {
+    return this.mediaService.deleteCategoryImage(id, requestIdOf(req));
   }
 
-  // ── Tenant logo ──────────────────────────────────────────────────────────
+  // ── Logo de l'établissement ──────────────────────────────────────────────
 
-  @Post('/upload/tenant-logo')
+  @Post('/upload/restaurant-logo')
   @Roles('owner')
   @UseInterceptors(uploadInterceptor())
-  uploadTenantLogo(
-    @CurrentTenant() tenant: Tenant,
+  uploadRestaurantLogo(
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    return this.mediaService.uploadTenantLogo(
-      tenant.id,
-      (tenant as any).logoPathname ?? null,
-      file,
-      requestIdOf(req),
-    );
+    return this.mediaService.uploadRestaurantLogo(file, requestIdOf(req));
   }
 
-  @Delete('/tenant-logo')
+  @Delete('/restaurant-logo')
   @Roles('owner')
-  deleteTenantLogo(@CurrentTenant() tenant: Tenant, @Req() req: Request) {
-    return this.mediaService.deleteTenantLogo(tenant.id, requestIdOf(req));
+  deleteRestaurantLogo(@Req() req: Request) {
+    return this.mediaService.deleteRestaurantLogo(requestIdOf(req));
   }
 
-  // ── Tenant banner ────────────────────────────────────────────────────────
+  // ── Bannière de l'établissement ──────────────────────────────────────────
 
-  @Post('/upload/tenant-banner')
+  @Post('/upload/restaurant-banner')
   @Roles('owner')
   @UseInterceptors(uploadInterceptor())
-  uploadTenantBanner(
-    @CurrentTenant() tenant: Tenant,
+  uploadRestaurantBanner(
     @UploadedFile(fileValidator) file: Express.Multer.File,
     @Req() req: Request,
   ) {
-    return this.mediaService.uploadTenantBanner(
-      tenant.id,
-      file,
-      requestIdOf(req),
-    );
+    return this.mediaService.uploadRestaurantBanner(file, requestIdOf(req));
   }
 
-  @Delete('/tenant-banner')
+  @Delete('/restaurant-banner')
   @Roles('owner')
-  deleteTenantBanner(@CurrentTenant() tenant: Tenant, @Req() req: Request) {
-    return this.mediaService.deleteTenantBanner(tenant.id, requestIdOf(req));
+  deleteRestaurantBanner(@Req() req: Request) {
+    return this.mediaService.deleteRestaurantBanner(requestIdOf(req));
   }
 }

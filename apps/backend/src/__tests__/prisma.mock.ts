@@ -6,10 +6,9 @@
  */
 
 const PRISMA_MODELS = [
+  'restaurant',
   'user',
-  'tenant',
-  'tenantMembership',
-  'membershipInvite',
+  'staffInvite',
   'menuItem',
   'menuItemOptionGroup',
   'menuItemOption',
@@ -18,7 +17,6 @@ const PRISMA_MODELS = [
   'order',
   'orderItemsOnOrders',
   'refreshToken',
-  'featureFlag',
   'customer',
   'reservation',
   'ingredient',
@@ -30,12 +28,10 @@ const PRISMA_MODELS = [
   'deliveryZone',
   'openingHours',
   'exceptionalClosure',
-  'restaurantSettings',
   'message',
   'report',
   'rolePermission',
   'userPermission',
-  'domain',
 ] as const;
 
 type PrismaModelMock = {

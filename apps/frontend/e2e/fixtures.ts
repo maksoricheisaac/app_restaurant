@@ -6,7 +6,7 @@ export const TEST_CREDENTIALS = {
   owner:   { email: 'owner@test-restaurant.com',   password: 'TestPass@1', role: 'owner' },
   manager: { email: 'manager@test-restaurant.com', password: 'TestPass@1', role: 'manager' },
   waiter:  { email: 'waiter@test-restaurant.com',  password: 'TestPass@1', role: 'waiter' },
-  chef:    { email: 'chef@test-restaurant.com',    password: 'TestPass@1', role: 'head_chef' },
+  chef:    { email: 'chef@test-restaurant.com',    password: 'TestPass@1', role: 'chef' },
   cashier: { email: 'cashier@test-restaurant.com', password: 'TestPass@1', role: 'cashier' },
 };
 
@@ -17,9 +17,9 @@ export const API_BASE = process.env.E2E_API_URL || 'http://localhost:3000/api/v1
 export async function loginAs(page: Page, role: keyof typeof TEST_CREDENTIALS) {
   const creds = TEST_CREDENTIALS[role];
   await page.goto('/auth/login');
-  await page.getByLabel(/email/i).fill(creds.email);
-  await page.getByLabel(/mot de passe/i).fill(creds.password);
-  await page.getByRole('button', { name: /connexion/i }).click();
+  await page.getByLabel('Adresse e-mail', { exact: true }).fill(creds.email);
+  await page.getByLabel('Mot de passe', { exact: true }).fill(creds.password);
+  await page.getByRole('button', { name: /se connecter/i }).click();
   await page.waitForURL('**/admin/**', { timeout: 10_000 });
 }
 

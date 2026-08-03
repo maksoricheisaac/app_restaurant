@@ -12,17 +12,19 @@ import {
 } from './dto/menu-option.dto';
 
 /**
- * CRUD des groupes d'options et options d'un plat, strictement scoping tenant :
- * chaque mutation vérifie que le plat / groupe / option appartient bien au
- * tenant courant avant d'agir (défense en profondeur multi-tenant).
+ * CRUD des groupes d'options et des options d'un plat.
+ *
+ * Chaque mutation vérifie d'abord que le plat / groupe / option visé existe
+ * et n'est pas supprimé, pour renvoyer une 404 explicite plutôt qu'une
+ * erreur Prisma opaque.
  */
 @Injectable()
 export class MenuOptionsService {
   constructor(private readonly prisma: PrismaService) {}
 
   // ── Lecture (éditeur admin) ────────────────────────────────────────────────
-  async listForItem(tenantId: string, menuItemId: string) {
-    await this.assertItem(tenantId, menuItemId);
+  async listForItem(menuItemId: string) {
+    await this.assertItem(menuItemId);
     return this.prisma.menuItemOptionGroup.findMany({
       where: { menuItemId, deletedAt: null },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -36,8 +38,8 @@ export class MenuOptionsService {
   }
 
   // ── Groupes ────────────────────────────────────────────────────────────────
-  async createGroup(tenantId: string, dto: CreateOptionGroupDto) {
-    await this.assertItem(tenantId, dto.menuItemId);
+  async createGroup(dto: CreateOptionGroupDto) {
+    await this.assertItem(dto.menuItemId);
     this.assertMinMax(dto.minSelect, dto.maxSelect);
     return this.prisma.menuItemOptionGroup.create({
       data: {
@@ -51,8 +53,8 @@ export class MenuOptionsService {
     });
   }
 
-  async updateGroup(tenantId: string, id: string, dto: UpdateOptionGroupDto) {
-    await this.assertGroup(tenantId, id);
+  async updateGroup(id: string, dto: UpdateOptionGroupDto) {
+    await this.assertGroup(id);
     this.assertMinMax(dto.minSelect, dto.maxSelect);
     return this.prisma.menuItemOptionGroup.update({
       where: { id },
@@ -66,8 +68,8 @@ export class MenuOptionsService {
     });
   }
 
-  async removeGroup(tenantId: string, id: string) {
-    await this.assertGroup(tenantId, id);
+  async removeGroup(id: string) {
+    await this.assertGroup(id);
     // Soft delete du groupe ET de ses options (préserve les commandes historiques).
     await this.prisma.$transaction([
       this.prisma.menuItemOption.updateMany({
@@ -83,8 +85,8 @@ export class MenuOptionsService {
   }
 
   // ── Options ──────────────────────────────────────────────────────────────
-  async createOption(tenantId: string, dto: CreateOptionDto) {
-    await this.assertGroup(tenantId, dto.groupId);
+  async createOption(dto: CreateOptionDto) {
+    await this.assertGroup(dto.groupId);
     return this.prisma.menuItemOption.create({
       data: {
         groupId: dto.groupId,
@@ -96,8 +98,8 @@ export class MenuOptionsService {
     });
   }
 
-  async updateOption(tenantId: string, id: string, dto: UpdateOptionDto) {
-    await this.assertOption(tenantId, id);
+  async updateOption(id: string, dto: UpdateOptionDto) {
+    await this.assertOption(id);
     return this.prisma.menuItemOption.update({
       where: { id },
       data: {
@@ -109,8 +111,8 @@ export class MenuOptionsService {
     });
   }
 
-  async removeOption(tenantId: string, id: string) {
-    await this.assertOption(tenantId, id);
+  async removeOption(id: string) {
+    await this.assertOption(id);
     await this.prisma.menuItemOption.update({
       where: { id },
       data: { deletedAt: new Date() },
@@ -118,30 +120,26 @@ export class MenuOptionsService {
     return { success: true };
   }
 
-  // ── Garde-fous multi-tenant ────────────────────────────────────────────────
-  private async assertItem(tenantId: string, menuItemId: string) {
+  // ── Garde-fous d'existence ─────────────────────────────────────────────────
+  private async assertItem(menuItemId: string) {
     const item = await this.prisma.menuItem.findFirst({
-      where: { id: menuItemId, tenantId, deletedAt: null },
+      where: { id: menuItemId, deletedAt: null },
       select: { id: true },
     });
     if (!item) throw new NotFoundException('Plat introuvable');
   }
 
-  private async assertGroup(tenantId: string, groupId: string) {
+  private async assertGroup(groupId: string) {
     const group = await this.prisma.menuItemOptionGroup.findFirst({
-      where: { id: groupId, deletedAt: null, menuItem: { tenantId } },
+      where: { id: groupId, deletedAt: null },
       select: { id: true },
     });
     if (!group) throw new NotFoundException("Groupe d'options introuvable");
   }
 
-  private async assertOption(tenantId: string, optionId: string) {
+  private async assertOption(optionId: string) {
     const option = await this.prisma.menuItemOption.findFirst({
-      where: {
-        id: optionId,
-        deletedAt: null,
-        group: { menuItem: { tenantId } },
-      },
+      where: { id: optionId, deletedAt: null },
       select: { id: true },
     });
     if (!option) throw new NotFoundException('Option introuvable');
@@ -154,9 +152,7 @@ export class MenuOptionsService {
       maxSelect > 0 &&
       minSelect > maxSelect
     ) {
-      throw new BadRequestException(
-        'minSelect ne peut pas dépasser maxSelect',
-      );
+      throw new BadRequestException('minSelect ne peut pas dépasser maxSelect');
     }
   }
 }

@@ -13,15 +13,12 @@ import { getSkipTake, toPaginated } from '../common/pagination/paginate';
 export class CashRegisterService {
   constructor(private prisma: PrismaService) {}
 
-  async processPayment(
-    tenantId: string,
-    data: ProcessPaymentDto & { cashierId: string },
-  ) {
+  async processPayment(data: ProcessPaymentDto & { cashierId: string }) {
     const { orderId, amount, method, cashierId } = data;
 
-    // Verify order exists and belongs to this tenant
+    // La commande doit exister et ne pas être supprimée
     const order = await this.prisma.order.findFirst({
-      where: { id: orderId, tenantId, deletedAt: null },
+      where: { id: orderId, deletedAt: null },
       select: { id: true, total: true, status: true },
     });
     if (!order) throw new NotFoundException('Commande introuvable');
@@ -31,14 +28,13 @@ export class CashRegisterService {
       // sert au calcul du montant attendu à la clôture. Un paiement reste
       // valide même sans session ouverte (carte/en ligne notamment).
       const openSession = await tx.cashRegisterSession.findFirst({
-        where: { tenantId, status: 'open' },
+        where: { status: 'open' },
         select: { id: true },
       });
 
       // 1. Create payment
       const payment = await tx.payment.create({
         data: {
-          tenantId,
           orderId,
           amount,
           method,
@@ -59,7 +55,6 @@ export class CashRegisterService {
       // 2. Record sale transaction
       await tx.transaction.create({
         data: {
-          tenantId,
           type: 'sale',
           amount,
           method,
@@ -71,7 +66,7 @@ export class CashRegisterService {
 
       // 3. Mark order as served (terminal paid state)
       await tx.order.update({
-        where: { id: orderId, tenantId },
+        where: { id: orderId },
         data: { status: 'served' },
       });
 
@@ -79,10 +74,9 @@ export class CashRegisterService {
     });
   }
 
-  async getTransactions(tenantId: string, filters: TransactionFiltersDto) {
+  async getTransactions(filters: TransactionFiltersDto) {
     const { dateFrom, dateTo, type, cashierId } = filters;
     const where = {
-      tenantId,
       ...(type ? { type } : {}),
       ...(cashierId ? { cashierId } : {}),
       createdAt: {
@@ -112,11 +106,11 @@ export class CashRegisterService {
     return toPaginated(data, total, page, limit);
   }
 
-  async getBilan(tenantId: string, date: string) {
+  async getBilan(date: string) {
     const start = new Date(`${date}T00:00:00`);
     const end = new Date(`${date}T23:59:59.999`);
 
-    // All payments processed today for this tenant.
+    // Tous les paiements encaissés aujourd'hui.
     //
     // Décision explicite : ce total inclut les paiements dont la commande
     // liée a ensuite été soft-deleted (correction de saisie a posteriori).
@@ -125,7 +119,7 @@ export class CashRegisterService {
     // si la commande associée est archivée ensuite ; c'est cohérent avec
     // le commentaire "protège l'historique comptable" sur Order.deletedAt.
     const payments = await this.prisma.payment.findMany({
-      where: { tenantId, createdAt: { gte: start, lte: end } },
+      where: { createdAt: { gte: start, lte: end } },
       include: { order: { select: { total: true } } },
     });
 
@@ -171,11 +165,10 @@ export class CashRegisterService {
     };
   }
 
-  async getUnpaidOrders(tenantId: string) {
+  async getUnpaidOrders() {
     // Only ready/served orders without payment — pending/preparing aren't collectible yet
     return this.prisma.order.findMany({
       where: {
-        tenantId,
         status: { in: ['ready', 'served'] },
         payment: null,
         deletedAt: null,
@@ -192,14 +185,14 @@ export class CashRegisterService {
 
   // ─── Cash register session lifecycle ─────────────────────────────────────
 
-  async openSession(tenantId: string, userId: string, dto: OpenSessionDto) {
+  async openSession(userId: string, dto: OpenSessionDto) {
     // Backstop applicatif — la vraie garantie contre une double ouverture
     // concurrente est l'index unique partiel (WHERE status='open') posé par
     // la migration add_cash_register_session ; une violation ici remonte en
     // 409 via GlobalExceptionFilter (mapping P2002), même si ce check
     // applicatif est contourné par une race.
     const existing = await this.prisma.cashRegisterSession.findFirst({
-      where: { tenantId, status: 'open' },
+      where: { status: 'open' },
       select: { id: true },
     });
     if (existing) {
@@ -210,7 +203,6 @@ export class CashRegisterService {
 
     return this.prisma.cashRegisterSession.create({
       data: {
-        tenantId,
         openedBy: userId,
         openingAmount: dto.openingAmount,
         notes: dto.notes,
@@ -221,18 +213,18 @@ export class CashRegisterService {
     });
   }
 
-  async getCurrentSession(tenantId: string) {
+  async getCurrentSession() {
     return this.prisma.cashRegisterSession.findFirst({
-      where: { tenantId, status: 'open' },
+      where: { status: 'open' },
       include: {
         openedByUser: { select: { id: true, name: true } },
       },
     });
   }
 
-  async closeSession(tenantId: string, userId: string, dto: CloseSessionDto) {
+  async closeSession(userId: string, dto: CloseSessionDto) {
     const session = await this.prisma.cashRegisterSession.findFirst({
-      where: { tenantId, status: 'open' },
+      where: { status: 'open' },
     });
     if (!session) {
       throw new NotFoundException(
@@ -249,7 +241,7 @@ export class CashRegisterService {
     const variance = dto.closingAmount - expectedAmount;
 
     return this.prisma.cashRegisterSession.update({
-      where: { id: session.id, tenantId },
+      where: { id: session.id },
       data: {
         status: 'closed',
         closedBy: userId,
@@ -266,9 +258,9 @@ export class CashRegisterService {
     });
   }
 
-  async getSessionHistory(tenantId: string, page?: number, limit?: number) {
+  async getSessionHistory(page?: number, limit?: number) {
     const { skip, take, page: p, limit: l } = getSkipTake(page, limit);
-    const where = { tenantId, status: 'closed' as const };
+    const where = { status: 'closed' as const };
 
     const [data, total] = await Promise.all([
       this.prisma.cashRegisterSession.findMany({

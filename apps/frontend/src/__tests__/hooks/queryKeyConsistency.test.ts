@@ -36,8 +36,6 @@ vi.mock('@/services/dashboard.service', () => ({
   dashboardService: {
     getStats: vi.fn(),
     getLatestOrders: vi.fn(),
-    getPlatformStats: vi.fn(),
-    getTenants: vi.fn(),
   },
 }));
 
@@ -45,8 +43,6 @@ import { useOrders, useOrder, useKitchenOrders } from '@/hooks/api/useOrders';
 import {
   useDashboardStats,
   useLatestOrders,
-  usePlatformStats,
-  useTenants,
 } from '@/hooks/api/useDashboard';
 
 describe('Query key consistency — producer hooks vs queryKeys factory', () => {
@@ -82,13 +78,4 @@ describe('Query key consistency — producer hooks vs queryKeys factory', () => 
     expect(capturedKey).toEqual(queryKeys.dashboard.latestOrders({ page: 1 }));
   });
 
-  it('usePlatformStats uses queryKeys.dashboard.platformStats()', () => {
-    renderHook(() => usePlatformStats());
-    expect(capturedKey).toEqual(queryKeys.dashboard.platformStats());
-  });
-
-  it('useTenants uses queryKeys.dashboard.tenants()', () => {
-    renderHook(() => useTenants());
-    expect(capturedKey).toEqual(queryKeys.dashboard.tenants());
-  });
 });

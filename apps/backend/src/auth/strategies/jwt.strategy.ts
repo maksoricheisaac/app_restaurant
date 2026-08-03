@@ -22,12 +22,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   validate(payload: any) {
-    return {
-      id: payload.sub,
-      email: payload.email,
-      role: payload.role,
-      platformRole: payload.platformRole,
-      tenantId: payload.tenantId,
-    };
+    // Identité seulement : le rôle effectif est relu en base par AuthGuard.
+    return { id: payload.sub, email: payload.email };
   }
 }

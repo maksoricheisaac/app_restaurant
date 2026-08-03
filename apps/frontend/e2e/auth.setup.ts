@@ -8,9 +8,9 @@ import { TEST_CREDENTIALS } from './fixtures';
 setup('authenticate as owner', async ({ page }) => {
   await page.goto('/auth/login');
 
-  await page.getByLabel(/email/i).fill(TEST_CREDENTIALS.owner.email);
-  await page.getByLabel(/mot de passe/i).fill(TEST_CREDENTIALS.owner.password);
-  await page.getByRole('button', { name: /connexion/i }).click();
+  await page.getByLabel('Adresse e-mail', { exact: true }).fill(TEST_CREDENTIALS.owner.email);
+  await page.getByLabel('Mot de passe', { exact: true }).fill(TEST_CREDENTIALS.owner.password);
+  await page.getByRole('button', { name: /se connecter/i }).click();
 
   // Attendre la redirection vers l'admin
   await page.waitForURL('**/admin/**', { timeout: 15_000 });

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { BlobService } from '../blob/blob.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 
 const NOT_DELETED = { deletedAt: null };
 
@@ -10,12 +11,8 @@ interface UploadedImageFile {
 }
 
 /**
- * Couche service pour les uploads d'images (menu items, catégories, logo et
- * bannière du tenant). Extrait de MediaController, qui parlait directement
- * à Prisma/BlobService sans couche service — seul contrôleur du projet
- * dans ce cas, ce qui cassait la stratification contrôleur→service→Prisma
- * respectée partout ailleurs et rendait la logique impossible à tester
- * unitairement sans monter tout le contrôleur HTTP.
+ * Couche service pour les uploads d'images : plats, catégories, logo et
+ * bannière de l'établissement.
  */
 @Injectable()
 export class MediaService {
@@ -29,13 +26,12 @@ export class MediaService {
   // ── Menu item image ──────────────────────────────────────────────────────
 
   async uploadMenuItemImage(
-    tenantId: string,
     menuItemId: string,
     file: UploadedImageFile,
     requestId?: string,
   ) {
     const item = await this.prisma.menuItem.findFirst({
-      where: { id: menuItemId, tenantId, ...NOT_DELETED },
+      where: { id: menuItemId, ...NOT_DELETED },
       select: { id: true, imagePathname: true },
     });
     if (!item) throw new NotFoundException('Menu item introuvable');
@@ -44,7 +40,6 @@ export class MediaService {
       {
         buffer: file.buffer,
         mimeType: file.mimetype,
-        tenantId,
         context: 'menu-items',
         oldPathname: item.imagePathname,
       },
@@ -64,13 +59,9 @@ export class MediaService {
     return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
-  async deleteMenuItemImage(
-    tenantId: string,
-    menuItemId: string,
-    requestId?: string,
-  ) {
+  async deleteMenuItemImage(menuItemId: string, requestId?: string) {
     const item = await this.prisma.menuItem.findFirst({
-      where: { id: menuItemId, tenantId, ...NOT_DELETED },
+      where: { id: menuItemId, ...NOT_DELETED },
       select: { id: true, imagePathname: true },
     });
     if (!item) throw new NotFoundException('Menu item introuvable');
@@ -89,13 +80,12 @@ export class MediaService {
   // ── Category image ───────────────────────────────────────────────────────
 
   async uploadCategoryImage(
-    tenantId: string,
     categoryId: string,
     file: UploadedImageFile,
     requestId?: string,
   ) {
     const category = await this.prisma.menuCategory.findFirst({
-      where: { id: categoryId, tenantId, ...NOT_DELETED },
+      where: { id: categoryId, ...NOT_DELETED },
       select: { id: true, imagePathname: true },
     });
     if (!category) throw new NotFoundException('Catégorie introuvable');
@@ -104,7 +94,6 @@ export class MediaService {
       {
         buffer: file.buffer,
         mimeType: file.mimetype,
-        tenantId,
         context: 'categories',
         oldPathname: category.imagePathname,
       },
@@ -124,13 +113,9 @@ export class MediaService {
     return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
-  async deleteCategoryImage(
-    tenantId: string,
-    categoryId: string,
-    requestId?: string,
-  ) {
+  async deleteCategoryImage(categoryId: string, requestId?: string) {
     const category = await this.prisma.menuCategory.findFirst({
-      where: { id: categoryId, tenantId, ...NOT_DELETED },
+      where: { id: categoryId, ...NOT_DELETED },
       select: { id: true, imagePathname: true },
     });
     if (!category) throw new NotFoundException('Catégorie introuvable');
@@ -146,28 +131,27 @@ export class MediaService {
     return { message: 'Image supprimée' };
   }
 
-  // ── Tenant logo ──────────────────────────────────────────────────────────
+  // ── Logo de l'établissement ──────────────────────────────────────────────
 
-  async uploadTenantLogo(
-    tenantId: string,
-    currentLogoPathname: string | null,
-    file: UploadedImageFile,
-    requestId?: string,
-  ) {
+  async uploadRestaurantLogo(file: UploadedImageFile, requestId?: string) {
+    const current = await this.prisma.restaurant.findUnique({
+      where: { id: RESTAURANT_ID },
+      select: { logoPathname: true },
+    });
+
     const uploaded = await this.blobService.replaceImage(
       {
         buffer: file.buffer,
         mimeType: file.mimetype,
-        tenantId,
-        context: 'tenant-logo',
-        oldPathname: currentLogoPathname,
+        context: 'restaurant-logo',
+        oldPathname: current?.logoPathname ?? null,
       },
       requestId,
     );
 
     try {
-      await this.prisma.tenant.update({
-        where: { id: tenantId },
+      await this.prisma.restaurant.update({
+        where: { id: RESTAURANT_ID },
         data: { logo: uploaded.url, logoPathname: uploaded.pathname },
       });
     } catch (err) {
@@ -178,30 +162,26 @@ export class MediaService {
     return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
-  async deleteTenantLogo(tenantId: string, requestId?: string) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
+  async deleteRestaurantLogo(requestId?: string) {
+    const current = await this.prisma.restaurant.findUnique({
+      where: { id: RESTAURANT_ID },
       select: { logoPathname: true },
     });
-    if (t?.logoPathname) {
-      await this.blobService.deleteImage(t.logoPathname, requestId);
+    if (current?.logoPathname) {
+      await this.blobService.deleteImage(current.logoPathname, requestId);
     }
-    await this.prisma.tenant.update({
-      where: { id: tenantId },
+    await this.prisma.restaurant.update({
+      where: { id: RESTAURANT_ID },
       data: { logo: null, logoPathname: null },
     });
     return { message: 'Logo supprimé' };
   }
 
-  // ── Tenant banner ────────────────────────────────────────────────────────
+  // ── Bannière de l'établissement ──────────────────────────────────────────
 
-  async uploadTenantBanner(
-    tenantId: string,
-    file: UploadedImageFile,
-    requestId?: string,
-  ) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
+  async uploadRestaurantBanner(file: UploadedImageFile, requestId?: string) {
+    const current = await this.prisma.restaurant.findUnique({
+      where: { id: RESTAURANT_ID },
       select: { bannerPathname: true },
     });
 
@@ -209,16 +189,15 @@ export class MediaService {
       {
         buffer: file.buffer,
         mimeType: file.mimetype,
-        tenantId,
-        context: 'tenant-banner',
-        oldPathname: t?.bannerPathname ?? null,
+        context: 'restaurant-banner',
+        oldPathname: current?.bannerPathname ?? null,
       },
       requestId,
     );
 
     try {
-      await this.prisma.tenant.update({
-        where: { id: tenantId },
+      await this.prisma.restaurant.update({
+        where: { id: RESTAURANT_ID },
         data: { bannerUrl: uploaded.url, bannerPathname: uploaded.pathname },
       });
     } catch (err) {
@@ -229,16 +208,16 @@ export class MediaService {
     return { url: uploaded.url, pathname: uploaded.pathname };
   }
 
-  async deleteTenantBanner(tenantId: string, requestId?: string) {
-    const t = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
+  async deleteRestaurantBanner(requestId?: string) {
+    const current = await this.prisma.restaurant.findUnique({
+      where: { id: RESTAURANT_ID },
       select: { bannerPathname: true },
     });
-    if (t?.bannerPathname) {
-      await this.blobService.deleteImage(t.bannerPathname, requestId);
+    if (current?.bannerPathname) {
+      await this.blobService.deleteImage(current.bannerPathname, requestId);
     }
-    await this.prisma.tenant.update({
-      where: { id: tenantId },
+    await this.prisma.restaurant.update({
+      where: { id: RESTAURANT_ID },
       data: { bannerUrl: null, bannerPathname: null },
     });
     return { message: 'Bannière supprimée' };

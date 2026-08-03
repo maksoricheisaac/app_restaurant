@@ -1,10 +1,5 @@
-import {
-  Injectable,
-  ForbiddenException,
-  ConflictException,
-} from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { PlanLimitService } from '../plans/plans.service';
 import { CreateTableDto } from './dto/create-table.dto';
 import { UpdateTableDto } from './dto/update-table.dto';
 
@@ -12,47 +7,36 @@ const NOT_DELETED = { deletedAt: null };
 
 @Injectable()
 export class TablesService {
-  constructor(
-    private prisma: PrismaService,
-    private planLimitService: PlanLimitService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string | undefined) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  findAll() {
     return this.prisma.table.findMany({
-      where: { tenantId, ...NOT_DELETED },
+      where: NOT_DELETED,
       include: { _count: { select: { orders: true, reservations: true } } },
       orderBy: { number: 'asc' },
     });
   }
 
-  async findOne(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    return this.prisma.table.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
-    });
+  findOne(id: string) {
+    return this.prisma.table.findFirst({ where: { id, ...NOT_DELETED } });
   }
 
-  async create(tenantId: string, data: CreateTableDto) {
-    await this.planLimitService.assertTableLimit(tenantId);
-
+  async create(data: CreateTableDto) {
+    // Pré-contrôle pour un message clair ; l'unicité réelle est garantie par
+    // l'index unique partiel sur (number) WHERE "deletedAt" IS NULL.
     const existing = await this.prisma.table.findFirst({
-      where: { tenantId, number: data.number, deletedAt: null },
+      where: { number: data.number, deletedAt: null },
     });
     if (existing) {
       throw new ConflictException(`La table numéro ${data.number} existe déjà`);
     }
-    return this.prisma.table.create({
-      data: { ...data, tenantId },
-    });
+    return this.prisma.table.create({ data });
   }
 
-  async update(tenantId: string | undefined, id: string, data: UpdateTableDto) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    // Si le numéro change, vérifier l'unicité parmi les tables actives
+  async update(id: string, data: UpdateTableDto) {
     if (data.number !== undefined) {
       const conflict = await this.prisma.table.findFirst({
-        where: { tenantId, number: data.number, deletedAt: null, NOT: { id } },
+        where: { number: data.number, deletedAt: null, NOT: { id } },
       });
       if (conflict) {
         throw new ConflictException(
@@ -60,23 +44,19 @@ export class TablesService {
         );
       }
     }
-    return this.prisma.table.update({
-      where: { id, tenantId },
-      data,
-    });
+    return this.prisma.table.update({ where: { id }, data });
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  remove(id: string) {
     return this.prisma.table.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
   }
 
-  async findLocations(tenantId: string) {
+  async findLocations() {
     const tables = await this.prisma.table.findMany({
-      where: { tenantId, location: { not: null }, ...NOT_DELETED },
+      where: { location: { not: null }, ...NOT_DELETED },
       select: { location: true },
       distinct: ['location'],
     });

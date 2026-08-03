@@ -14,7 +14,7 @@ import { Request, Response } from 'express';
  *
  * Emits one JSON log line per request containing:
  * - requestId, method, path, statusCode, durationMs
- * - userId, tenantId (if authenticated)
+ * - userId (si authentifié)
  *
  * Skips health check endpoints to avoid log spam.
  */
@@ -57,7 +57,6 @@ export class LoggingInterceptor implements NestInterceptor {
         statusCode: res.statusCode,
         durationMs: Date.now() - start,
         userId: user?.id ?? null,
-        tenantId: req.headers['x-tenant-id'] ?? null,
         ip: req.ip,
       }),
     );

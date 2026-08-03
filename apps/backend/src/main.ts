@@ -122,9 +122,8 @@ async function bootstrap() {
     allowedHeaders: [
       'Content-Type',
       'Authorization',
-      'x-tenant-id',
-      'x-tenant-slug',
       'x-request-id',
+      'x-menu-session',
     ],
     exposedHeaders: ['x-request-id'],
     credentials: true,

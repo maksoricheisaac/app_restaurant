@@ -1,6 +1,6 @@
 "use client"
 import { ReactNode } from 'react'
-import { ChevronRight, Lock } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import {
   Collapsible,
   CollapsibleContent,
@@ -66,20 +66,12 @@ const SidebarMenuLink = ({ item, href }: { item: NavItem; href: string }) => {
       <SidebarMenuButton
         asChild
         isActive={checkIsActive(href, item)}
-        tooltip={item.locked ? `${item.title} — non inclus dans votre forfait` : item.title}
+        tooltip={item.title}
       >
-        <Link
-          href={item.url}
-          onClick={() => setOpenMobile(false)}
-          className={item.locked ? 'opacity-60' : undefined}
-        >
+        <Link href={item.url} onClick={() => setOpenMobile(false)}>
           {item.icon && <item.icon />}
           <span>{item.title}</span>
-          {item.locked ? (
-            <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground" />
-          ) : (
-            item.badge && <NavBadge>{item.badge}</NavBadge>
-          )}
+          {item.badge && <NavBadge>{item.badge}</NavBadge>}
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>

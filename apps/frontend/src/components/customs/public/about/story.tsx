@@ -13,7 +13,7 @@ export const AboutStory = () => {
               <div className="absolute -inset-4 -z-10 bg-gradient-to-tr from-primary/12 to-amber-200/25 blur-3xl rounded-[2.5rem]" />
               <Image
                 src="https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=2070&auto=format&fit=crop"
-                alt="L'équipe Flash Menu au travail en salle"
+                alt="La salle du restaurant"
                 width={2070}
                 height={1380}
                 className="rounded-3xl border border-border shadow-xl w-full h-auto object-cover"
@@ -34,25 +34,23 @@ export const AboutStory = () => {
               as="h2"
               className="font-display text-3xl sm:text-4xl lg:text-[2.75rem] lg:leading-[1.05] text-foreground text-balance"
             >
-              Née en salle, pas dans un{" "}
-              <span className="font-display-italic text-gradient-warm">open space</span>.
+              Une maison, une{" "}
+              <span className="font-display-italic text-gradient-warm">équipe</span>.
             </TextReveal>
 
             <div className="mt-6 space-y-4 text-muted-foreground leading-relaxed text-lg">
               <Reveal as="p" delay={0.05}>
-                En 2023, après des années passées à jongler entre carnets de commandes,
-                logiciels de caisse incompatibles et menus réimprimés chaque semaine, nous
-                avons décidé de tout repenser depuis la salle.
+                Tout commence en cuisine, tôt le matin, avec les livraisons du jour. Ce
+                qui arrive de bon décide de ce qui sera servi le soir &mdash; et non l&apos;inverse.
               </Reveal>
               <Reveal as="p" delay={0.12}>
-                L’idée : réunir menu digital, commandes, cuisine, caisse et réservations
-                dans une seule interface, assez simple pour être adoptée en une après-midi,
-                assez robuste pour tenir un coup de feu.
+                En salle, la même exigence : accueillir, conseiller, laisser le temps au
+                repas. Nos outils sont là pour effacer l&apos;attente inutile, pas pour
+                remplacer la relation.
               </Reveal>
               <Reveal as="p" delay={0.18} className="text-foreground font-medium">
-                Aujourd’hui, plus de 500 établissements pilotent leur activité avec Flash Menu.
-                Notre boussole n’a pas changé : votre temps appartient à vos clients, pas à
-                votre logiciel.
+                Vous pouvez consulter la carte, commander ou réserver en quelques
+                secondes. Le reste, c&apos;est notre affaire.
               </Reveal>
             </div>
           </div>

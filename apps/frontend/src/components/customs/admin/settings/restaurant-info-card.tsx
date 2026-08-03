@@ -1,55 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { Copy, Check, ExternalLink, Store } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import api from "@/lib/api-client";
+import { useRestaurant } from "@/hooks/api/useRestaurant";
 
-// ─── Hook — fetches tenant identity independently of TenantContext ────────────
-// Uses the same api-client pattern as useSettings() — no timing dependency.
-
-interface TenantInfo {
-  id: string;
-  name: string;
-  slug: string;
-  plan: "free" | "pro" | "enterprise";
-  status: string;
-}
-
-function useTenantInfo() {
-  return useQuery<TenantInfo>({
-    queryKey: ["tenant-me"],
-    queryFn: () => api.get("/tenants/me") as Promise<TenantInfo>,
-    staleTime: 5 * 60 * 1000, // 5 min — slug doesn't change often
-  });
-}
-
-// ─── Labels ───────────────────────────────────────────────────────────────────
-
-const PLAN_LABELS: Record<string, string> = {
-  free: "Gratuit",
-  pro: "Pro",
-  enterprise: "Enterprise",
-};
-
-const PLAN_VARIANTS: Record<string, "secondary" | "default" | "outline"> = {
-  free: "secondary",
-  pro: "default",
-  enterprise: "outline",
-};
-
-// ─── Component ────────────────────────────────────────────────────────────────
-
+/**
+ * Lien public de la carte. Il n'y a plus de slug ni de sous-domaine à
+ * afficher : la carte vit à `/menu`, une adresse fixe et mémorisable.
+ */
 export function RestaurantInfoCard() {
-  const { data: tenant, isLoading, isError } = useTenantInfo();
-
+  const { data: restaurant, isLoading, isError } = useRestaurant();
   const [copied, setCopied] = useState(false);
 
-  // ── Loading ──────────────────────────────────────────────────────────────
   if (isLoading) {
     return (
       <Card className="border-orange-200 bg-orange-50/40">
@@ -65,8 +30,7 @@ export function RestaurantInfoCard() {
     );
   }
 
-  // ── No tenant context (fresh session not yet stored) ─────────────────────
-  if (isError || !tenant) {
+  if (isError || !restaurant) {
     return (
       <Card className="border-slate-200 bg-slate-50/40">
         <CardHeader className="pb-2">
@@ -82,11 +46,8 @@ export function RestaurantInfoCard() {
     );
   }
 
-  // ── Nominal ───────────────────────────────────────────────────────────────
   const menuUrl =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/menu/${tenant.slug}`
-      : `/menu/${tenant.slug}`;
+    typeof window !== "undefined" ? `${window.location.origin}/menu` : "/menu";
 
   function handleCopy() {
     navigator.clipboard.writeText(menuUrl).then(() => {
@@ -98,19 +59,15 @@ export function RestaurantInfoCard() {
   return (
     <Card className="border-orange-200 bg-orange-50/40">
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <Store className="h-5 w-5 text-orange-500 shrink-0" />
-            <CardTitle className="text-base">{tenant.name}</CardTitle>
-          </div>
-          <Badge variant={PLAN_VARIANTS[tenant.plan] ?? "secondary"}>
-            {PLAN_LABELS[tenant.plan] ?? tenant.plan}
-          </Badge>
+        <div className="flex items-center gap-2">
+          <Store className="h-5 w-5 text-orange-500 shrink-0" />
+          <CardTitle className="text-base">{restaurant.name}</CardTitle>
         </div>
-        <CardDescription className="text-xs font-mono text-slate-500 mt-1">
-          slug :{" "}
-          <span className="font-semibold text-slate-700 select-all">{tenant.slug}</span>
-        </CardDescription>
+        {restaurant.slogan && (
+          <CardDescription className="text-xs mt-1">
+            {restaurant.slogan}
+          </CardDescription>
+        )}
       </CardHeader>
 
       <CardContent className="pt-0 space-y-2">

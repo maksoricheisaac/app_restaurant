@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { VIEWPORTS, setViewport, collectPageErrors } from '../helpers';
+import { VIEWPORTS, collectPageErrors } from '../helpers';
 
 /**
  * Tests responsive — mobile, tablette, desktop.
@@ -17,7 +17,6 @@ const ADMIN_ROUTES = [
 
 const PUBLIC_ROUTES = [
   '/',
-  '/pricing',
   '/contact',
 ];
 
@@ -72,11 +71,5 @@ test.describe('Responsive — Desktop (1440px)', () => {
     await page.goto('/');
     await expect(page.getByRole('main')).toBeVisible();
     expect(errors).toHaveLength(0);
-  });
-
-  test('pricing page desktop — plans visibles', async ({ page }) => {
-    await page.goto('/pricing');
-    await expect(page.getByRole('main')).toBeVisible();
-    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   });
 });

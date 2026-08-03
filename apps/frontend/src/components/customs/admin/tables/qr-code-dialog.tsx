@@ -7,7 +7,6 @@ import QRCode from "react-qr-code";
 import QRCodeLib from "qrcode";
 import { TableData } from "./types";
 import { toast } from "sonner";
-import { useTenant } from "@/contexts/TenantContext";
 
 interface QRCodeDialogProps {
   isOpen: boolean;
@@ -16,16 +15,12 @@ interface QRCodeDialogProps {
 }
 export function QRCodeDialog({ isOpen, onClose, table }: QRCodeDialogProps) {
   const [isGenerating, setIsGenerating] = useState(false);
-  const { tenant } = useTenant();
 
   if (!table) return null;
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-  // Use slug-based URL so the public menu page can resolve correctly
-  const menuPath = tenant?.slug
-    ? `/menu/${tenant.slug}?tableId=${table.id}`
-    : `/menu?tableId=${table.id}`;
-  const qrData = `${baseUrl}${menuPath}`;
+  // Une seule carte publique : le QR code ne porte que la table scannée.
+  const qrData = `${baseUrl}/menu?tableId=${table.id}`;
 
   // Fonction pour télécharger l'image QR code
   const downloadAsImage = async () => {
@@ -235,7 +230,7 @@ export function QRCodeDialog({ isOpen, onClose, table }: QRCodeDialogProps) {
                 className="inline-flex items-center gap-1 text-[10px] font-mono text-slate-400 hover:text-slate-600 transition-colors"
               >
                 <Copy className="h-3 w-3" />
-                {menuPath}
+                {`/menu?tableId=${table.id}`}
               </button>
             </div>
           </div>

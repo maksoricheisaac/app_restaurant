@@ -1,22 +1,19 @@
 import { useAuth } from '@/contexts/AuthContext';
-import { Permission, UserRole, ROLE_PERMISSIONS, ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER } from '@/types/permissions';
+import { Permission, UserRole, ROLE_PERMISSIONS, OWNER, MANAGER, CHEF, WAITER, CASHIER } from '@/types/permissions';
 import { useMemo } from 'react';
 
 export function usePermissions() {
   const { user } = useAuth();
 
   const userRole = user?.role as UserRole;
-  const isSuperAdmin = user?.platformRole === 'super_admin';
 
   const userPermissions = useMemo(() => {
-    if (isSuperAdmin) return Object.values(Permission);
     if (!userRole) return [];
     return ROLE_PERMISSIONS[userRole] || [];
-  }, [userRole, isSuperAdmin]);
+  }, [userRole]);
 
   const hasPermission = (permission: Permission): boolean => {
     if (!user) return false;
-    if (isSuperAdmin) return true;
     if (!userRole) return false;
     return userPermissions.includes(permission);
   };
@@ -30,34 +27,19 @@ export function usePermissions() {
   };
 
   const hasRole = (role: UserRole): boolean => {
-    if (isSuperAdmin) return true;
     return userRole === role;
   };
 
   const hasAnyRole = (roles: UserRole[]): boolean => {
-    if (isSuperAdmin) return true;
     return roles.includes(userRole);
   };
 
-  const isAdmin = (): boolean => {
-    return hasAnyRole([ADMIN, OWNER]);
-  };
+  const isOwner = (): boolean => hasRole(OWNER);
 
-  const isManager = (): boolean => {
-    return hasAnyRole([ADMIN, OWNER, MANAGER]);
-  };
+  const isManager = (): boolean => hasAnyRole([OWNER, MANAGER]);
 
-  const isStaff = (): boolean => {
-    return hasAnyRole([
-      ADMIN,
-      OWNER,
-      MANAGER,
-      HEAD_CHEF,
-      CHEF,
-      WAITER,
-      CASHIER
-    ]);
-  };
+  const isStaff = (): boolean =>
+    hasAnyRole([OWNER, MANAGER, CHEF, WAITER, CASHIER]);
 
   return {
     user,
@@ -68,7 +50,7 @@ export function usePermissions() {
     hasAllPermissions,
     hasRole,
     hasAnyRole,
-    isAdmin,
+    isOwner,
     isManager,
     isStaff
   };

@@ -8,6 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
+import { STAFF_ROOM, orderTrackingRoom } from './events.service';
 
 @WebSocketGateway({
   cors: {
@@ -31,12 +32,12 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     private jwtService: JwtService,
   ) {}
 
-  handleConnection(client: Socket) {
+  async handleConnection(client: Socket) {
     try {
-      // Token resolution order:
-      //   1. Authorization: Bearer <token> header (explicit API clients)
-      //   2. auth.token from socket handshake (explicit socket clients)
-      //   3. `token` httpOnly cookie (browser clients with withCredentials: true)
+      // Ordre de résolution du jeton :
+      //   1. En-tête Authorization: Bearer <token> (clients API explicites)
+      //   2. auth.token du handshake socket (clients socket explicites)
+      //   3. Cookie httpOnly `token` (navigateurs avec withCredentials: true)
       const cookieHeader = client.handshake.headers.cookie ?? '';
       const cookieToken = cookieHeader
         .split(';')
@@ -53,17 +54,26 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
         cookieToken ??
         undefined;
 
-      if (token) {
-        const decoded = this.jwtService.verify(token);
-        client.data.user = {
-          id: decoded.sub,
-          email: decoded.email,
-          role: decoded.role,
-          tenantId: decoded.tenantId,
-        };
-      }
+      if (!token) return;
+
+      const decoded = this.jwtService.verify(token);
+
+      // Le compte est relu en base, comme sur les routes HTTP : un employé
+      // désactivé ne doit pas continuer à recevoir les commandes en direct.
+      const account = await this.prisma.user.findUnique({
+        where: { id: decoded.sub },
+        select: { id: true, email: true, role: true, status: true },
+      });
+
+      if (!account || account.status !== 'active') return;
+
+      client.data.user = account;
+
+      // Membre du personnel authentifié : il rejoint le salon unique de
+      // l'établissement. Plus rien à demander, plus rien à vérifier.
+      await client.join(STAFF_ROOM);
     } catch {
-      // Invalid token — client stays unauthenticated (can only use public rooms)
+      // Jeton invalide — le client reste anonyme (suivi de commande seulement)
     }
   }
 
@@ -71,74 +81,28 @@ export class EventsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     // no-op
   }
 
-  @SubscribeMessage('join-tenant')
-  async handleJoinTenant(client: Socket, payload: { tenantId: string }) {
-    const { tenantId } = payload;
-    const user = client.data.user;
-
-    if (!user) {
-      return { status: 'error', message: 'Unauthorized' };
-    }
-
-    // Vérifier si l'utilisateur est membre du tenant
-    const membership = await this.prisma.tenantMembership.findUnique({
-      where: {
-        userId_tenantId: {
-          userId: user.id,
-          tenantId: tenantId,
-        },
-      },
-    });
-
-    if (!membership) {
-      return { status: 'error', message: 'Forbidden' };
-    }
-
-    const room = `tenant-${tenantId}`;
-    client.join(room);
-    return { status: 'ok', room };
-  }
-
+  /**
+   * Suivi public d'une commande. Le client anonyme n'a que l'UUID reçu dans
+   * son lien de suivi — 122 bits d'entropie, l'énumération n'est pas une
+   * menace praticable.
+   */
   @SubscribeMessage('join-order')
   async handleJoinOrder(client: Socket, payload: { orderId: string }) {
-    const { orderId } = payload;
+    const { orderId } = payload ?? {};
     if (!orderId || typeof orderId !== 'string') {
       return { status: 'error', message: 'Invalid orderId' };
     }
 
     const order = await this.prisma.order.findUnique({
       where: { id: orderId },
-      select: { id: true, tenantId: true },
+      select: { id: true },
     });
     if (!order) {
       return { status: 'error', message: 'Order not found' };
     }
 
-    const user = client.data.user as
-      | { id?: string; tenantId?: string }
-      | undefined;
-
-    if (user?.id) {
-      // Authenticated staff: verify the order belongs to their tenant.
-      if (user.tenantId && user.tenantId !== order.tenantId) {
-        return { status: 'error', message: 'Forbidden' };
-      }
-      if (!user.tenantId) {
-        // Token present but no tenantId claim — check membership explicitly.
-        const membership = await this.prisma.tenantMembership.findFirst({
-          where: { userId: user.id, tenantId: order.tenantId },
-          select: { id: true },
-        });
-        if (!membership) {
-          return { status: 'error', message: 'Forbidden' };
-        }
-      }
-    }
-    // Unauthenticated clients (public customers tracking their own order via UUID link) are
-    // allowed through. UUIDs have 122 bits of entropy — enumeration is not a practical threat.
-
-    const room = `order-tracking-${orderId}`;
-    client.join(room);
+    const room = orderTrackingRoom(orderId);
+    await client.join(room);
     return { status: 'ok', room };
   }
 }

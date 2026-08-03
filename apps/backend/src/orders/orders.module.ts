@@ -4,9 +4,7 @@ import { OrdersController } from './orders.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { GatewayModule } from '../gateway/gateway.module';
-import { PlansModule } from '../plans/plans.module';
 import { CustomersModule } from '../customers/customers.module';
-import { FeatureFlagsModule } from '../feature-flags/feature-flags.module';
 import { InventoryModule } from '../inventory/inventory.module';
 
 @Module({
@@ -14,9 +12,7 @@ import { InventoryModule } from '../inventory/inventory.module';
     PrismaModule,
     AuthModule,
     GatewayModule,
-    PlansModule,
     CustomersModule,
-    FeatureFlagsModule,
     InventoryModule,
   ],
   controllers: [OrdersController],

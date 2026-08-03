@@ -20,7 +20,9 @@ export default defineConfig({
   ],
 
   use: {
-    baseURL: process.env.E2E_BASE_URL || 'http://localhost:4000',
+    // Le frontend tourne sur 3000 (`next dev -p 3000`) ; 4000 est le port du
+    // backend NestJS. L'ancienne valeur pointait donc les tests sur l'API.
+    baseURL: process.env.E2E_BASE_URL || 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
@@ -62,7 +64,7 @@ export default defineConfig({
 
   webServer: {
     command: 'pnpm dev',
-    url: 'http://localhost:4000',
+    url: process.env.E2E_BASE_URL || 'http://localhost:3000',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

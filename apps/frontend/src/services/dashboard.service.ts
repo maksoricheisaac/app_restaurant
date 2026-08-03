@@ -11,7 +11,7 @@ export const dashboardService = {
         totalReservations: response.reservationsCount ?? 0,
       };
     } catch {
-      // Fallback pour super_admin sans tenant
+      // Repli si le tableau de bord est appelé avant la fin de l'installation
       return {
         totalOrders: 0,
         totalRevenue: 0,
@@ -35,17 +35,5 @@ export const dashboardService = {
       orders: response.data,
       pagination: response.pagination,
     };
-  },
-
-  getPlatformStats: async (options?: RequestOptions) => {
-    return api.get('/dashboard/platform-stats', options);
-  },
-
-  getTenants: async (options?: RequestOptions) => {
-    return api.get('/tenants', options);
-  },
-
-  getBillingStats: async (options?: RequestOptions) => {
-    return api.get('/dashboard/billing-stats', options);
   },
 };

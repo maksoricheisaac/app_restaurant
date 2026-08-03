@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Calendar, Printer } from "lucide-react";
 import { useBilan } from "@/hooks/api/useCashRegister";
 import type { CashDailySummary as CashDailySummaryType } from "@/types/order";
-import { useTenant } from "@/contexts/TenantContext";
-import { useSettings } from "@/hooks/api/useSettings";
+import { useRestaurant } from "@/hooks/api/useRestaurant";
 
 interface DailyCashSummaryProps {
   selectedDate: Date;
@@ -24,8 +23,7 @@ function formatCurrency(amount: number) {
 export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummaryProps) {
   const [loading, setLoading] = useState(false);
   const [summary, setSummary] = useState<CashDailySummaryType | null>(null);
-  const { tenant } = useTenant();
-  const { data: settings } = useSettings();
+  const { data: restaurant } = useRestaurant();
 
   const { data: bilanResponse, isLoading } = useBilan(selectedDate.toISOString().split("T")[0]);
 
@@ -57,12 +55,12 @@ export function DailyCashSummary({ selectedDate, onDateChange }: DailyCashSummar
       // à la demande plutôt que dans le bundle initial de la page caisse.
       const { generateDailyCashSummaryPdf } = await import("@/lib/pdf/daily-cash-summary");
       await generateDailyCashSummaryPdf(summary, {
-        restaurant: tenant ? {
-          name:         tenant.name,
-          logoUrl:      tenant.logo,
-          primaryColor: tenant.primaryColor,
-          phone:        (settings as any)?.phone ?? null,
-          address:      (settings as any)?.address ?? null,
+        restaurant: restaurant ? {
+          name:         restaurant.name,
+          logoUrl:      restaurant.logo,
+          primaryColor: restaurant.primaryColor,
+          phone:        (restaurant as any)?.phone ?? null,
+          address:      (restaurant as any)?.address ?? null,
         } : undefined,
       });
     } catch (e) {

@@ -6,12 +6,13 @@ const SENSITIVE_PATHS = [
   '/auth/logout',
   '/auth/refresh',
   '/auth/reset-password',
-  '/billing/',
-  '/tenants/',
+  '/setup', // première installation — événement unique et sensible
+  '/restaurant', // configuration de l'établissement
   '/permissions/',
+  '/staff/', // gestion de l'équipe
+  '/invites/', // acceptation d'invitation = création de compte
   '/cash-register/payment', // paiements — traçabilité comptable
   '/orders/', // commandes — traçabilité métier
-  '/memberships/', // gestion staff
 ];
 
 @Injectable()
@@ -32,7 +33,6 @@ export class AuditMiddleware implements NestMiddleware {
           path: req.path,
           statusCode: res.statusCode,
           userId: user?.id ?? 'anonymous',
-          tenantId: req.headers['x-tenant-id'] ?? null,
           ip: req.ip,
           userAgent: req.headers['user-agent'],
           durationMs: Date.now() - start,

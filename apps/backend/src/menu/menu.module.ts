@@ -10,7 +10,7 @@ import { MenuOptionsController } from './menu-options.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
 import { GatewayModule } from '../gateway/gateway.module';
-import { PlansModule } from '../plans/plans.module';
+import { RestaurantModule } from '../restaurant/restaurant.module';
 import { BlobModule } from '../blob/blob.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ReservationsModule } from '../reservations/reservations.module';
@@ -22,7 +22,7 @@ import { CustomersModule } from '../customers/customers.module';
     PrismaModule,
     AuthModule,
     GatewayModule,
-    PlansModule,
+    RestaurantModule,
     BlobModule,
     InventoryModule,
     ReservationsModule,

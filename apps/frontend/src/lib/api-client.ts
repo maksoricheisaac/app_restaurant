@@ -53,16 +53,10 @@ async function fetchWithInterceptor(endpoint: string, options: RequestOptions = 
   // requestId — généré une seule fois et propagé sur les retries
   const requestId = _requestId ?? generateRequestId();
 
-  // Tenant context from localStorage (not secret, used for routing only)
-  const tenantId = typeof window !== 'undefined' ? localStorage.getItem('tenantId') : null;
-  const tenantSlug = typeof window !== 'undefined' ? localStorage.getItem('tenantSlug') : null;
-
   const headers = new Headers(init.headers);
   if (!headers.has('Content-Type') && !(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
-  if (tenantId) headers.set('x-tenant-id', tenantId);
-  else if (tenantSlug) headers.set('x-tenant-slug', tenantSlug);
 
   // Propagation du requestId pour corrélation frontend↔backend dans les logs
   headers.set('X-Request-ID', requestId);

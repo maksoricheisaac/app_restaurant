@@ -1,8 +1,6 @@
 import { ReportsService } from './reports.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const T = 'tenant-1';
-
 describe('ReportsService', () => {
   let service: ReportsService;
   let prisma: MockPrisma;
@@ -27,7 +25,7 @@ describe('ReportsService', () => {
       prisma.customer.count.mockResolvedValue(3);
       prisma.reservation = { count: jest.fn().mockResolvedValue(2) } as any;
 
-      const result = await service.getMetrics(T, 'monthly');
+      const result = await service.getMetrics('monthly');
 
       expect(result.orders.total).toBe(6);
       expect(result.orders.byStatus).toEqual({ served: 5, cancelled: 1 });
@@ -46,7 +44,7 @@ describe('ReportsService', () => {
       prisma.customer.count.mockResolvedValue(0);
       prisma.reservation = { count: jest.fn().mockResolvedValue(0) } as any;
 
-      await service.getMetrics(T, 'monthly');
+      await service.getMetrics('monthly');
 
       const orderCall = prisma.order.groupBy.mock.calls[0][0];
       expect(orderCall.where.deletedAt).toBeNull();
@@ -71,7 +69,7 @@ describe('ReportsService', () => {
           { day: new Date('2026-06-03T00:00:00.000Z'), count: 1 },
         ]);
 
-      const result = await service.getChartData(T, 'monthly', '2026-06-15');
+      const result = await service.getChartData('monthly', '2026-06-15');
 
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
       expect(result.labels).toEqual(['2026-06-01', '2026-06-02', '2026-06-03']);
@@ -82,7 +80,7 @@ describe('ReportsService', () => {
     it('returns empty series when there is no activity in the period', async () => {
       prisma.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
 
-      const result = await service.getChartData(T, 'monthly', '2026-06-15');
+      const result = await service.getChartData('monthly', '2026-06-15');
 
       expect(result.labels).toEqual([]);
       expect(result.revenue).toEqual([]);

@@ -47,34 +47,34 @@ export const useDeleteCategoryImage = () => {
   });
 };
 
-export const useUploadTenantLogo = () => {
+export const useUploadRestaurantLogo = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => mediaService.uploadTenantLogo(file),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant-me'] }),
+    mutationFn: (file: File) => mediaService.uploadRestaurantLogo(file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['restaurant'] }),
   });
 };
 
-export const useDeleteTenantLogo = () => {
+export const useDeleteRestaurantLogo = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => mediaService.deleteTenantLogo(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant-me'] }),
+    mutationFn: () => mediaService.deleteRestaurantLogo(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['restaurant'] }),
   });
 };
 
-export const useUploadTenantBanner = () => {
+export const useUploadRestaurantBanner = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => mediaService.uploadTenantBanner(file),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant-me'] }),
+    mutationFn: (file: File) => mediaService.uploadRestaurantBanner(file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['restaurant'] }),
   });
 };
 
-export const useDeleteTenantBanner = () => {
+export const useDeleteRestaurantBanner = () => {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => mediaService.deleteTenantBanner(),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tenant-me'] }),
+    mutationFn: () => mediaService.deleteRestaurantBanner(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['restaurant'] }),
   });
 };

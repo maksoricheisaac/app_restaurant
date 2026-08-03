@@ -2,8 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { FileText, FileSpreadsheet } from "lucide-react";
-import { useTenant } from "@/contexts/TenantContext";
-import { useSettings } from "@/hooks/api/useSettings";
+import { useRestaurant } from "@/hooks/api/useRestaurant";
 import { toast } from "sonner";
 
 interface ExportData {
@@ -26,20 +25,19 @@ interface ExportButtonsProps {
 }
 
 export function ExportButtons({ data, chartData, formatPrice }: ExportButtonsProps) {
-  const { tenant } = useTenant();
-  const { data: settings } = useSettings();
+  const { data: restaurant } = useRestaurant();
 
   const exportToPDF = async () => {
     try {
       toast.loading('Génération du PDF en cours...');
       const { generateSalesReportPdf } = await import("@/lib/pdf/report");
-      await generateSalesReportPdf(data, chartData, formatPrice, tenant ? {
-        name:         tenant.name,
-        logoUrl:      tenant.logo,
-        primaryColor: tenant.primaryColor,
-        phone:        (settings as any)?.phone ?? null,
-        email:        (settings as any)?.email ?? null,
-        address:      (settings as any)?.address ?? null,
+      await generateSalesReportPdf(data, chartData, formatPrice, restaurant ? {
+        name:         restaurant.name,
+        logoUrl:      restaurant.logo,
+        primaryColor: restaurant.primaryColor,
+        phone:        (restaurant as any)?.phone ?? null,
+        email:        (restaurant as any)?.email ?? null,
+        address:      (restaurant as any)?.address ?? null,
       } : undefined);
       toast.dismiss();
       toast.success('Rapport PDF généré avec succès !');

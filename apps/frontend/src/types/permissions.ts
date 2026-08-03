@@ -1,20 +1,21 @@
-// Constantes pour les rôles (compatible Better Auth - String au lieu d'enum Prisma)
+/**
+ * Rôles de l'équipe. Le logiciel n'en connaît que cinq : il n'y a plus de
+ * rôle « admin » de plateforme ni de rôle « user » client, puisqu'il n'y a
+ * plus de plateforme et que les clients ne se connectent pas.
+ */
 export const USER_ROLES = {
-  ADMIN: 'admin',
   OWNER: 'owner',
   MANAGER: 'manager',
-  HEAD_CHEF: 'head_chef',
-  CHEF: 'chef',
   WAITER: 'waiter',
+  CHEF: 'chef',
   CASHIER: 'cashier',
-  USER: 'user'
 } as const;
 
 // Type dérivé des constantes
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
 
 // Export des valeurs individuelles pour faciliter l'utilisation
-export const { ADMIN, OWNER, MANAGER, HEAD_CHEF, CHEF, WAITER, CASHIER, USER } = USER_ROLES;
+export const { OWNER, MANAGER, WAITER, CHEF, CASHIER } = USER_ROLES;
 
 export enum Permission {
   // Dashboard
@@ -74,8 +75,6 @@ export enum Permission {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
-  [ADMIN]: Object.values(Permission), // Toutes les permissions
-  
   [OWNER]: Object.values(Permission), // Toutes les permissions
   
   [MANAGER]: [
@@ -110,7 +109,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.MANAGE_MESSAGES
   ],
   
-  [HEAD_CHEF]: [
+  [CHEF]: [
     Permission.VIEW_DASHBOARD,
     Permission.VIEW_ORDERS,
     Permission.UPDATE_ORDERS,
@@ -123,15 +122,6 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.MANAGE_INVENTORY,
     Permission.MANAGE_STOCK,
     Permission.VIEW_STAFF
-  ],
-  
-  [CHEF]: [
-    Permission.VIEW_DASHBOARD,
-    Permission.VIEW_ORDERS,
-    Permission.UPDATE_ORDERS,
-    Permission.MANAGE_ORDER_STATUS,
-    Permission.VIEW_MENU,
-    Permission.VIEW_INVENTORY
   ],
   
   [WAITER]: [
@@ -160,19 +150,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     Permission.MANAGE_TRANSACTIONS,
     Permission.VIEW_REPORTS
   ],
-  
-  [USER]: [] // Aucune permission admin
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  [ADMIN]: 'Administrateur',
   [OWNER]: 'Propriétaire',
-  [MANAGER]: 'Gérant',
-  [HEAD_CHEF]: 'Chef cuisinier',
-  [CHEF]: 'Cuisinier',
+  [MANAGER]: 'Manager',
+  [CHEF]: 'Chef',
   [WAITER]: 'Serveur',
   [CASHIER]: 'Caissier',
-  [USER]: 'Client'
 };
 
 export const PERMISSION_LABELS: Record<Permission, string> = {

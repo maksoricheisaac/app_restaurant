@@ -1,13 +1,12 @@
 import {
   Injectable,
-  NotFoundException,
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
-import { PlanLimitService } from '../plans/plans.service';
 import { MenuSessionService } from './menu-session.service';
+import { RestaurantService } from '../restaurant/restaurant.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { CustomersService } from '../customers/customers.service';
 import { stripHtml } from '../common/utils/sanitize';
@@ -29,7 +28,9 @@ export class PublicOrderItemDto {
   @IsString() @IsUUID() menuItemId: string;
   @IsNumber() @Min(1) @Max(99) quantity: number;
   // IDs des options choisies (tous groupes confondus). Validés + revalorisés serveur.
-  @IsOptional() @IsArray() @IsUUID('all', { each: true })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('all', { each: true })
   selectedOptionIds?: string[];
 }
 
@@ -61,42 +62,22 @@ export class PublicOrderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly eventsService: EventsService,
-    private readonly planLimitService: PlanLimitService,
     private readonly menuSession: MenuSessionService,
+    private readonly restaurant: RestaurantService,
     private readonly inventoryService: InventoryService,
     private readonly customersService: CustomersService,
   ) {}
 
   async createOrder(
-    slug: string,
     dto: PublicCreateOrderDto,
     sessionToken?: string,
   ): Promise<PublicOrderResult> {
-    // Validate the menu session token — rejects requests from pure scrapers/bots
-    if (!this.menuSession.verify(slug, sessionToken)) {
+    // Le jeton de session de menu écarte les envois scriptés directs
+    if (!this.menuSession.verify(sessionToken)) {
       throw new ForbiddenException(
         'Session de menu invalide ou expirée. Veuillez recharger la page.',
       );
     }
-
-    const tenant = await this.prisma.tenant.findFirst({
-      where: { slug, deletedAt: null },
-      select: {
-        id: true,
-        name: true,
-        settings: {
-          select: {
-            dineInEnabled: true,
-            takeawayEnabled: true,
-            deliveryEnabled: true,
-          },
-        },
-      },
-    });
-
-    if (!tenant) throw new NotFoundException('Restaurant introuvable');
-
-    await this.planLimitService.assertMonthlyOrderLimit(tenant.id);
 
     if (!dto.items || dto.items.length === 0) {
       throw new BadRequestException(
@@ -104,23 +85,26 @@ export class PublicOrderService {
       );
     }
 
-    // Le type de service demandé doit être activé par le restaurant.
-    // (settings est une relation liste côté Tenant, 1:1 en pratique via tenantId unique)
-    const settings = tenant.settings?.[0];
+    // Le mode de service demandé doit être ouvert par le restaurant.
+    const restaurant = await this.restaurant.getPublicProfile();
     const serviceEnabled: Record<PublicCreateOrderDto['type'], boolean> = {
-      dine_in: settings?.dineInEnabled ?? true,
-      takeaway: settings?.takeawayEnabled ?? true,
-      delivery: settings?.deliveryEnabled ?? false,
+      dine_in: restaurant.dineInEnabled,
+      takeaway: restaurant.takeawayEnabled,
+      delivery: restaurant.deliveryEnabled,
     };
     if (!serviceEnabled[dto.type]) {
       throw new BadRequestException(
-        "Ce mode de service n'est pas disponible pour ce restaurant",
+        "Ce mode de service n'est pas disponible actuellement",
       );
     }
 
     const menuItemIds = dto.items.map((i) => i.menuItemId);
     const menuItems = await this.prisma.menuItem.findMany({
-      where: { id: { in: menuItemIds }, tenantId: tenant.id, available: true },
+      where: {
+        id: { in: menuItemIds },
+        available: true,
+        deletedAt: null,
+      },
       select: {
         id: true,
         name: true,
@@ -222,12 +206,7 @@ export class PublicOrderService {
         throw new BadRequestException('Veuillez choisir une zone de livraison');
       }
       const zone = await this.prisma.deliveryZone.findFirst({
-        where: {
-          id: dto.deliveryZoneId,
-          tenantId: tenant.id,
-          isActive: true,
-          deletedAt: null,
-        },
+        where: { id: dto.deliveryZoneId, isActive: true, deletedAt: null },
         select: { id: true, price: true, minOrder: true },
       });
       if (!zone) {
@@ -245,18 +224,17 @@ export class PublicOrderService {
 
     const total = itemsSubtotal + deliveryFee;
 
-    // Sanitize free-text fields to prevent stored-XSS in the admin dashboard
+    // Nettoyage des champs libres : empêche un XSS stocké côté administration
     const sanitizedNotes = stripHtml(dto.specialNotes);
     const sanitizedCustomerName = stripHtml(dto.customerName) || undefined;
     const sanitizedCustomerPhone = stripHtml(dto.customerPhone) || undefined;
 
-    // Rattache/crée un client à partir du nom/téléphone fournis (à emporter /
-    // livraison) — même logique d'upsert que la caisse. Hors transaction, comme
-    // le flux staff, pour ne pas allonger la transaction principale.
+    // Rattache ou crée la fiche client à partir du nom/téléphone fournis
+    // (à emporter / livraison) — même logique qu'à la caisse. Hors
+    // transaction, pour ne pas allonger la transaction principale.
     const resolvedCustomerId =
       sanitizedCustomerName || sanitizedCustomerPhone
         ? await this.customersService.upsertFromInteraction({
-            tenantId: tenant.id,
             name: sanitizedCustomerName,
             phone: sanitizedCustomerPhone,
           })
@@ -264,24 +242,20 @@ export class PublicOrderService {
 
     const { order, lowStockWarnings } = await this.prisma.$transaction(
       async (tx) => {
-        // Un tableId doit appartenir au tenant résolu — sinon un visiteur
-        // public pourrait attacher l'UUID de table d'un autre restaurant à
-        // sa commande sans aucun contrôle serveur.
+        // Le tableId vient du QR code : il doit désigner une table existante
+        // et non supprimée.
         if (dto.tableId) {
           const table = await tx.table.findFirst({
-            where: { id: dto.tableId, tenantId: tenant.id, deletedAt: null },
+            where: { id: dto.tableId, deletedAt: null },
             select: { id: true },
           });
           if (!table) {
-            throw new BadRequestException(
-              'Table introuvable pour ce restaurant',
-            );
+            throw new BadRequestException('Table introuvable');
           }
         }
 
         const createdOrder = await tx.order.create({
           data: {
-            tenantId: tenant.id,
             type: dto.type,
             status: 'pending',
             total,
@@ -298,7 +272,6 @@ export class PublicOrderService {
 
         const warnings = await this.inventoryService.decrementStockForOrder(
           tx,
-          tenant.id,
           createdOrder.id,
           orderItemsData.map((i) => ({
             menuItemId: i.menuItemId,
@@ -310,9 +283,9 @@ export class PublicOrderService {
       },
     );
 
-    this.eventsService.emitToTenant(tenant.id, 'new-order', order);
+    this.eventsService.emitToStaff('new-order', order);
     for (const warning of lowStockWarnings) {
-      this.eventsService.emitToTenant(tenant.id, 'low-stock-alert', warning);
+      this.eventsService.emitToStaff('low-stock-alert', warning);
     }
 
     return { orderId: order.id, status: order.status, total: order.total };

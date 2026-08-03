@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { useSettings, useUpdateSettings } from "@/hooks/api/useSettings";
+import { useRestaurant, useUpdateRestaurantIdentity } from "@/hooks/api/useRestaurant";
 import { GeneralSettingsSchema } from "@/schemas/admin-schemas";
 import { RestaurantInfoCard } from "./restaurant-info-card";
 
@@ -35,24 +35,24 @@ export function GeneralSettingsForm() {
     },
   });
 
-  const { data: settingsData, isLoading } = useSettings();
-  const updateMutation = useUpdateSettings();
+  const { data: restaurant, isLoading } = useRestaurant();
+  const updateMutation = useUpdateRestaurantIdentity();
 
   useEffect(() => {
-    if (settingsData) {
+    if (restaurant) {
       form.reset({
-        name:            (settingsData as any).name            ?? "",
-        description:     (settingsData as any).description     ?? "",
-        phone:           (settingsData as any).phone           ?? "",
-        email:           (settingsData as any).email           ?? "",
-        address:         (settingsData as any).address         ?? "",
-        website:         (settingsData as any).website         ?? "",
-        deliveryEnabled: (settingsData as any).deliveryEnabled ?? false,
-        takeawayEnabled: (settingsData as any).takeawayEnabled ?? false,
-        dineInEnabled:   (settingsData as any).dineInEnabled   ?? false,
+        name:            (restaurant as any).name            ?? "",
+        description:     (restaurant as any).description     ?? "",
+        phone:           (restaurant as any).phone           ?? "",
+        email:           (restaurant as any).email           ?? "",
+        address:         (restaurant as any).address         ?? "",
+        website:         (restaurant as any).website         ?? "",
+        deliveryEnabled: (restaurant as any).deliveryEnabled ?? false,
+        takeawayEnabled: (restaurant as any).takeawayEnabled ?? false,
+        dineInEnabled:   (restaurant as any).dineInEnabled   ?? false,
       });
     }
-  }, [settingsData, form]);
+  }, [restaurant, form]);
 
   async function onSubmit(data: FormValues) {
     try {

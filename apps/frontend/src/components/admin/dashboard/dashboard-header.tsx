@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
 export function DashboardHeader() {
-  const { user, isAdmin } = useRole();
+  const { user, isOwner } = useRole();
   const today = format(new Date(), "EEEE d MMMM yyyy", { locale: fr });
   const capitalizedDate = today.charAt(0).toUpperCase() + today.slice(1);
 
@@ -17,11 +17,11 @@ export function DashboardHeader() {
       badge={
         <div className="flex items-center gap-2">
           <Badge
-            variant={isAdmin ? "default" : "secondary"}
+            variant={isOwner ? "default" : "secondary"}
             className="gap-1"
           >
             <Shield className="h-3 w-3" />
-            {isAdmin ? "Administrateur" : "Manager"}
+            {isOwner ? "Propriétaire" : "Manager"}
           </Badge>
           <Badge
             variant="outline"

@@ -21,7 +21,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { login } = useAuth();
 
-  const isOnboarding = searchParams.get('onboarding') === '1';
+  const redirectTo = searchParams.get('redirect') ?? '/admin/dashboard';
 
   const form = useForm({
     resolver: zodResolver(loginSchema),
@@ -34,17 +34,10 @@ function LoginForm() {
   const onSubmit = async (values: any) => {
     setIsLoading(true);
     try {
-      const loggedUser = await login(values.email, values.password);
+      await login(values.email, values.password);
 
       toast.success('Connexion réussie !');
-
-      if (loggedUser.platformRole === 'super_admin') {
-        router.push('/super-admin/dashboard');
-      } else if (!loggedUser.onboardingCompleted && !loggedUser.tenantId) {
-        router.push('/auth/register');
-      } else {
-        router.push('/admin/dashboard');
-      }
+      router.push(redirectTo);
     } catch (err: any) {
       // Afficher le vrai message renvoyé par le backend (email non vérifié, compte suspendu, etc.)
       toast.error(err?.message || 'Identifiants invalides');
@@ -62,9 +55,7 @@ function LoginForm() {
           Heureux de vous revoir
         </h1>
         <p className="text-muted-foreground mt-2">
-          {isOnboarding
-            ? 'Connectez-vous pour finaliser la configuration.'
-            : 'Connectez-vous pour accéder à votre espace de gestion.'}
+          Connectez-vous pour accéder à votre espace de gestion.
         </p>
       </div>
 
@@ -76,9 +67,9 @@ function LoginForm() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-sm font-medium text-foreground">Adresse e-mail</FormLabel>
-                <FormControl>
-                  <div className="relative group">
+                <div className="relative group">
                     <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <FormControl>
                     <Input
                       type="email"
                       inputMode="email"
@@ -87,8 +78,8 @@ function LoginForm() {
                       className="h-12 pl-11 rounded-xl bg-card"
                       {...field}
                     />
-                  </div>
-                </FormControl>
+                  </FormControl>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -104,9 +95,9 @@ function LoginForm() {
                     Oublié ?
                   </Link>
                 </div>
-                <FormControl>
-                  <div className="relative group">
+                <div className="relative group">
                     <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
+                  <FormControl>
                     <Input
                       type={showPwd ? 'text' : 'password'}
                       autoComplete="current-password"
@@ -114,6 +105,7 @@ function LoginForm() {
                       className="h-12 pl-11 pr-11 rounded-xl bg-card"
                       {...field}
                     />
+                  </FormControl>
                     <button
                       type="button"
                       onClick={() => setShowPwd((v) => !v)}
@@ -122,8 +114,7 @@ function LoginForm() {
                     >
                       {showPwd ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
-                  </div>
-                </FormControl>
+                </div>
                 <FormMessage />
               </FormItem>
             )}
@@ -146,15 +137,13 @@ function LoginForm() {
       </Form>
 
       <p className="text-sm text-muted-foreground text-center mt-8">
-        Pas encore de restaurant ?{' '}
-        <Link href="/auth/register" className="text-primary font-semibold hover:underline">
-          Créer un compte
-        </Link>
+        Vous faites partie de l’équipe mais n’avez pas encore de compte ?
+        Demandez une invitation à votre responsable.
       </p>
 
       <div className="mt-10 flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
         <ShoppingBag className="h-3.5 w-3.5 text-primary" />
-        Essai gratuit 14 jours · Sans carte de crédit
+        Accès réservé au personnel du restaurant
       </div>
     </AuthShell>
   );

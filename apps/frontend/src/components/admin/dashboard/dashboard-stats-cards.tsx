@@ -1,5 +1,5 @@
 import { StatsCard } from "@/components/ui/stats-card";
-import { ManagerOrAdmin } from "@/components/admin/RoleGuard";
+import { OwnerOrManager } from "@/components/admin/RoleGuard";
 import { ShoppingCart, TrendingUp, Users, CalendarCheck } from "lucide-react";
 
 interface DashboardStats {
@@ -20,7 +20,7 @@ export function DashboardStatsCards({ statsData, isLoading }: DashboardStatsCard
     : (statsData?.totalRevenue ?? 0).toLocaleString("fr-FR") + " FCFA";
 
   return (
-    <ManagerOrAdmin>
+    <OwnerOrManager>
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <StatsCard
           title="Commandes"
@@ -55,6 +55,6 @@ export function DashboardStatsCards({ statsData, isLoading }: DashboardStatsCard
           isLoading={isLoading}
         />
       </div>
-    </ManagerOrAdmin>
+    </OwnerOrManager>
   );
 }

@@ -42,15 +42,11 @@ export class ReportsService {
     return { start, end };
   }
 
-  async getMetrics(
-    tenantId: string,
-    type: ReportPeriod = 'monthly',
-    date?: string,
-  ) {
+  async getMetrics(type: ReportPeriod = 'monthly', date?: string) {
     const { start, end } = this.getDateRange(type, date);
     const dateFilter = { createdAt: { gte: start, lte: end } };
-    const orderWhere = { tenantId, deletedAt: null, ...dateFilter };
-    const reservationWhere = { tenantId, deletedAt: null, ...dateFilter };
+    const orderWhere = { deletedAt: null, ...dateFilter };
+    const reservationWhere = { deletedAt: null, ...dateFilter };
 
     const [ordersStats, revenue, newCustomers, reservationsCount] =
       await Promise.all([
@@ -60,12 +56,12 @@ export class ReportsService {
           _count: { id: true },
         }),
         this.prisma.transaction.aggregate({
-          where: { tenantId, type: 'sale', ...dateFilter },
+          where: { type: 'sale', ...dateFilter },
           _sum: { amount: true },
           _count: { id: true },
         }),
         this.prisma.customer.count({
-          where: { tenantId, deletedAt: null, ...dateFilter },
+          where: { deletedAt: null, ...dateFilter },
         }),
         this.prisma.reservation.count({ where: reservationWhere }),
       ]);
@@ -94,11 +90,7 @@ export class ReportsService {
     };
   }
 
-  async getChartData(
-    tenantId: string,
-    type: ReportPeriod = 'monthly',
-    date?: string,
-  ) {
+  async getChartData(type: ReportPeriod = 'monthly', date?: string) {
     const { start, end } = this.getDateRange(type, date);
 
     const [revenueRows, orderRows] = await Promise.all([
@@ -106,8 +98,7 @@ export class ReportsService {
         SELECT date_trunc('day', "createdAt") AS day,
                COALESCE(SUM(amount), 0)::float8 AS total
         FROM "Transaction"
-        WHERE "tenantId" = ${tenantId}
-          AND "type" = 'sale'
+        WHERE "type" = 'sale'
           AND "createdAt" BETWEEN ${start} AND ${end}
         GROUP BY day
         ORDER BY day ASC
@@ -116,8 +107,7 @@ export class ReportsService {
         SELECT date_trunc('day', "createdAt") AS day,
                COUNT(*)::int AS count
         FROM "Order"
-        WHERE "tenantId" = ${tenantId}
-          AND "deletedAt" IS NULL
+        WHERE "deletedAt" IS NULL
           AND "createdAt" BETWEEN ${start} AND ${end}
         GROUP BY day
         ORDER BY day ASC

@@ -22,7 +22,6 @@ export function UserNav({
     email: string;
     avatar?: string;
     role: string;
-    platformRole?: string;
     isAnonymous?: boolean | null;
   };
 }) {
@@ -39,9 +38,8 @@ export function UserNav({
   const displayAvatar = user?.avatar || "/avatar.png";
   const role = user?.role?.trim() || "client";
   const normalizedRole = role === "user" ? "client" : role;
-  const isSuperAdmin = user?.platformRole === "super_admin";
-  const canGoToDashboard = ['admin', 'waiter', 'owner', 'manager', 'head_chef', 'chef', 'cashier'].includes(normalizedRole) || isSuperAdmin;
-  const dashboardHref = isSuperAdmin ? "/super-admin/dashboard" : "/admin/dashboard";
+  const canGoToDashboard = ['owner', 'manager', 'waiter', 'chef', 'cashier'].includes(normalizedRole);
+  const dashboardHref = "/admin/dashboard";
   const isAnonymous = user?.isAnonymous === true;
   const canSeeOrderTracking = !isAnonymous && !canGoToDashboard;
 

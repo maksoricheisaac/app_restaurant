@@ -4,7 +4,6 @@ export type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancel
 
 export interface StoredOrder {
   orderId:        string;
-  slug:           string;
   ref:            string;   // orderId.slice(-8).toUpperCase()
   createdAt:      string;   // ISO
   itemCount:      number;
@@ -19,9 +18,7 @@ const TERMINAL: ReadonlySet<OrderStatus> = new Set(["served", "cancelled"]);
 const TTL_ACTIVE_MS   = 24 * 60 * 60 * 1000; // 24 h — active orders
 const TTL_TERMINAL_MS =  2 * 60 * 60 * 1000; // 2 h  — served / cancelled
 
-function storageKey(slug: string) {
-  return `flashmenu_orders_${slug}`;
-}
+const STORAGE_KEY = 'flashmenu_orders';
 
 function isExpired(order: StoredOrder): boolean {
   const age = Date.now() - new Date(order.createdAt).getTime();
@@ -32,16 +29,16 @@ function isExpired(order: StoredOrder): boolean {
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-/** Returns all non-expired orders for a slug, sorted newest-first. */
-export function getStoredOrders(slug: string): StoredOrder[] {
+/** Commandes non expirées, de la plus récente à la plus ancienne. */
+export function getStoredOrders(): StoredOrder[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(storageKey(slug));
+    const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const all: StoredOrder[] = JSON.parse(raw);
     const valid = all.filter((o) => !isExpired(o));
     // Persist purged state back if entries were removed
-    if (valid.length !== all.length) _write(slug, valid);
+    if (valid.length !== all.length) _write(valid);
     return valid.sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     );
@@ -51,8 +48,8 @@ export function getStoredOrders(slug: string): StoredOrder[] {
 }
 
 /** Returns only non-terminal orders (the ones the customer still cares about). */
-export function getActiveOrders(slug: string): StoredOrder[] {
-  return getStoredOrders(slug).filter((o) => !TERMINAL.has(o.status));
+export function getActiveOrders(): StoredOrder[] {
+  return getStoredOrders().filter((o) => !TERMINAL.has(o.status));
 }
 
 // ─── Write ────────────────────────────────────────────────────────────────────
@@ -60,31 +57,30 @@ export function getActiveOrders(slug: string): StoredOrder[] {
 /** Persist a newly placed order. */
 export function persistOrder(order: StoredOrder): void {
   if (typeof window === "undefined") return;
-  const current = getStoredOrders(order.slug);
+  const current = getStoredOrders();
   // Avoid duplicates (e.g. double-submit)
   const deduped = current.filter((o) => o.orderId !== order.orderId);
-  _write(order.slug, [order, ...deduped]);
+  _write([order, ...deduped]);
 }
 
 /** Update the cached status of an order (called from WebSocket events). */
 export function updateStoredStatus(
-  slug: string,
   orderId: string,
   status: OrderStatus,
 ): void {
   if (typeof window === "undefined") return;
-  const current = getStoredOrders(slug);
+  const current = getStoredOrders();
   const updated = current.map((o) =>
     o.orderId === orderId ? { ...o, status } : o,
   );
-  _write(slug, updated);
+  _write(updated);
 }
 
 // ─── Internal ─────────────────────────────────────────────────────────────────
 
-function _write(slug: string, orders: StoredOrder[]): void {
+function _write(orders: StoredOrder[]): void {
   try {
-    localStorage.setItem(storageKey(slug), JSON.stringify(orders));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
   } catch {
     // Storage quota exceeded — silently no-op
   }

@@ -2,8 +2,6 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CashRegisterService } from './cash-register.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const T = 'tenant-1';
-
 describe('CashRegisterService', () => {
   let service: CashRegisterService;
   let prisma: MockPrisma;
@@ -21,7 +19,7 @@ describe('CashRegisterService', () => {
       prisma.order.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.processPayment(T, {
+        service.processPayment({
           orderId: 'order-1',
           amount: 10,
           method: 'cash' as any,
@@ -42,7 +40,7 @@ describe('CashRegisterService', () => {
       });
       prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
 
-      await service.processPayment(T, {
+      await service.processPayment({
         orderId: 'order-1',
         amount: 10,
         method: 'cash' as any,
@@ -63,7 +61,7 @@ describe('CashRegisterService', () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
       prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
 
-      await service.processPayment(T, {
+      await service.processPayment({
         orderId: 'order-1',
         amount: 10,
         method: 'card' as any,
@@ -85,14 +83,13 @@ describe('CashRegisterService', () => {
         status: 'open',
       });
 
-      const result = await service.openSession(T, 'user-1', {
+      const result = await service.openSession('user-1', {
         openingAmount: 50,
       });
 
       expect(result.id).toBe('session-1');
       const call = prisma.cashRegisterSession.create.mock.calls[0][0];
       expect(call.data).toMatchObject({
-        tenantId: T,
         openedBy: 'user-1',
         openingAmount: 50,
       });
@@ -104,7 +101,7 @@ describe('CashRegisterService', () => {
       });
 
       await expect(
-        service.openSession(T, 'user-1', { openingAmount: 50 }),
+        service.openSession('user-1', { openingAmount: 50 }),
       ).rejects.toThrow(ConflictException);
 
       expect(prisma.cashRegisterSession.create).not.toHaveBeenCalled();
@@ -112,22 +109,9 @@ describe('CashRegisterService', () => {
   });
 
   describe('getCurrentSession', () => {
-    it('returns the open session for the tenant', async () => {
-      prisma.cashRegisterSession.findFirst.mockResolvedValue({
-        id: 'session-1',
-        status: 'open',
-      });
-
-      const result = await service.getCurrentSession(T);
-
-      expect(result?.id).toBe('session-1');
-      const call = prisma.cashRegisterSession.findFirst.mock.calls[0][0];
-      expect(call.where).toEqual({ tenantId: T, status: 'open' });
-    });
-
     it('returns null when no session is open', async () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
-      expect(await service.getCurrentSession(T)).toBeNull();
+      expect(await service.getCurrentSession()).toBeNull();
     });
   });
 
@@ -136,14 +120,13 @@ describe('CashRegisterService', () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.closeSession(T, 'user-1', { closingAmount: 100 }),
+        service.closeSession('user-1', { closingAmount: 100 }),
       ).rejects.toThrow(NotFoundException);
     });
 
     it('computes expectedAmount = openingAmount + cash payments of the session', async () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue({
         id: 'session-1',
-        tenantId: T,
         openingAmount: 50,
         notes: null,
       });
@@ -153,7 +136,7 @@ describe('CashRegisterService', () => {
         status: 'closed',
       });
 
-      await service.closeSession(T, 'user-1', { closingAmount: 250 });
+      await service.closeSession('user-1', { closingAmount: 250 });
 
       const aggCall = prisma.payment.aggregate.mock.calls[0][0];
       expect(aggCall.where).toEqual({
@@ -162,7 +145,7 @@ describe('CashRegisterService', () => {
       });
 
       const updateCall = prisma.cashRegisterSession.update.mock.calls[0][0];
-      expect(updateCall.where).toEqual({ id: 'session-1', tenantId: T });
+      expect(updateCall.where).toEqual({ id: 'session-1' });
       expect(updateCall.data.status).toBe('closed');
       expect(updateCall.data.closedBy).toBe('user-1');
       expect(updateCall.data.expectedAmount).toBe(250); // 50 + 200
@@ -172,14 +155,13 @@ describe('CashRegisterService', () => {
     it('reports a shortfall as negative variance', async () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue({
         id: 'session-1',
-        tenantId: T,
         openingAmount: 50,
         notes: null,
       });
       prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: 200 } });
       prisma.cashRegisterSession.update.mockResolvedValue({});
 
-      await service.closeSession(T, 'user-1', { closingAmount: 230 });
+      await service.closeSession('user-1', { closingAmount: 230 });
 
       const updateCall = prisma.cashRegisterSession.update.mock.calls[0][0];
       expect(updateCall.data.variance).toBe(-20); // 230 - 250
@@ -188,14 +170,13 @@ describe('CashRegisterService', () => {
     it('handles a session with zero cash payments (no aggregate rows)', async () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue({
         id: 'session-1',
-        tenantId: T,
         openingAmount: 50,
         notes: null,
       });
       prisma.payment.aggregate.mockResolvedValue({ _sum: { amount: null } });
       prisma.cashRegisterSession.update.mockResolvedValue({});
 
-      await service.closeSession(T, 'user-1', { closingAmount: 50 });
+      await service.closeSession('user-1', { closingAmount: 50 });
 
       const updateCall = prisma.cashRegisterSession.update.mock.calls[0][0];
       expect(updateCall.data.expectedAmount).toBe(50);
@@ -208,10 +189,10 @@ describe('CashRegisterService', () => {
       prisma.cashRegisterSession.findMany.mockResolvedValue([{ id: 's1' }]);
       prisma.cashRegisterSession.count.mockResolvedValue(1);
 
-      const result = await service.getSessionHistory(T);
+      const result = await service.getSessionHistory();
 
       const call = prisma.cashRegisterSession.findMany.mock.calls[0][0];
-      expect(call.where).toEqual({ tenantId: T, status: 'closed' });
+      expect(call.where).toEqual({ status: 'closed' });
       expect(call.orderBy).toEqual({ closedAt: 'desc' });
       expect(result.data).toEqual([{ id: 's1' }]);
     });
@@ -220,30 +201,11 @@ describe('CashRegisterService', () => {
   // ─── getTransactions ────────────────────────────────────────────────────
 
   describe('getTransactions', () => {
-    it('queries transactions for tenant with default pagination', async () => {
-      const tx = { id: 'tx-1', tenantId: T, type: 'sale', amount: 10 };
-      prisma.transaction.findMany.mockResolvedValue([tx]);
-      prisma.transaction.count.mockResolvedValue(1);
-
-      const result = await service.getTransactions(T, {} as any);
-
-      const call = prisma.transaction.findMany.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
-      expect(call.orderBy).toEqual({ createdAt: 'desc' });
-      expect(result.data).toEqual([tx]);
-      expect(result.pagination).toEqual({
-        page: 1,
-        limit: 20,
-        total: 1,
-        pages: 1,
-      });
-    });
-
     it('applies pagination params', async () => {
       prisma.transaction.findMany.mockResolvedValue([]);
       prisma.transaction.count.mockResolvedValue(45);
 
-      await service.getTransactions(T, { page: 2, limit: 10 } as any);
+      await service.getTransactions({ page: 2, limit: 10 } as any);
 
       const call = prisma.transaction.findMany.mock.calls[0][0];
       expect(call.skip).toBe(10);
@@ -254,7 +216,7 @@ describe('CashRegisterService', () => {
       prisma.transaction.findMany.mockResolvedValue([]);
       prisma.transaction.count.mockResolvedValue(0);
 
-      await service.getTransactions(T, {
+      await service.getTransactions({
         type: 'refund',
         cashierId: 'cashier-1',
       } as any);
@@ -271,10 +233,9 @@ describe('CashRegisterService', () => {
     it('queries ready/served orders without payment', async () => {
       prisma.order.findMany.mockResolvedValue([]);
 
-      await service.getUnpaidOrders(T);
+      await service.getUnpaidOrders();
 
       const call = prisma.order.findMany.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
       expect(call.where.status).toEqual({ in: ['ready', 'served'] });
       expect(call.where.payment).toBeNull();
     });

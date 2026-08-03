@@ -10,11 +10,11 @@ import { useAuth } from '@/contexts/AuthContext';
 import { UserNav } from './user-nav';
 
 const NAV_LINKS = [
-  { label: 'Accueil',         href: '/' },
-  { label: 'Fonctionnalités', href: '/#features' },
-  { label: 'Tarifs',          href: '/pricing' },
-  { label: 'À propos',        href: '/about' },
-  { label: 'Contact',         href: '/contact' },
+  { label: 'Accueil',     href: '/' },
+  { label: 'Notre menu',  href: '/menu' },
+  { label: 'Réserver',    href: '/menu/reservation' },
+  { label: 'À propos',    href: '/about' },
+  { label: 'Contact',     href: '/contact' },
 ] as const;
 
 export function Header() {
@@ -110,7 +110,6 @@ export function Header() {
                 email:        user.email,
                 avatar:       user.image || '',
                 role:         user.role || '',
-                platformRole: user.platformRole,
               }} />
             )}
           </div>
@@ -180,16 +179,15 @@ export function Header() {
                   email:        user.email,
                   avatar:       user.image || '',
                   role:         user.role || '',
-                  platformRole: user.platformRole,
                 }} />
               </div>
             )}
           </div>
 
-          {/* Petit badge SaaS en bas du menu mobile */}
+          {/* Rappel du geste principal, en bas du menu mobile */}
           <div className="flex items-center justify-center gap-1.5 pt-3 pb-1 text-[11px] text-muted-foreground">
             <Zap className="h-3 w-3 text-primary" />
-            <span>Essai gratuit 14 jours · Sans carte de crédit</span>
+            <span>Commande en ligne · Sans création de compte</span>
           </div>
         </div>
       </div>

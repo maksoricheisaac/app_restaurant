@@ -1,8 +1,16 @@
 import { EventsGateway } from './events.gateway';
+import { STAFF_ROOM } from './events.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
 const mockJwtService = {
   verify: jest.fn(),
+};
+
+const ACTIVE_ACCOUNT = {
+  id: 'u1',
+  email: 'a@b.com',
+  role: 'owner',
+  status: 'active',
 };
 
 function buildSocket(
@@ -36,141 +44,86 @@ describe('EventsGateway', () => {
   // ─── handleConnection ─────────────────────────────────────────────────────
 
   describe('handleConnection', () => {
-    it('sets client.data.user from a valid Authorization header token', () => {
+    it('charge le compte et rejoint le salon du personnel avec un jeton valide', async () => {
       const client = buildSocket({ authHeader: 'Bearer valid.jwt.token' });
-      mockJwtService.verify.mockReturnValue({
-        sub: 'u1',
-        email: 'a@b.com',
-        role: 'owner',
-        tenantId: 'tenant-1',
-      });
+      mockJwtService.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com' });
+      prisma.user.findUnique.mockResolvedValue(ACTIVE_ACCOUNT);
 
-      gateway.handleConnection(client);
+      await gateway.handleConnection(client);
 
-      expect(client.data.user).toEqual({
-        id: 'u1',
-        email: 'a@b.com',
-        role: 'owner',
-        tenantId: 'tenant-1',
-      });
+      expect(client.data.user).toEqual(ACTIVE_ACCOUNT);
+      expect(client.join).toHaveBeenCalledWith(STAFF_ROOM);
     });
 
-    it('sets client.data.user from auth.token', () => {
+    it('accepte le jeton passé dans auth.token', async () => {
       const client = buildSocket({ authToken: 'auth.token.here' });
-      mockJwtService.verify.mockReturnValue({
-        sub: 'u2',
-        email: 'b@c.com',
+      mockJwtService.verify.mockReturnValue({ sub: 'u2', email: 'b@c.com' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...ACTIVE_ACCOUNT,
+        id: 'u2',
         role: 'manager',
-        tenantId: 'tenant-2',
       });
 
-      gateway.handleConnection(client);
+      await gateway.handleConnection(client);
 
       expect(client.data.user.id).toBe('u2');
     });
 
-    it('prefers Authorization header over auth.token', () => {
+    it("privilégie l'en-tête Authorization sur auth.token", async () => {
       const client = buildSocket({
         authHeader: 'Bearer header.token',
         authToken: 'auth.token',
       });
-      mockJwtService.verify.mockReturnValue({
-        sub: 'u1',
-        email: 'a@b.com',
-        role: 'owner',
-        tenantId: null,
-      });
+      mockJwtService.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com' });
+      prisma.user.findUnique.mockResolvedValue(ACTIVE_ACCOUNT);
 
-      gateway.handleConnection(client);
+      await gateway.handleConnection(client);
 
       expect(mockJwtService.verify).toHaveBeenCalledWith('header.token');
     });
 
-    it('leaves client.data.user undefined for invalid token (silent fail)', () => {
+    it('refuse le salon du personnel à un compte désactivé', async () => {
+      const client = buildSocket({ authHeader: 'Bearer valid.jwt.token' });
+      mockJwtService.verify.mockReturnValue({ sub: 'u1', email: 'a@b.com' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...ACTIVE_ACCOUNT,
+        status: 'banned',
+      });
+
+      await gateway.handleConnection(client);
+
+      expect(client.data.user).toBeUndefined();
+      expect(client.join).not.toHaveBeenCalled();
+    });
+
+    it('laisse le client anonyme sur un jeton invalide (échec silencieux)', async () => {
       const client = buildSocket({ authHeader: 'Bearer bad.token' });
       mockJwtService.verify.mockImplementation(() => {
         throw new Error('Invalid JWT');
       });
 
-      gateway.handleConnection(client);
+      await gateway.handleConnection(client);
 
       expect(client.data.user).toBeUndefined();
+      expect(client.join).not.toHaveBeenCalled();
     });
 
-    it('leaves client.data.user undefined when no token provided', () => {
+    it('laisse le client anonyme en absence de jeton', async () => {
       const client = buildSocket();
-      gateway.handleConnection(client);
+
+      await gateway.handleConnection(client);
 
       expect(mockJwtService.verify).not.toHaveBeenCalled();
       expect(client.data.user).toBeUndefined();
     });
   });
 
-  // ─── handleJoinTenant ────────────────────────────────────────────────────
-
-  describe('handleJoinTenant', () => {
-    it('returns Unauthorized when client is not authenticated', async () => {
-      const client = buildSocket(); // no user
-
-      const result = await gateway.handleJoinTenant(client, {
-        tenantId: 'tenant-1',
-      });
-
-      expect(result).toEqual({ status: 'error', message: 'Unauthorized' });
-      expect(client.join).not.toHaveBeenCalled();
-    });
-
-    it('returns Forbidden when user is not a member of the tenant', async () => {
-      const client = buildSocket({ userData: { id: 'u1', tenantId: 'other' } });
-      prisma.tenantMembership.findUnique.mockResolvedValue(null);
-
-      const result = await gateway.handleJoinTenant(client, {
-        tenantId: 'tenant-1',
-      });
-
-      expect(result).toEqual({ status: 'error', message: 'Forbidden' });
-      expect(client.join).not.toHaveBeenCalled();
-    });
-
-    it('joins the correct room when membership exists', async () => {
-      const client = buildSocket({
-        userData: { id: 'u1', tenantId: 'tenant-1' },
-      });
-      prisma.tenantMembership.findUnique.mockResolvedValue({
-        id: 'm1',
-        role: 'owner',
-      });
-
-      const result = await gateway.handleJoinTenant(client, {
-        tenantId: 'tenant-1',
-      });
-
-      expect(result).toEqual({ status: 'ok', room: 'tenant-tenant-1' });
-      expect(client.join).toHaveBeenCalledWith('tenant-tenant-1');
-    });
-
-    it('verifies membership against the correct userId and tenantId', async () => {
-      const client = buildSocket({
-        userData: { id: 'user-uuid', tenantId: 'tenant-uuid' },
-      });
-      prisma.tenantMembership.findUnique.mockResolvedValue({ id: 'm1' });
-
-      await gateway.handleJoinTenant(client, { tenantId: 'tenant-uuid' });
-
-      expect(prisma.tenantMembership.findUnique).toHaveBeenCalledWith({
-        where: {
-          userId_tenantId: { userId: 'user-uuid', tenantId: 'tenant-uuid' },
-        },
-      });
-    });
-  });
-
-  // ─── handleJoinOrder ────────────────────────────────────────────────────
+  // ─── handleJoinOrder ─────────────────────────────────────────────────────
 
   describe('handleJoinOrder', () => {
-    const order = { id: 'order-1', tenantId: 'tenant-1' };
+    const order = { id: 'order-1' };
 
-    it('returns error for missing or non-string orderId', async () => {
+    it('rejette un orderId manquant ou non textuel', async () => {
       const client = buildSocket();
 
       expect(await gateway.handleJoinOrder(client, { orderId: '' })).toEqual({
@@ -185,7 +138,7 @@ describe('EventsGateway', () => {
       });
     });
 
-    it('returns error when order not found', async () => {
+    it('rejette une commande inexistante', async () => {
       const client = buildSocket();
       prisma.order.findUnique.mockResolvedValue(null);
 
@@ -197,24 +150,8 @@ describe('EventsGateway', () => {
       expect(client.join).not.toHaveBeenCalled();
     });
 
-    it('blocks authenticated user from joining order of a different tenant', async () => {
-      const client = buildSocket({
-        userData: { id: 'u1', tenantId: 'tenant-X' },
-      });
-      prisma.order.findUnique.mockResolvedValue({
-        id: 'o1',
-        tenantId: 'tenant-Y',
-      });
-
-      const result = await gateway.handleJoinOrder(client, { orderId: 'o1' });
-
-      expect(result).toEqual({ status: 'error', message: 'Forbidden' });
-    });
-
-    it('allows authenticated user from the same tenant to join', async () => {
-      const client = buildSocket({
-        userData: { id: 'u1', tenantId: 'tenant-1' },
-      });
+    it('laisse un client anonyme suivre sa propre commande', async () => {
+      const client = buildSocket(); // aucun utilisateur authentifié
       prisma.order.findUnique.mockResolvedValue(order);
 
       const result = await gateway.handleJoinOrder(client, {
@@ -224,51 +161,12 @@ describe('EventsGateway', () => {
       expect(result).toEqual({ status: 'ok', room: 'order-tracking-order-1' });
       expect(client.join).toHaveBeenCalledWith('order-tracking-order-1');
     });
-
-    it('allows unauthenticated public customer to track their own order', async () => {
-      const client = buildSocket(); // no user data
-      prisma.order.findUnique.mockResolvedValue(order);
-
-      const result = await gateway.handleJoinOrder(client, {
-        orderId: 'order-1',
-      });
-
-      expect(result).toEqual({ status: 'ok', room: 'order-tracking-order-1' });
-    });
-
-    it('checks membership for authenticated user without tenantId claim', async () => {
-      const client = buildSocket({
-        userData: { id: 'u1', tenantId: undefined },
-      });
-      prisma.order.findUnique.mockResolvedValue(order);
-      prisma.tenantMembership.findFirst.mockResolvedValue(null); // not a member
-
-      const result = await gateway.handleJoinOrder(client, {
-        orderId: 'order-1',
-      });
-
-      expect(result).toEqual({ status: 'error', message: 'Forbidden' });
-    });
-
-    it('allows user with no tenantId claim if membership exists', async () => {
-      const client = buildSocket({
-        userData: { id: 'u1', tenantId: undefined },
-      });
-      prisma.order.findUnique.mockResolvedValue(order);
-      prisma.tenantMembership.findFirst.mockResolvedValue({ id: 'm1' });
-
-      const result = await gateway.handleJoinOrder(client, {
-        orderId: 'order-1',
-      });
-
-      expect(result.status).toBe('ok');
-    });
   });
 
   // ─── handleDisconnect ────────────────────────────────────────────────────
 
   describe('handleDisconnect', () => {
-    it('is a no-op that does not throw', () => {
+    it('ne lève pas', () => {
       const client = buildSocket();
       expect(() => gateway.handleDisconnect(client)).not.toThrow();
     });

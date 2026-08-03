@@ -13,7 +13,7 @@ export const DashboardHeader: React.FC<DashboardHeaderProps> = ({ user, role, is
     <div>
       <h1 className="text-3xl font-bold text-gray-900">Tableau de bord</h1>
       <p className="text-gray-600 mt-2">
-        Bienvenue, {user?.name} - Connecté en tant que {role === 'admin' ? 'Administrateur' : 'Manager'}
+        Bienvenue, {user?.name} - Connecté en tant que {role === 'owner' ? 'Propriétaire' : 'Manager'}
       </p>
     </div>
     <div className="flex items-center space-x-2">

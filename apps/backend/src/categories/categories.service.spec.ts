@@ -1,9 +1,7 @@
-import { ForbiddenException } from '@nestjs/common';
 import { CategoriesService } from './categories.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const T = 'tenant-1';
-const CAT = { id: 'cat-1', name: 'Entrées', tenantId: T, deletedAt: null };
+const CAT = { id: 'cat-1', name: 'Entrées', deletedAt: null };
 
 describe('CategoriesService', () => {
   let service: CategoriesService;
@@ -18,34 +16,16 @@ describe('CategoriesService', () => {
   // ─── findAll ──────────────────────────────────────────────────────────────
 
   describe('findAll', () => {
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.findAll(undefined)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(prisma.menuCategory.findMany).not.toHaveBeenCalled();
-    });
-
-    it('queries only non-deleted categories for the tenant', async () => {
-      prisma.menuCategory.findMany.mockResolvedValue([CAT]);
-
-      const result = await service.findAll(T);
-
-      expect(result).toEqual([CAT]);
-      const call = prisma.menuCategory.findMany.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
-      expect(call.where.deletedAt).toBeNull();
-    });
-
     it('orders results by name ascending', async () => {
       prisma.menuCategory.findMany.mockResolvedValue([]);
-      await service.findAll(T);
+      await service.findAll();
       const call = prisma.menuCategory.findMany.mock.calls[0][0];
       expect(call.orderBy).toEqual({ name: 'asc' });
     });
 
     it('returns empty array when no categories exist', async () => {
       prisma.menuCategory.findMany.mockResolvedValue([]);
-      const result = await service.findAll(T);
+      const result = await service.findAll();
       expect(result).toEqual([]);
     });
   });
@@ -55,24 +35,11 @@ describe('CategoriesService', () => {
   describe('create', () => {
     const dto = { name: 'Desserts' };
 
-    it('creates category with correct tenantId', async () => {
-      prisma.menuCategory.create.mockResolvedValue({
-        ...CAT,
-        name: 'Desserts',
-      });
-
-      await service.create(T, dto as any);
-
-      const call = prisma.menuCategory.create.mock.calls[0][0];
-      expect(call.data.tenantId).toBe(T);
-      expect(call.data.name).toBe('Desserts');
-    });
-
     it('returns the created category', async () => {
-      const created = { id: 'cat-2', name: 'Desserts', tenantId: T };
+      const created = { id: 'cat-2', name: 'Desserts' };
       prisma.menuCategory.create.mockResolvedValue(created);
 
-      const result = await service.create(T, dto as any);
+      const result = await service.create(dto as any);
       expect(result).toEqual(created);
     });
   });
@@ -80,41 +47,27 @@ describe('CategoriesService', () => {
   // ─── update ───────────────────────────────────────────────────────────────
 
   describe('update', () => {
-    const dto = { name: 'Entrées chaudes' };
+    it('met à jour la catégorie par son identifiant', async () => {
+      const dto = { name: 'Entrées chaudes' };
+      prisma.menuCategory.update.mockResolvedValue({ ...CAT, ...dto });
 
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(
-        service.update(undefined, 'cat-1', dto as any),
-      ).rejects.toThrow(ForbiddenException);
-    });
+      const result = await service.update('cat-1', dto);
 
-    it('updates only the category belonging to this tenant', async () => {
-      prisma.menuCategory.update.mockResolvedValue({
-        ...CAT,
-        name: 'Entrées chaudes',
+      expect(prisma.menuCategory.update).toHaveBeenCalledWith({
+        where: { id: 'cat-1' },
+        data: dto,
       });
-
-      await service.update(T, 'cat-1', dto as any);
-
-      const call = prisma.menuCategory.update.mock.calls[0][0];
-      expect(call.where.tenantId).toBe(T);
-      expect(call.where.id).toBe('cat-1');
+      expect(result).toEqual({ ...CAT, ...dto });
     });
   });
 
   // ─── remove (soft delete in transaction) ─────────────────────────────────
 
   describe('remove', () => {
-    it('throws ForbiddenException when tenantId is missing', async () => {
-      await expect(service.remove(undefined, 'cat-1')).rejects.toThrow(
-        ForbiddenException,
-      );
-    });
-
     it('runs soft-delete in a Prisma transaction', async () => {
       prisma.$transaction.mockResolvedValue([{ count: 2 }, CAT]);
 
-      await service.remove(T, 'cat-1');
+      await service.remove('cat-1');
 
       expect(prisma.$transaction).toHaveBeenCalled();
     });
@@ -126,7 +79,7 @@ describe('CategoriesService', () => {
         return Promise.resolve(ops);
       });
 
-      await service.remove(T, 'cat-1');
+      await service.remove('cat-1');
 
       // $transaction receives an array [updateMany(items), update(category)]
       expect(capturedOps).toHaveLength(2);

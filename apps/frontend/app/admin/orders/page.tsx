@@ -40,10 +40,10 @@ import { useTables } from "@/hooks/api/useTables";
 import { Order, OrderStatus } from "@/types/order";
 import { createOrderSchema } from "@/schemas/validation";
 import { ORDER_STATUS_COLORS as statusColors, ORDER_STATUS_LABELS as statusLabels, ORDER_TYPE_LABELS as typeLabels } from "@/lib/order-utils";
-import { useTenantCurrency } from "@/hooks/useTenantCurrency";
+import { useRestaurantCurrency } from "@/hooks/api/useRestaurant";
 
 export default function OrdersPage() {
-  const formatCurrency = useTenantCurrency();
+  const formatCurrency = useRestaurantCurrency();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<OrderStatus | undefined>();
   const [type, setType] = useState<"dine_in" | "takeaway" | "delivery" | undefined>();

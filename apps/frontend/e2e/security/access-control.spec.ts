@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 import { API_BASE } from '../fixtures';
 
 /**
- * Tests de sécurité — accès sans auth, bypass RBAC, cross-tenant.
+ * Tests de sécurité — accès sans authentification et contournement RBAC.
  * Ces tests s'exécutent SANS storageState (contexte propre, non authentifié).
  */
 test.describe('Sécurité — Accès sans authentification', () => {
@@ -54,21 +54,20 @@ test.describe('Sécurité — Routes publiques accessibles', () => {
 test.describe('Sécurité — Injection prix commande', () => {
   test('POST /api/v1/public/orders avec prix manipulé est refusé ou ignoré', async ({ request }) => {
     // Un utilisateur public ne peut pas manipuler le prix — le backend recalcule
-    // On vérifie juste que la route n'accepte pas de données sans tenant valide
+    // La route doit rejeter une charge invalide, sans jamais renvoyer de 500
     const res = await request.post(`${API_BASE}/public/orders`, {
       data: {
         items: [{ menuItemId: 'fake-id', quantity: 1, price: 0.01 }],
         type: 'dine_in',
       },
-      headers: { 'x-tenant-slug': 'nonexistent-tenant-xyz' },
     });
-    // Doit rejeter : tenant invalide ou validation échoue
+    // Doit rejeter : validation en échec
     expect([400, 401, 403, 404]).toContain(res.status());
   });
 });
 
-test.describe('Sécurité — Cross-tenant (navigation)', () => {
-  test('/admin/dashboard sans cookie tenant redirige', async ({ page }) => {
+test.describe('Sécurité — Navigation protégée', () => {
+  test('/admin/dashboard sans session redirige vers la connexion', async ({ page }) => {
     // Sans cookie de session : doit rediriger vers login
     await page.goto('/admin/dashboard');
     await page.waitForURL(/\/(auth\/login|pending-invite)/, { timeout: 10_000 });

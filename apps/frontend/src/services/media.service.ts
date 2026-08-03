@@ -26,23 +26,23 @@ export const mediaService = {
     await api.delete(`/media/category/${categoryId}/image`);
   },
 
-  uploadTenantLogo: async (file: File): Promise<UploadResult> => {
+  uploadRestaurantLogo: async (file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/media/upload/tenant-logo', formData) as Promise<UploadResult>;
+    return api.post('/media/upload/restaurant-logo', formData) as Promise<UploadResult>;
   },
 
-  deleteTenantLogo: async (): Promise<void> => {
-    await api.delete('/media/tenant-logo');
+  deleteRestaurantLogo: async (): Promise<void> => {
+    await api.delete('/media/restaurant-logo');
   },
 
-  uploadTenantBanner: async (file: File): Promise<UploadResult> => {
+  uploadRestaurantBanner: async (file: File): Promise<UploadResult> => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/media/upload/tenant-banner', formData) as Promise<UploadResult>;
+    return api.post('/media/upload/restaurant-banner', formData) as Promise<UploadResult>;
   },
 
-  deleteTenantBanner: async (): Promise<void> => {
-    await api.delete('/media/tenant-banner');
+  deleteRestaurantBanner: async (): Promise<void> => {
+    await api.delete('/media/restaurant-banner');
   },
 };

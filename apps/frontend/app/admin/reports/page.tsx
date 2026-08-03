@@ -5,7 +5,6 @@ import dynamic from 'next/dynamic';
 import { LoadingState } from '@/components/ui/loading-state';
 import { ProtectedRoute } from '@/components/admin/ProtectedRoute';
 import { Permission } from '@/types/permissions';
-import { FeatureGate } from '@/components/ui/feature-gate';
 
 import {
   HeaderSection,
@@ -74,7 +73,6 @@ export default function AdminReports() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_REPORTS}>
-      <FeatureGate feature="advancedReports" featureName="Les rapports avancés" className="rounded-xl">
       <div className="space-y-4 md:space-y-8 w-full">
         <HeaderSection
           selectedPeriod={selectedPeriod}
@@ -108,7 +106,6 @@ export default function AdminReports() {
           </div>
         </div>
       </div>
-      </FeatureGate>
     </ProtectedRoute>
   );
 }

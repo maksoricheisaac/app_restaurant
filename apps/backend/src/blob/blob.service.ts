@@ -33,7 +33,7 @@ export class BlobService {
     params: UploadImageParams,
     requestId?: string,
   ): Promise<UploadedBlob> {
-    const { buffer, mimeType, tenantId, context } = params;
+    const { buffer, mimeType, context } = params;
 
     if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(mimeType)) {
       throw new BadRequestException(
@@ -70,7 +70,6 @@ export class BlobService {
     } catch (err) {
       this.monitoring.captureError(err, {
         requestId,
-        tenantId,
         context: 'blob:process',
         extra: { mimeType },
       });
@@ -79,7 +78,7 @@ export class BlobService {
       );
     }
 
-    const pathname = `tenants/${tenantId}/${context}/${crypto.randomUUID()}.webp`;
+    const pathname = `${context}/${crypto.randomUUID()}.webp`;
     const start = Date.now();
 
     try {
@@ -93,7 +92,6 @@ export class BlobService {
         JSON.stringify({
           event: 'blob_uploaded',
           pathname: blob.pathname,
-          tenantId,
           context,
           originalSizeBytes: buffer.length,
           processedSizeBytes: processedBuffer.length,
@@ -132,7 +130,6 @@ export class BlobService {
 
       this.monitoring.captureError(err, {
         requestId,
-        tenantId,
         context: 'blob:upload',
         extra: { pathname, error: errMsg },
       });

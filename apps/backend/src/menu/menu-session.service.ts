@@ -2,8 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
-const WINDOW_MS = 30 * 60 * 1000; // 30-minute rolling windows
+const WINDOW_MS = 30 * 60 * 1000; // Fenêtres glissantes de 30 minutes
 
+/**
+ * Jeton HMAC de courte durée délivré au chargement de la carte publique et
+ * exigé pour envoyer une commande ou une réservation.
+ *
+ * Sans slug d'établissement à signer, le jeton n'atteste plus que d'une
+ * chose — et c'est tout ce qu'on lui demande : le client a bien chargé la
+ * carte avant de commander, ce qui coupe court aux envois scriptés directs.
+ */
 @Injectable()
 export class MenuSessionService {
   private readonly logger = new Logger(MenuSessionService.name);
@@ -17,8 +25,8 @@ export class MenuSessionService {
 
     if (!dedicated && !this.isDev) {
       this.logger.warn(
-        'MENU_SESSION_SECRET not set — falling back to JWT_SECRET. ' +
-          'Set a dedicated secret in production.',
+        'MENU_SESSION_SECRET non défini — repli sur JWT_SECRET. ' +
+          'Définissez un secret dédié en production.',
       );
     }
 
@@ -29,36 +37,38 @@ export class MenuSessionService {
     return Math.floor(Date.now() / WINDOW_MS);
   }
 
-  private sign(slug: string, win: number): string {
+  private sign(win: number): string {
     return crypto
       .createHmac('sha256', this.secret)
-      .update(`menu-session:${slug}:${win}`)
+      .update(`menu-session:${win}`)
       .digest('base64url');
   }
 
-  /** Generate a token valid for the current 30-minute window. */
-  generate(slug: string): string {
-    return this.sign(slug, this.window());
+  /** Émet un jeton valable pour la fenêtre de 30 minutes en cours. */
+  generate(): string {
+    return this.sign(this.window());
   }
 
   /**
-   * Verify a token for `slug`.
-   * Accepts current window AND previous window (handles boundary edge-cases).
-   * In development, always returns true so hot-reloading never blocks orders.
+   * Vérifie un jeton. Accepte la fenêtre courante ET la précédente, pour ne
+   * pas rejeter un client à cheval sur un changement de fenêtre.
+   * En développement, renvoie toujours true : le rechargement à chaud ne doit
+   * jamais bloquer une commande de test.
    */
-  verify(slug: string, token: string | undefined): boolean {
+  verify(token: string | undefined): boolean {
     if (this.isDev) return true;
     if (!token) return false;
+
     const w = this.window();
-    return (
-      crypto.timingSafeEqual(
-        Buffer.from(this.sign(slug, w)),
-        Buffer.from(token),
-      ) ||
-      crypto.timingSafeEqual(
-        Buffer.from(this.sign(slug, w - 1)),
-        Buffer.from(token),
-      )
-    );
+    return this.matches(token, w) || this.matches(token, w - 1);
+  }
+
+  private matches(token: string, win: number): boolean {
+    const expected = Buffer.from(this.sign(win));
+    const given = Buffer.from(token);
+    // timingSafeEqual exige des longueurs égales : un jeton de taille
+    // différente est de toute façon invalide, et le comparer lèverait.
+    if (expected.length !== given.length) return false;
+    return crypto.timingSafeEqual(expected, given);
   }
 }

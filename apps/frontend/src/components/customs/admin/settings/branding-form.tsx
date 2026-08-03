@@ -8,22 +8,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
 import {
-  useUploadTenantLogo,
-  useDeleteTenantLogo,
-  useUploadTenantBanner,
-  useDeleteTenantBanner,
+  useUploadRestaurantLogo,
+  useDeleteRestaurantLogo,
+  useUploadRestaurantBanner,
+  useDeleteRestaurantBanner,
 } from "@/hooks/api/useMedia";
 import api from "@/lib/api-client";
 
-interface TenantBranding {
+interface RestaurantBranding {
   logo:      string | null;
   bannerUrl: string | null;
 }
 
 function useBranding() {
-  return useQuery<TenantBranding>({
-    queryKey: ["tenant-me"],
-    queryFn:  () => api.get("/tenants/me") as Promise<TenantBranding>,
+  return useQuery<RestaurantBranding>({
+    queryKey: ["restaurant"],
+    queryFn:  () => api.get("/restaurant") as Promise<RestaurantBranding>,
     staleTime: 60_000,
   });
 }
@@ -156,12 +156,12 @@ function ImageUploadZone({
 // ─── Main component ───────────────────────────────────────────────────────────
 
 export function BrandingForm() {
-  const { data: tenant, isLoading } = useBranding();
+  const { data: restaurant, isLoading } = useBranding();
 
-  const uploadLogo   = useUploadTenantLogo();
-  const deleteLogo   = useDeleteTenantLogo();
-  const uploadBanner = useUploadTenantBanner();
-  const deleteBanner = useDeleteTenantBanner();
+  const uploadLogo   = useUploadRestaurantLogo();
+  const deleteLogo   = useDeleteRestaurantLogo();
+  const uploadBanner = useUploadRestaurantBanner();
+  const deleteBanner = useDeleteRestaurantBanner();
 
   async function handleUpload(type: "logo" | "banner", file: File) {
     try {
@@ -209,7 +209,7 @@ export function BrandingForm() {
         <ImageUploadZone
           label="Logo du restaurant"
           description="Affiché dans l'en-tête du menu client et sur vos QR codes. Format carré recommandé (1:1)."
-          currentUrl={tenant?.logo ?? null}
+          currentUrl={restaurant?.logo ?? null}
           aspectClass="aspect-square max-w-[180px]"
           onUpload={(f) => handleUpload("logo", f)}
           onDelete={() => handleDelete("logo")}
@@ -222,7 +222,7 @@ export function BrandingForm() {
         <ImageUploadZone
           label="Bannière du menu"
           description="Image hero de votre page menu public. Format paysage recommandé (16:9 ou 3:1). Min. 1200×400 px."
-          currentUrl={tenant?.bannerUrl ?? null}
+          currentUrl={restaurant?.bannerUrl ?? null}
           aspectClass="aspect-[3/1] w-full"
           onUpload={(f) => handleUpload("banner", f)}
           onDelete={() => handleDelete("banner")}

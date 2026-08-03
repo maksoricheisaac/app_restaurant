@@ -1,17 +1,17 @@
 # ADR-001 — Architecture d'authentification
 
-**Date :** 2026-05-17  
-**Statut :** Accepté
+**Date :** 2026-05-17
+**Statut :** Accepté — révisé le 2026-08-02 (voir ADR-007)
 
 ---
 
 ## Contexte
 
-Flash Menu est un SaaS multi-tenant. L'authentification doit gérer :
+Flash Menu est un logiciel mono-établissement. L'authentification doit gérer :
 1. La connexion locale (email + mot de passe)
 2. La vérification de JWT sur chaque requête
 3. Le refresh silencieux des tokens expirés
-4. Le flow d'onboarding multi-étapes
+4. La première installation, qui crée le propriétaire
 
 ## Décision
 
@@ -21,7 +21,7 @@ L'authentification utilise **deux couches** distinctes et complémentaires :
 
 #### Couche 1 — `AuthMiddleware` (middleware global)
 ```
-Toutes les requêtes → AuthMiddleware → req.user = { id, email, role, platformRole, tenantId }
+Toutes les requêtes → AuthMiddleware → req.user = { id, email }
 ```
 - S'exécute sur **toutes** les routes avant les guards
 - Lit le JWT depuis `Cookie: token=xxx` ou `Authorization: Bearer xxx`
@@ -30,10 +30,17 @@ Toutes les requêtes → AuthMiddleware → req.user = { id, email, role, platfo
 
 #### Couche 2 — `AuthGuard` (custom guard)
 ```
-Routes protégées → AuthGuard → vérifie req.user !== null
+Routes protégées → AuthGuard → charge le compte en base → req.user = { id, email, name, role, status }
 ```
-- Lève `UnauthorizedException` si `req.user` est absent
+- Lève `UnauthorizedException` si `req.user` est absent ou si le compte n'existe plus
+- Lève `ForbiddenException` si le compte n'est pas `active`
 - Décorateur `@Public()` pour bypasser les deux couches
+
+**Le rôle n'est jamais lu depuis le JWT.** Il est relu en base à chaque
+requête, pour qu'une rétrogradation ou une désactivation prenne effet
+immédiatement plutôt qu'à l'expiration du jeton (jusqu'à 15 min plus tard).
+C'est une requête SQL — la même que celles que faisait déjà l'ancienne chaîne
+multi-tenant, en deux fois.
 
 #### Exception : Passport pour le login
 La route `POST /auth/login` utilise `LocalAuthGuard` (Passport) pour le flow username/password.  
@@ -81,11 +88,10 @@ login form ──POST /login─────────────────�
 // Requête authentifiée
 api call ─────────────────Cookie: token──────────────►  AuthMiddleware
                                                           │ jwtService.verify()
-                                                          │ req.user = { id, ... }
+                                                          │ req.user = { id, email }
                                                           ▼
-                                                         AuthGuard → req.user OK
-                                                         TenantGuard → membership OK
-                                                         RolesGuard → role OK
+                                                         AuthGuard → compte relu en base
+                                                         RolesGuard → rôle OK (en mémoire)
                                                           ▼
                            ◄── data                      Controller handler
 ```

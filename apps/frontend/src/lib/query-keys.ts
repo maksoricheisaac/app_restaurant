@@ -53,8 +53,6 @@ export const queryKeys = {
   dashboard: {
     stats: (params: Record<string, unknown> = {}) => ['dashboard-stats', params] as const,
     latestOrders: (params: Record<string, unknown> = {}) => ['latest-orders', params] as const,
-    platformStats: () => ['platform-stats'] as const,
-    tenants: () => ['tenants'] as const,
   },
 
   // ─── Inventaire ───────────────────────────────────────────────────────────
@@ -99,11 +97,6 @@ export const queryKeys = {
     user: (userId: string) => ['user-permissions', userId] as const,
   },
 
-  // ─── Plans & Billing ──────────────────────────────────────────────────────
-  plans: {
-    usage: () => ['plan-usage'] as const,
-    subscription: () => ['subscription'] as const,
-  },
 } as const;
 
 /**

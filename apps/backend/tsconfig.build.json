@@ -1,4 +1,22 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "compilerOptions": {
+    // Sans rootDir explicite, TypeScript déduit la racine du plus petit
+    // ancêtre commun des fichiers compilés. `prisma.config.ts` étant à la
+    // racine du paquet, la sortie devenait `dist/src/main.js` — alors que
+    // `start:prod` et le Dockerfile lancent tous deux `node dist/main`.
+    // Le conteneur échouait donc au démarrage sur un MODULE_NOT_FOUND.
+    "rootDir": "./src"
+  },
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    // Scripts exécutés par la CLI Prisma / ts-node (config, seeds, reset).
+    // Ils ne sont jamais importés par l'application, et leur présence hors
+    // de `src/` est ce qui déplaçait la racine du build.
+    "prisma.config.ts",
+    "prisma/**"
+  ]
 }

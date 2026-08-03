@@ -23,34 +23,31 @@ const SocketContext = createContext<SocketContextType>({
 export const useSocket = () => useContext(SocketContext);
 
 /**
- * SocketProvider — gestion stable de la connexion Socket.io.
+ * SocketProvider — connexion Socket.io stable.
  *
- * Design choices:
- * - Une seule instance Socket créée au montage (pas de reconnexion à chaque changement de tenantId).
- * - Quand tenantId/orderId changent APRÈS connexion, on émet join-* immédiatement
- *   sans recréer le socket (pas de reconnect storm).
- * - Les refs capturent les valeurs courantes pour éviter les stale closures dans
- *   le handler connect (qui ne connaît que les valeurs au moment de sa création).
- * - Sur démontage : disconnect propre + reset état.
+ * Le personnel authentifié rejoint le salon de l'établissement côté serveur,
+ * dès la poignée de main : il n'y a plus rien à émettre pour cela. Seul le
+ * suivi public d'une commande demande encore un `join-order` explicite,
+ * puisque le client anonyme désigne une commande précise.
+ *
+ * - Socket créé une seule fois au montage (pas de tempête de reconnexions).
+ * - Les refs évitent les fermetures périmées dans le handler `connect`.
+ * - Démontage : déconnexion propre et remise à zéro de l'état.
  */
 export const SocketProvider = ({
   children,
-  tenantId,
   orderId,
 }: {
   children: ReactNode;
-  tenantId?: string;
   orderId?: string;
 }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [connected, setConnected] = useState(false);
 
-  // Refs pour accéder aux valeurs courantes depuis le handler connect (closure stable)
-  const tenantIdRef = useRef(tenantId);
+  // Refs pour lire les valeurs courantes depuis le handler connect
   const orderIdRef = useRef(orderId);
   const socketRef = useRef<Socket | null>(null);
 
-  useEffect(() => { tenantIdRef.current = tenantId; }, [tenantId]);
   useEffect(() => { orderIdRef.current = orderId; }, [orderId]);
 
   // Création unique du socket au montage du Provider
@@ -71,10 +68,8 @@ export const SocketProvider = ({
 
     const onConnect = () => {
       setConnected(true);
-      // Re-join rooms à chaque (re)connexion — couvre le cas expiration JWT + auto-reconnect
-      if (tenantIdRef.current) {
-        s.emit('join-tenant', { tenantId: tenantIdRef.current });
-      }
+      // Re-join à chaque (re)connexion — couvre l'expiration du JWT suivie
+      // d'une reconnexion automatique.
       if (orderIdRef.current) {
         s.emit('join-order', { orderId: orderIdRef.current });
       }
@@ -98,14 +93,7 @@ export const SocketProvider = ({
     };
   }, []); // Socket créé une seule fois par montage
 
-  // Re-join la room tenant quand tenantId devient disponible ou change
-  useEffect(() => {
-    const s = socketRef.current;
-    if (!s?.connected || !tenantId) return;
-    s.emit('join-tenant', { tenantId });
-  }, [tenantId]);
-
-  // Re-join la room order quand orderId change
+  // Re-join le salon de suivi quand orderId change
   useEffect(() => {
     const s = socketRef.current;
     if (!s?.connected || !orderId) return;

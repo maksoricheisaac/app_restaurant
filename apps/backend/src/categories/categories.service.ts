@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 
@@ -8,10 +8,9 @@ const NOT_DELETED = { deletedAt: null };
 export class CategoriesService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(tenantId: string | undefined) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  findAll() {
     return this.prisma.menuCategory.findMany({
-      where: { tenantId, ...NOT_DELETED },
+      where: NOT_DELETED,
       include: {
         _count: { select: { items: { where: NOT_DELETED } } },
       },
@@ -19,35 +18,24 @@ export class CategoriesService {
     });
   }
 
-  async create(tenantId: string, data: CreateCategoryDto) {
-    return this.prisma.menuCategory.create({
-      data: { ...data, tenantId },
-    });
+  create(data: CreateCategoryDto) {
+    return this.prisma.menuCategory.create({ data });
   }
 
-  async update(
-    tenantId: string | undefined,
-    id: string,
-    data: CreateCategoryDto,
-  ) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    return this.prisma.menuCategory.update({
-      where: { id, tenantId },
-      data,
-    });
+  update(id: string, data: CreateCategoryDto) {
+    return this.prisma.menuCategory.update({ where: { id }, data });
   }
 
-  async remove(tenantId: string | undefined, id: string) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  remove(id: string) {
     const now = new Date();
-    // Soft delete en transaction : on masque d'abord les items puis la catégorie
+    // Soft delete en transaction : on masque d'abord les plats, puis la catégorie
     return this.prisma.$transaction([
       this.prisma.menuItem.updateMany({
-        where: { categoryId: id, tenantId, deletedAt: null },
+        where: { categoryId: id, deletedAt: null },
         data: { deletedAt: now },
       }),
       this.prisma.menuCategory.update({
-        where: { id, tenantId },
+        where: { id },
         data: { deletedAt: now },
       }),
     ]);

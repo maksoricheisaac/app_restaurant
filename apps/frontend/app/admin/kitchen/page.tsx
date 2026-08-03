@@ -9,7 +9,6 @@ import { useKitchenOrders } from "@/hooks/api/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { useSocketEvent } from "@/hooks/useSocketEvent";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
-import { FeatureGate } from "@/components/ui/feature-gate";
 import { Permission } from "@/types/permissions";
 import { Order, OrderStatus } from "@/types/order";
 import { toast } from "sonner";
@@ -150,7 +149,6 @@ export default function KitchenPage() {
 
   return (
     <ProtectedRoute requiredPermission={Permission.VIEW_ORDERS}>
-      <FeatureGate feature="kds" featureName="Le Kitchen Display System">
       <div className="space-y-6 pb-8">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -231,7 +229,6 @@ export default function KitchenPage() {
           </div>
         )}
       </div>
-      </FeatureGate>
     </ProtectedRoute>
   );
 }

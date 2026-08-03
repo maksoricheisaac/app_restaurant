@@ -8,8 +8,7 @@ import { safeFormat } from "@/lib/utils";
 import { fr } from "date-fns/locale";
 import { Download, Printer } from "lucide-react";
 import type { PaymentLike } from "@/lib/pdf/receipt";
-import { useTenant } from "@/contexts/TenantContext";
-import { useSettings } from "@/hooks/api/useSettings";
+import { useRestaurant } from "@/hooks/api/useRestaurant";
 
 interface ReceiptGeneratorProps {
   payment: PaymentLike;
@@ -18,16 +17,15 @@ interface ReceiptGeneratorProps {
 
 export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorProps) {
   const receiptRef = useRef<HTMLDivElement>(null);
-  const { tenant } = useTenant();
-  const { data: settings } = useSettings();
+  const { data: restaurant } = useRestaurant();
 
-  const restaurantInfo = tenant ? {
-    name:         tenant.name,
-    logoUrl:      tenant.logo,
-    primaryColor: tenant.primaryColor,
-    phone:        (settings as any)?.phone ?? null,
-    email:        (settings as any)?.email ?? null,
-    address:      (settings as any)?.address ?? null,
+  const restaurantInfo = restaurant ? {
+    name:         restaurant.name,
+    logoUrl:      restaurant.logo,
+    primaryColor: restaurant.primaryColor,
+    phone:        (restaurant as any)?.phone ?? null,
+    email:        (restaurant as any)?.email ?? null,
+    address:      (restaurant as any)?.address ?? null,
   } : undefined;
 
   const generatePDF = async () => {
@@ -80,16 +78,16 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
         <CardContent className="p-6">
           {/* En-tête */}
           <div className="text-center border-b-2 border-gray-300 pb-4 mb-4">
-            {tenant?.logo && (
+            {restaurant?.logo && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={tenant.logo} alt={tenant?.name} className="h-12 w-12 object-contain rounded-lg mx-auto mb-2" />
+              <img src={restaurant.logo} alt={restaurant?.name} className="h-12 w-12 object-contain rounded-lg mx-auto mb-2" />
             )}
             <h1 className="text-xl font-bold text-gray-900 mb-1">
-              {tenant?.name ?? 'Votre Restaurant'}
+              {restaurant?.name ?? 'Votre Restaurant'}
             </h1>
-            {((settings as any)?.phone || (settings as any)?.email) && (
+            {((restaurant as any)?.phone || (restaurant as any)?.email) && (
               <p className="text-xs text-gray-500 mb-1">
-                {[(settings as any)?.phone, (settings as any)?.email].filter(Boolean).join(' • ')}
+                {[(restaurant as any)?.phone, (restaurant as any)?.email].filter(Boolean).join(' • ')}
               </p>
             )}
             <p className="text-xs text-gray-500">
@@ -158,9 +156,9 @@ export function ReceiptGenerator({ payment, formatCurrency }: ReceiptGeneratorPr
           <div className="text-center text-xs text-gray-500 border-t border-gray-200 pt-4 space-y-0.5">
             <p className="font-semibold">Merci pour votre visite !</p>
             <p>Nous espérons vous revoir bientôt</p>
-            {(settings as any)?.phone && <p>Tél : {(settings as any).phone}</p>}
-            {(settings as any)?.email && <p>Email : {(settings as any).email}</p>}
-            {(settings as any)?.address && <p>{(settings as any).address}</p>}
+            {(restaurant as any)?.phone && <p>Tél : {(restaurant as any).phone}</p>}
+            {(restaurant as any)?.email && <p>Email : {(restaurant as any).email}</p>}
+            {(restaurant as any)?.address && <p>{(restaurant as any).address}</p>}
           </div>
         </CardContent>
       </Card>

@@ -5,15 +5,11 @@ import { RolesGuard } from './roles.guard';
 function makeCtx(overrides: {
   roles?: string[] | undefined;
   user?: Record<string, unknown> | null;
-  membership?: { role: string } | null;
 }) {
   const reflector = {
     getAllAndOverride: jest.fn().mockReturnValue(overrides.roles),
   } as unknown as Reflector;
-  const request: any = {
-    user: overrides.user ?? null,
-    membership: overrides.membership ?? null,
-  };
+  const request: any = { user: overrides.user ?? null };
   const ctx = {
     switchToHttp: () => ({ getRequest: () => request }),
     getHandler: jest.fn(),
@@ -23,127 +19,50 @@ function makeCtx(overrides: {
 }
 
 describe('RolesGuard', () => {
-  // ─── No roles required ────────────────────────────────────────────────────
-
-  it('returns true when no @Roles() decorator is set', () => {
+  it('laisse passer quand aucun @Roles() n’est posé', () => {
     const { ctx, reflector } = makeCtx({
       roles: undefined,
       user: { id: 'u1' },
     });
-    const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(ctx)).toBe(true);
+    expect(new RolesGuard(reflector).canActivate(ctx)).toBe(true);
   });
 
-  // ─── super_admin bypass ───────────────────────────────────────────────────
-
-  it('returns true for super_admin regardless of required roles', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner'],
-      user: { id: 'u1', platformRole: 'super_admin' },
-      membership: null,
-    });
-    const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(ctx)).toBe(true);
+  it('refuse quand la requête n’a pas d’utilisateur', () => {
+    const { ctx, reflector } = makeCtx({ roles: ['owner'], user: null });
+    expect(() => new RolesGuard(reflector).canActivate(ctx)).toThrow(
+      ForbiddenException,
+    );
   });
 
-  it('returns true for super_admin even when no membership exists', () => {
+  it('laisse passer quand le rôle du compte figure dans la liste', () => {
     const { ctx, reflector } = makeCtx({
       roles: ['owner', 'manager'],
-      user: { id: 'u1', platformRole: 'super_admin' },
-      membership: null,
+      user: { id: 'u1', role: 'manager' },
     });
-    const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(ctx)).toBe(true);
+    expect(new RolesGuard(reflector).canActivate(ctx)).toBe(true);
   });
 
-  // ─── Platform-role bypass, scoped to routes that list it explicitly ──────
-
-  it('grants access to a platform role (e.g. support) explicitly listed in @Roles(), without membership', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['super_admin', 'support'],
-      user: { id: 'u1', platformRole: 'support' },
-      membership: null,
-    });
-    const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(ctx)).toBe(true);
-  });
-
-  it('does NOT grant support a blanket bypass on tenant-scoped routes that do not list it', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner', 'manager'], // 'support' not listed here
-      user: { id: 'u1', platformRole: 'support' },
-      membership: null,
-    });
-    const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  it('still requires a real membership role for support on tenant-scoped routes it is not listed on', () => {
+  it('refuse quand le rôle du compte ne figure pas dans la liste', () => {
     const { ctx, reflector } = makeCtx({
       roles: ['owner'],
-      user: { id: 'u1', platformRole: 'support' },
-      membership: { role: 'waiter' }, // even with membership, wrong role
+      user: { id: 'u1', role: 'waiter' },
     });
-    const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+    expect(() => new RolesGuard(reflector).canActivate(ctx)).toThrow(
+      ForbiddenException,
+    );
   });
 
-  // ─── Missing user / membership ────────────────────────────────────────────
-
-  it('throws ForbiddenException when user is null', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner'],
-      user: null,
-    });
-    const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  it('throws ForbiddenException when membership is missing (non super_admin)', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner'],
-      user: { id: 'u1', platformRole: 'user' },
-      membership: null,
-    });
-    const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  // ─── Role matching ────────────────────────────────────────────────────────
-
-  it('returns true when membership role is in the required roles list', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner', 'manager'],
-      user: { id: 'u1', platformRole: 'user' },
-      membership: { role: 'manager' },
-    });
-    const guard = new RolesGuard(reflector);
-    expect(guard.canActivate(ctx)).toBe(true);
-  });
-
-  it('throws ForbiddenException when membership role is NOT in required roles', () => {
-    const { ctx, reflector } = makeCtx({
-      roles: ['owner'],
-      user: { id: 'u1', platformRole: 'user' },
-      membership: { role: 'waiter' },
-    });
-    const guard = new RolesGuard(reflector);
-    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
-  });
-
-  it('grants access to all listed roles individually', () => {
+  it('accepte chacun des rôles listés', () => {
     const guard = new RolesGuard({
       getAllAndOverride: jest
         .fn()
-        .mockReturnValue(['owner', 'manager', 'head_chef']),
+        .mockReturnValue(['owner', 'manager', 'chef']),
     } as any);
-    for (const role of ['owner', 'manager', 'head_chef']) {
+
+    for (const role of ['owner', 'manager', 'chef']) {
       const ctx = {
         switchToHttp: () => ({
-          getRequest: () => ({
-            user: { id: 'u1', platformRole: 'user' },
-            membership: { role },
-          }),
+          getRequest: () => ({ user: { id: 'u1', role } }),
         }),
         getHandler: jest.fn(),
         getClass: jest.fn(),
@@ -152,22 +71,32 @@ describe('RolesGuard', () => {
     }
   });
 
-  it('blocks roles not in the allowed list', () => {
+  it('bloque tous les rôles absents de la liste', () => {
     const guard = new RolesGuard({
       getAllAndOverride: jest.fn().mockReturnValue(['owner']),
     } as any);
+
     for (const role of ['manager', 'waiter', 'chef', 'cashier']) {
       const ctx = {
         switchToHttp: () => ({
-          getRequest: () => ({
-            user: { id: 'u1', platformRole: 'user' },
-            membership: { role },
-          }),
+          getRequest: () => ({ user: { id: 'u1', role } }),
         }),
         getHandler: jest.fn(),
         getClass: jest.fn(),
       } as any;
       expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
     }
+  });
+
+  it("n'accorde aucun privilège implicite : le rôle vient du compte, pas du jeton", () => {
+    const { ctx, reflector } = makeCtx({
+      roles: ['owner'],
+      // Un ancien jeton pouvait porter platformRole: 'super_admin' — cette
+      // notion n'existe plus et ne doit ouvrir aucune porte.
+      user: { id: 'u1', role: 'waiter', platformRole: 'super_admin' },
+    });
+    expect(() => new RolesGuard(reflector).canActivate(ctx)).toThrow(
+      ForbiddenException,
+    );
   });
 });

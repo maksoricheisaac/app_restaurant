@@ -2,11 +2,10 @@ import { ChefHat, Twitter, Linkedin, Instagram, ArrowRight } from 'lucide-react'
 import Link from 'next/link';
 
 const SOLUTIONS = [
-  { label: 'Menu QR Code',       href: '/#features' },
-  { label: 'Commandes en ligne', href: '/#features' },
-  { label: 'Kitchen Display',    href: '/#features' },
-  { label: 'Gestion de salle',   href: '/#features' },
-  { label: 'Nos tarifs',         href: '/#pricing'  },
+  { label: 'Notre menu',        href: '/menu' },
+  { label: 'Commander en ligne', href: '/menu/order' },
+  { label: 'Réserver une table', href: '/menu/reservation' },
+  { label: 'Suivre ma commande', href: '/menu' },
 ];
 
 const COMPANY = [
@@ -61,9 +60,9 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Solutions */}
+          {/* Le restaurant */}
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-4">Solutions</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary mb-4">Le restaurant</p>
             <ul className="space-y-2.5">
               {SOLUTIONS.map(({ label, href }) => (
                 <li key={label}>

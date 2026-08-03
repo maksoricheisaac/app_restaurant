@@ -1,7 +1,6 @@
 import {
   Injectable,
   NotFoundException,
-  ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -30,17 +29,16 @@ export interface LowStockWarning {
 // Le frontend consomme cette liste comme un tableau complet (sélecteurs de
 // recettes/mouvements de stock) : pas de pagination ici pour ne pas casser
 // ces écrans. On borne tout de même le résultat pour éviter une requête
-// non bornée si un tenant accumule un très grand nombre d'ingrédients.
+// non bornée si la base accumule un très grand nombre d'ingrédients.
 const MAX_INGREDIENTS = 1000;
 
 @Injectable()
 export class InventoryService {
   constructor(private prisma: PrismaService) {}
 
-  async findAllIngredients(tenantId: string | undefined) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
+  async findAllIngredients() {
     return this.prisma.ingredient.findMany({
-      where: { tenantId, ...NOT_DELETED },
+      where: NOT_DELETED,
       include: {
         _count: { select: { recipes: true } },
       },
@@ -49,49 +47,38 @@ export class InventoryService {
     });
   }
 
-  async createIngredient(tenantId: string, data: CreateIngredientDto) {
+  async createIngredient(data: CreateIngredientDto) {
     return this.prisma.ingredient.create({
-      data: { ...data, tenantId },
+      data: data,
     });
   }
 
-  async updateIngredient(
-    tenantId: string,
-    id: string,
-    data: Partial<CreateIngredientDto>,
-  ) {
+  async updateIngredient(id: string, data: Partial<CreateIngredientDto>) {
     const ingredient = await this.prisma.ingredient.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
     });
     if (!ingredient) throw new NotFoundException('Ingrédient non trouvé');
-    // Inclure tenantId dans le where pour garantir l'isolation tenant même en cas de race
-    return this.prisma.ingredient.update({ where: { id, tenantId }, data });
+    return this.prisma.ingredient.update({ where: { id }, data });
   }
 
-  async removeIngredient(tenantId: string, id: string) {
+  async removeIngredient(id: string) {
     const ingredient = await this.prisma.ingredient.findFirst({
-      where: { id, tenantId, ...NOT_DELETED },
+      where: { id, ...NOT_DELETED },
     });
     if (!ingredient) throw new NotFoundException('Ingrédient non trouvé');
-    // Inclure tenantId dans le where pour garantir l'isolation tenant même en cas de race
     return this.prisma.ingredient.update({
-      where: { id, tenantId },
+      where: { id },
       data: { deletedAt: new Date() },
     });
   }
 
-  async addStockMovement(
-    tenantId: string,
-    data: CreateStockMovementDto,
-    userId?: string,
-  ) {
+  async addStockMovement(data: CreateStockMovementDto, userId?: string) {
     const { ingredientId, type, quantity, description, orderId } = data;
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Créer le mouvement
       const movement = await tx.stockMovement.create({
         data: {
-          tenantId,
           ingredientId,
           type,
           quantity,
@@ -110,7 +97,7 @@ export class InventoryService {
             ? -quantity
             : quantity;
       await tx.ingredient.update({
-        where: { id: ingredientId, tenantId },
+        where: { id: ingredientId },
         data: {
           stock: { increment: adjustment },
         },
@@ -120,14 +107,12 @@ export class InventoryService {
     });
   }
 
-  async getDashboard(tenantId: string | undefined) {
-    if (!tenantId) throw new ForbiddenException('Tenant context required');
-    const where = { tenantId, ...NOT_DELETED };
+  async getDashboard() {
+    const where = NOT_DELETED;
     // Requête raw pour comparer stock <= COALESCE(minStock, 10) (colonne-à-colonne)
     const lowStockRaw = this.prisma.$queryRaw<[{ count: bigint }]>`
       SELECT COUNT(*)::bigint AS count FROM "Ingredient"
-      WHERE "tenantId" = ${tenantId}
-        AND "deletedAt" IS NULL
+      WHERE "deletedAt" IS NULL
         AND "isActive" = true
         AND "stock" <= COALESCE("minStock", 10)
     `
@@ -138,12 +123,12 @@ export class InventoryService {
       [
         this.prisma.ingredient.count({ where }),
         lowStockRaw,
-        this.prisma.stockMovement.count({ where: { tenantId } }),
+        this.prisma.stockMovement.count({ where: {} }),
       ],
     );
 
     const recentMovements = await this.prisma.stockMovement.findMany({
-      where: { tenantId },
+      where: {},
       take: 5,
       orderBy: { createdAt: 'desc' },
       include: {
@@ -155,10 +140,10 @@ export class InventoryService {
     return { ingredientsCount, lowStockCount, movementsCount, recentMovements };
   }
 
-  async findMovements(tenantId: string, filters: MovementFiltersDto) {
+  async findMovements(filters: MovementFiltersDto) {
     const { ingredientId, type, dateFrom, dateTo } = filters;
 
-    const where: any = { tenantId };
+    const where: any = {};
     if (ingredientId) where.ingredientId = ingredientId;
     if (type) where.type = type;
     if (dateFrom || dateTo) {
@@ -189,16 +174,16 @@ export class InventoryService {
     return toPaginated(data, total, page, limit);
   }
 
-  async getLowStockAlerts(tenantId: string, threshold = 10) {
+  async getLowStockAlerts(threshold = 10) {
     return this.prisma.ingredient.findMany({
-      where: { tenantId, stock: { lte: threshold }, ...NOT_DELETED },
+      where: { stock: { lte: threshold }, ...NOT_DELETED },
       orderBy: { stock: 'asc' },
     });
   }
 
-  async findAllRecipes(tenantId: string) {
+  async findAllRecipes() {
     return this.prisma.recipe.findMany({
-      where: { tenantId, menuItem: NOT_DELETED },
+      where: { menuItem: NOT_DELETED },
       include: {
         menuItem: { select: { id: true, name: true } },
         ingredient: { select: { id: true, name: true, unit: true } },
@@ -206,15 +191,14 @@ export class InventoryService {
     });
   }
 
-  async createRecipe(tenantId: string, data: CreateRecipeDto) {
+  async createRecipe(data: CreateRecipeDto) {
     const menuItem = await this.prisma.menuItem.findFirst({
-      where: { id: data.menuItemId, tenantId, ...NOT_DELETED },
+      where: { id: data.menuItemId, ...NOT_DELETED },
     });
     if (!menuItem) throw new NotFoundException('MenuItem not found');
 
     return this.prisma.recipe.create({
       data: {
-        tenantId,
         menuItemId: data.menuItemId,
         ingredientId: data.ingredientId,
         quantity: data.quantity,
@@ -226,14 +210,14 @@ export class InventoryService {
     });
   }
 
-  async updateRecipe(tenantId: string, id: string, data: UpdateRecipeDto) {
+  async updateRecipe(id: string, data: UpdateRecipeDto) {
     const recipe = await this.prisma.recipe.findFirst({
-      where: { id, tenantId },
+      where: { id },
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
 
     return this.prisma.recipe.update({
-      where: { id, tenantId },
+      where: { id },
       data,
       include: {
         menuItem: { select: { id: true, name: true } },
@@ -242,13 +226,13 @@ export class InventoryService {
     });
   }
 
-  async deleteRecipe(tenantId: string, id: string) {
+  async deleteRecipe(id: string) {
     const recipe = await this.prisma.recipe.findFirst({
-      where: { id, tenantId },
+      where: { id },
     });
     if (!recipe) throw new NotFoundException('Recipe not found');
 
-    return this.prisma.recipe.delete({ where: { id, tenantId } });
+    return this.prisma.recipe.delete({ where: { id } });
   }
 
   // ─── Stock decrement on order creation ───────────────────────────────────
@@ -270,7 +254,6 @@ export class InventoryService {
    */
   async decrementStockForOrder(
     tx: Prisma.TransactionClient,
-    tenantId: string,
     orderId: string,
     items: Array<{ menuItemId?: string | null; quantity: number }>,
   ): Promise<LowStockWarning[]> {
@@ -280,7 +263,7 @@ export class InventoryService {
     if (menuItemIds.length === 0) return [];
 
     const recipes = await tx.recipe.findMany({
-      where: { tenantId, menuItemId: { in: menuItemIds } },
+      where: { menuItemId: { in: menuItemIds } },
       select: { menuItemId: true, ingredientId: true, quantity: true },
     });
     if (recipes.length === 0) return [];
@@ -315,13 +298,13 @@ export class InventoryService {
       // couvre le besoin, évitant toute race entre deux commandes
       // concurrentes (Postgres sérialise les UPDATE sur la même ligne).
       const result = await tx.ingredient.updateMany({
-        where: { id: ingredientId, tenantId, stock: { gte: needed } },
+        where: { id: ingredientId, stock: { gte: needed } },
         data: { stock: { decrement: needed } },
       });
 
       if (result.count === 0) {
         const ingredient = await tx.ingredient.findFirst({
-          where: { id: ingredientId, tenantId },
+          where: { id: ingredientId },
           select: { name: true, stock: true },
         });
         throw new ConflictException(
@@ -333,7 +316,6 @@ export class InventoryService {
 
       await tx.stockMovement.create({
         data: {
-          tenantId,
           ingredientId,
           type: 'OUT',
           quantity: needed,
@@ -343,7 +325,7 @@ export class InventoryService {
       });
 
       const updated = await tx.ingredient.findFirst({
-        where: { id: ingredientId, tenantId },
+        where: { id: ingredientId },
         select: { id: true, name: true, stock: true, minStock: true },
       });
       if (

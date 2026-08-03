@@ -1,8 +1,6 @@
 import { DashboardService } from './dashboard.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
-const T = 'tenant-1';
-
 describe('DashboardService', () => {
   let service: DashboardService;
   let prisma: MockPrisma;
@@ -34,7 +32,7 @@ describe('DashboardService', () => {
       (prisma.reservation as any).count.mockResolvedValueOnce(3);
       prisma.customer.count.mockResolvedValueOnce(8);
 
-      const result = await service.getStats(T, '2026-05-17');
+      const result = await service.getStats('2026-05-17');
 
       expect(result.ordersCount).toBe(12);
       expect(result.totalRevenue).toBe(45000);
@@ -43,10 +41,9 @@ describe('DashboardService', () => {
     });
 
     it('filters orders for the specific day (start/end of day)', async () => {
-      await service.getStats(T, '2026-05-17');
+      await service.getStats('2026-05-17');
 
       const orderCountCall = prisma.order.count.mock.calls[0][0];
-      expect(orderCountCall.where.tenantId).toBe(T);
       expect(orderCountCall.where.createdAt.gte).toBeInstanceOf(Date);
       expect(orderCountCall.where.createdAt.lte).toBeInstanceOf(Date);
 
@@ -62,13 +59,13 @@ describe('DashboardService', () => {
         .fn()
         .mockResolvedValue({ _sum: { total: null } });
 
-      const result = await service.getStats(T, '2026-05-17');
+      const result = await service.getStats('2026-05-17');
       expect(result.totalRevenue).toBe(0);
     });
 
     it('executes all 4 queries in parallel', async () => {
       // All mocks should be called once
-      await service.getStats(T, '2026-05-17');
+      await service.getStats('2026-05-17');
 
       expect(prisma.order.count).toHaveBeenCalledTimes(1);
       expect(prisma.order.aggregate).toHaveBeenCalledTimes(1);
@@ -83,12 +80,11 @@ describe('DashboardService', () => {
     it('returns at most 5 most recent orders', async () => {
       prisma.order.findMany.mockResolvedValue([]);
 
-      await service.getRecentOrders(T);
+      await service.getRecentOrders();
 
       const call = prisma.order.findMany.mock.calls[0][0];
       expect(call.take).toBe(5);
       expect(call.orderBy).toEqual({ createdAt: 'desc' });
-      expect(call.where.tenantId).toBe(T);
     });
   });
 });

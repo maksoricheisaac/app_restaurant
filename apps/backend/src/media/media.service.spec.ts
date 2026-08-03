@@ -46,7 +46,6 @@ describe('MediaService', () => {
       const { service } = buildService(prisma);
 
       const result = await service.uploadMenuItemImage(
-        'tenant-1',
         'item-1',
         FILE,
         REQUEST_ID,
@@ -71,7 +70,7 @@ describe('MediaService', () => {
       prisma.menuItem.update.mockResolvedValue({});
       const { service } = buildService(prisma, { replaceImage });
 
-      await service.uploadMenuItemImage('tenant-1', 'item-1', FILE, REQUEST_ID);
+      await service.uploadMenuItemImage('item-1', FILE, REQUEST_ID);
 
       expect(replaceImage).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -87,7 +86,7 @@ describe('MediaService', () => {
       const { service } = buildService(prisma);
 
       await expect(
-        service.uploadMenuItemImage('tenant-1', 'x', FILE, REQUEST_ID),
+        service.uploadMenuItemImage('x', FILE, REQUEST_ID),
       ).rejects.toThrow(NotFoundException);
       expect(prisma.menuItem.update).not.toHaveBeenCalled();
     });
@@ -102,7 +101,7 @@ describe('MediaService', () => {
       const { service } = buildService(prisma, { deleteImage });
 
       await expect(
-        service.uploadMenuItemImage('tenant-1', 'item-1', FILE, REQUEST_ID),
+        service.uploadMenuItemImage('item-1', FILE, REQUEST_ID),
       ).rejects.toThrow('DB write failed');
 
       expect(deleteImage).toHaveBeenCalledWith(
@@ -124,11 +123,7 @@ describe('MediaService', () => {
       prisma.menuItem.update.mockResolvedValue({});
       const { service } = buildService(prisma, { deleteImage });
 
-      const result = await service.deleteMenuItemImage(
-        'tenant-1',
-        'item-1',
-        REQUEST_ID,
-      );
+      const result = await service.deleteMenuItemImage('item-1', REQUEST_ID);
 
       expect(result).toEqual({ message: 'Image supprimée' });
       expect(deleteImage).toHaveBeenCalledWith('img.jpg', REQUEST_ID);
@@ -146,11 +141,7 @@ describe('MediaService', () => {
       });
       const { service } = buildService(prisma, { deleteImage });
 
-      const result = await service.deleteMenuItemImage(
-        'tenant-1',
-        'item-1',
-        REQUEST_ID,
-      );
+      const result = await service.deleteMenuItemImage('item-1', REQUEST_ID);
 
       expect(result).toEqual({ message: 'Aucune image associée' });
       expect(deleteImage).not.toHaveBeenCalled();
@@ -161,7 +152,7 @@ describe('MediaService', () => {
       const { service } = buildService(prisma);
 
       await expect(
-        service.deleteMenuItemImage('tenant-1', 'x', REQUEST_ID),
+        service.deleteMenuItemImage('x', REQUEST_ID),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -178,7 +169,6 @@ describe('MediaService', () => {
       const { service } = buildService(prisma);
 
       const result = await service.uploadCategoryImage(
-        'tenant-1',
         'cat-1',
         FILE,
         REQUEST_ID,
@@ -202,7 +192,7 @@ describe('MediaService', () => {
       const { service } = buildService(prisma);
 
       await expect(
-        service.uploadCategoryImage('tenant-1', 'x', FILE, REQUEST_ID),
+        service.uploadCategoryImage('x', FILE, REQUEST_ID),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -218,11 +208,7 @@ describe('MediaService', () => {
       prisma.menuCategory.update.mockResolvedValue({});
       const { service } = buildService(prisma);
 
-      const result = await service.deleteCategoryImage(
-        'tenant-1',
-        'cat-1',
-        REQUEST_ID,
-      );
+      const result = await service.deleteCategoryImage('cat-1', REQUEST_ID);
 
       expect(result).toEqual({ message: 'Image supprimée' });
       expect(prisma.menuCategory.update).toHaveBeenCalledWith({
@@ -238,131 +224,85 @@ describe('MediaService', () => {
       });
       const { service } = buildService(prisma);
 
-      const result = await service.deleteCategoryImage(
-        'tenant-1',
-        'cat-1',
-        REQUEST_ID,
-      );
+      const result = await service.deleteCategoryImage('cat-1', REQUEST_ID);
       expect(result).toEqual({ message: 'Aucune image associée' });
     });
   });
 
-  // ─── uploadTenantLogo ─────────────────────────────────────────────────────
+  // ─── Logo & bannière de l'établissement ───────────────────────────────────
 
-  describe('uploadTenantLogo', () => {
-    it('replaces logo and updates tenant', async () => {
-      prisma.tenant.update.mockResolvedValue({});
-      const { service } = buildService(prisma);
+  describe('uploadRestaurantLogo', () => {
+    it('remplace le logo et enregistre url + pathname', async () => {
+      prisma.restaurant.findUnique.mockResolvedValue({
+        logoPathname: 'old.jpg',
+      });
+      prisma.restaurant.update.mockResolvedValue({});
+      const { service, blobService } = buildService(prisma);
 
-      const result = await service.uploadTenantLogo(
-        'tenant-1',
-        null,
-        FILE,
-        REQUEST_ID,
-      );
+      const result = await service.uploadRestaurantLogo(FILE, REQUEST_ID);
 
       expect(result).toEqual({
         url: BLOB_RESULT.url,
         pathname: BLOB_RESULT.pathname,
       });
-      expect(prisma.tenant.update).toHaveBeenCalledWith({
-        where: { id: 'tenant-1' },
+      expect(blobService.replaceImage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          context: 'restaurant-logo',
+          oldPathname: 'old.jpg',
+        }),
+        REQUEST_ID,
+      );
+      expect(prisma.restaurant.update).toHaveBeenCalledWith({
+        where: { id: 'restaurant' },
         data: { logo: BLOB_RESULT.url, logoPathname: BLOB_RESULT.pathname },
       });
     });
   });
 
-  // ─── deleteTenantLogo ─────────────────────────────────────────────────────
-
-  describe('deleteTenantLogo', () => {
-    it('deletes existing logo and clears DB fields', async () => {
+  describe('deleteRestaurantLogo', () => {
+    it('supprime le blob puis vide les champs en base', async () => {
       const deleteImage = jest.fn().mockResolvedValue(undefined);
-      prisma.tenant.findUnique.mockResolvedValue({ logoPathname: 'logo.jpg' });
-      prisma.tenant.update.mockResolvedValue({});
+      prisma.restaurant.findUnique.mockResolvedValue({
+        logoPathname: 'logo.jpg',
+      });
+      prisma.restaurant.update.mockResolvedValue({});
       const { service } = buildService(prisma, { deleteImage });
 
-      const result = await service.deleteTenantLogo('tenant-1', REQUEST_ID);
+      const result = await service.deleteRestaurantLogo(REQUEST_ID);
 
       expect(result).toEqual({ message: 'Logo supprimé' });
       expect(deleteImage).toHaveBeenCalledWith('logo.jpg', REQUEST_ID);
-      expect(prisma.tenant.update).toHaveBeenCalledWith({
-        where: { id: 'tenant-1' },
+      expect(prisma.restaurant.update).toHaveBeenCalledWith({
+        where: { id: 'restaurant' },
         data: { logo: null, logoPathname: null },
       });
     });
 
-    it('skips blob deletion when no logoPathname', async () => {
+    it('ne touche pas au blob storage sans logo enregistré', async () => {
       const deleteImage = jest.fn();
-      prisma.tenant.findUnique.mockResolvedValue({ logoPathname: null });
-      prisma.tenant.update.mockResolvedValue({});
+      prisma.restaurant.findUnique.mockResolvedValue({ logoPathname: null });
+      prisma.restaurant.update.mockResolvedValue({});
       const { service } = buildService(prisma, { deleteImage });
 
-      await service.deleteTenantLogo('tenant-1', REQUEST_ID);
+      await service.deleteRestaurantLogo(REQUEST_ID);
 
       expect(deleteImage).not.toHaveBeenCalled();
     });
   });
 
-  // ─── uploadTenantBanner ───────────────────────────────────────────────────
-
-  describe('uploadTenantBanner', () => {
-    it('replaces banner and updates tenant', async () => {
-      prisma.tenant.findUnique.mockResolvedValue({ bannerPathname: null });
-      prisma.tenant.update.mockResolvedValue({});
-      const { service } = buildService(prisma);
-
-      const result = await service.uploadTenantBanner(
-        'tenant-1',
-        FILE,
-        REQUEST_ID,
-      );
-
-      expect(result).toEqual({
-        url: BLOB_RESULT.url,
-        pathname: BLOB_RESULT.pathname,
-      });
-    });
-  });
-
-  // ─── deleteTenantBanner ───────────────────────────────────────────────────
-
-  describe('deleteTenantBanner', () => {
-    it('deletes existing banner and clears DB fields', async () => {
+  describe('deleteRestaurantBanner', () => {
+    it('supprime le blob puis vide les champs en base', async () => {
       const deleteImage = jest.fn().mockResolvedValue(undefined);
-      prisma.tenant.findUnique.mockResolvedValue({
+      prisma.restaurant.findUnique.mockResolvedValue({
         bannerPathname: 'banner.jpg',
       });
-      prisma.tenant.update.mockResolvedValue({});
+      prisma.restaurant.update.mockResolvedValue({});
       const { service } = buildService(prisma, { deleteImage });
 
-      const result = await service.deleteTenantBanner('tenant-1', REQUEST_ID);
+      const result = await service.deleteRestaurantBanner(REQUEST_ID);
 
       expect(result).toEqual({ message: 'Bannière supprimée' });
       expect(deleteImage).toHaveBeenCalledWith('banner.jpg', REQUEST_ID);
-    });
-
-    it('skips blob deletion when no bannerPathname', async () => {
-      const deleteImage = jest.fn();
-      prisma.tenant.findUnique.mockResolvedValue({ bannerPathname: null });
-      prisma.tenant.update.mockResolvedValue({});
-      const { service } = buildService(prisma, { deleteImage });
-
-      await service.deleteTenantBanner('tenant-1', REQUEST_ID);
-      expect(deleteImage).not.toHaveBeenCalled();
-    });
-  });
-
-  // ─── Multi-tenant isolation ────────────────────────────────────────────────
-
-  describe('multi-tenant isolation', () => {
-    it('uploadMenuItemImage: item belonging to another tenant is treated as not found', async () => {
-      // Prisma's findFirst includes tenantId in where — mock null means not found
-      prisma.menuItem.findFirst.mockResolvedValue(null);
-      const { service } = buildService(prisma);
-
-      await expect(
-        service.uploadMenuItemImage('other-tenant', 'item-1', FILE, REQUEST_ID),
-      ).rejects.toThrow(NotFoundException);
     });
   });
 });

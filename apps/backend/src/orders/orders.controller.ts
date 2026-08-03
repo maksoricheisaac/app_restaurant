@@ -53,8 +53,12 @@ export class OrdersController {
 
   @Patch(':id/status')
   @Roles('owner', 'manager', 'waiter', 'chef')
-  updateStatus(@Param('id') id: string, @Body() dto: UpdateOrderStatusDto) {
-    return this.ordersService.updateStatus(id, dto);
+  updateStatus(
+    @Param('id') id: string,
+    @Body() dto: UpdateOrderStatusDto,
+    @CurrentUser() user: any,
+  ) {
+    return this.ordersService.updateStatus(id, dto, user);
   }
 
   @Delete(':id')

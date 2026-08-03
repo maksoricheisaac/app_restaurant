@@ -8,6 +8,14 @@ export const useMenuItems = (params?: any) => {
   });
 };
 
+/** Carte du poste de caisse : tous les articles vendables, avec leurs options. */
+export const usePosCatalogue = () => {
+  return useQuery({
+    queryKey: ['menu-pos-catalogue'],
+    queryFn: () => menuService.getPosCatalogue(),
+  });
+};
+
 export const useMenuCategories = (params?: any) => {
   return useQuery({
     queryKey: ['menu-categories', params],

@@ -29,9 +29,9 @@ const PRISMA_MODELS = [
   'openingHours',
   'exceptionalClosure',
   'message',
-  'report',
   'rolePermission',
   'userPermission',
+  'auditLog',
 ] as const;
 
 type PrismaModelMock = {

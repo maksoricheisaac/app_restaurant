@@ -3,7 +3,19 @@ import { mmToPt, wrapText, fetchLogoForPdf, downloadPdfBytes, type RestaurantInf
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
-interface OrderItem { id?: string; quantity: number; price: number; menuItem?: { name: string }; name?: string }
+interface OrderItemOption { groupName: string; optionName: string; priceDelta: number }
+interface OrderItem { id?: string; quantity: number; price: number; menuItem?: { name: string }; name?: string; options?: OrderItemOption[] | null }
+
+/**
+ * Ligne récapitulant les options d'un article, ou `null` s'il n'en porte pas.
+ * Utilisée à l'identique par le calcul de hauteur de page et par le rendu :
+ * les deux doivent voir exactement les mêmes lignes, sans quoi le ticket se
+ * retrouve tronqué ou surdimensionné.
+ */
+function optionsLine(item: OrderItem): string | null {
+  if (!item.options || item.options.length === 0) return null;
+  return item.options.map((o) => `${o.groupName}: ${o.optionName}`).join(' · ');
+}
 
 export interface PaymentLike {
   amount: number;
@@ -78,6 +90,11 @@ export async function generateReceiptPdf(
     const name = `${it.quantity}× ${(it.menuItem?.name || it.name || '')}`;
     const rows = wrapText(name, font, sizeBody, nameWidth);
     h += rows.length * lh(sizeBody);
+
+    const options = optionsLine(it);
+    if (options) {
+      h += wrapText(options, font, sizeSmall, nameWidth).length * lh(sizeSmall);
+    }
   });
   h += mmToPt(4); // rule
   h += lh(sizeBody); // total line
@@ -146,6 +163,16 @@ export async function generateReceiptPdf(
       if (idx === 0) text(priceText, right - pW, yy, sizeBody);
       move(lh(sizeBody));
     });
+
+    // Options et suppléments retenus : ils sont inclus dans le prix affiché,
+    // le client doit pouvoir vérifier ce qu'il a payé.
+    const options = optionsLine(it);
+    if (options) {
+      wrapText(options, font, sizeSmall, nameWidth).forEach((row) => {
+        text(row, left + mmToPt(3), y - lh(sizeSmall), sizeSmall);
+        move(lh(sizeSmall));
+      });
+    }
   }
 
   move(mmToPt(2));

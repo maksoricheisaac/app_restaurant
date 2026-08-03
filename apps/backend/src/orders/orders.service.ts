@@ -5,8 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventsService } from '../gateway/events.service';
-import { CustomersService } from '../customers/customers.service';
-import { InventoryService } from '../inventory/inventory.service';
+import { AuditService } from '../common/audit/audit.service';
+import { OrderCreationService } from './order-creation.service';
 import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
@@ -26,8 +26,8 @@ export class OrdersService {
   constructor(
     private prisma: PrismaService,
     private eventsService: EventsService,
-    private customersService: CustomersService,
-    private inventoryService: InventoryService,
+    private orderCreation: OrderCreationService,
+    private audit: AuditService,
   ) {}
 
   async findAll(filters: OrderFiltersDto) {
@@ -79,118 +79,34 @@ export class OrdersService {
     });
   }
 
-  async create(data: CreateOrderDto, userId?: string) {
-    const { items, customerName, customerEmail, customerPhone, ...orderData } =
-      data;
-
-    // Rapproche ou crée la fiche client à partir des coordonnées saisies
-    let resolvedCustomerId = data.customerId ?? null;
-    if (
-      !resolvedCustomerId &&
-      (customerName || customerEmail || customerPhone)
-    ) {
-      resolvedCustomerId = await this.customersService.upsertFromInteraction({
-        name: customerName,
-        email: customerEmail,
-        phone: customerPhone,
-      });
-    }
-
-    // Les prix sont TOUJOURS relus en base pour les articles de la carte —
-    // le prix envoyé par le client n'est jamais cru sur parole.
-    const menuItemIds = items
-      .filter((i) => i.menuItemId)
-      .map((i) => i.menuItemId!);
-    const dbMenuItems =
-      menuItemIds.length > 0
-        ? await this.prisma.menuItem.findMany({
-            where: { id: { in: menuItemIds }, deletedAt: null },
-            select: { id: true, name: true, price: true, image: true },
-          })
-        : [];
-
-    const priceMap = new Map(dbMenuItems.map((m) => [m.id, m]));
-
-    for (const item of items) {
-      if (item.menuItemId && !priceMap.has(item.menuItemId)) {
-        throw new BadRequestException(
-          `Article inconnu ou indisponible : ${item.menuItemId}`,
-        );
-      }
-    }
-
-    const sanitizedItems = items.map((item) => {
-      const db = item.menuItemId ? priceMap.get(item.menuItemId)! : null;
-      return {
+  /**
+   * Prise de commande au comptoir. Adaptateur : traduit le DTO du POS en
+   * entrée canonique et délègue au chemin unique de création, partagé avec
+   * le parcours client public — options et suppléments compris.
+   */
+  create(data: CreateOrderDto, userId?: string) {
+    return this.orderCreation.create({
+      channel: 'pos',
+      type: data.type,
+      items: data.items.map((item) => ({
         menuItemId: item.menuItemId,
-        // Prix faisant foi depuis la base quand l'article vient de la carte ;
-        // le prix saisi n'est accepté que pour un article libre (sans
-        // menuItemId), dans le flux caisse interne.
-        price: db ? Number(db.price) : item.price,
-        name: db ? db.name : item.name,
         quantity: item.quantity,
-        image: db ? db.image : item.image,
-      };
+        selectedOptionIds: item.selectedOptionIds,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+      })),
+      tableId: data.tableId,
+      deliveryZoneId: data.deliveryZoneId,
+      deliveryAddress: data.deliveryAddress,
+      deliveryFee: data.deliveryFee,
+      specialNotes: data.specialNotes,
+      customerId: data.customerId,
+      customerName: data.customerName,
+      customerEmail: data.customerEmail,
+      customerPhone: data.customerPhone,
+      userId,
     });
-
-    const itemsTotal = sanitizedItems.reduce(
-      (sum, i) => sum + i.price * i.quantity,
-      0,
-    );
-    const total = itemsTotal + (data.deliveryFee ?? 0);
-
-    const { order, lowStockWarnings } = await this.prisma.$transaction(
-      async (tx) => {
-        if (orderData.tableId) {
-          const table = await tx.table.findFirst({
-            where: { id: orderData.tableId, deletedAt: null },
-            select: { id: true },
-          });
-          if (!table) {
-            throw new BadRequestException('Table introuvable');
-          }
-        }
-
-        const createdOrder = await tx.order.create({
-          data: {
-            ...orderData,
-            userId,
-            customerId: resolvedCustomerId ?? orderData.customerId,
-            total,
-            orderItems: {
-              create: sanitizedItems.map((item) => ({
-                menuItemId: item.menuItemId,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                image: item.image,
-              })),
-            },
-          },
-          include: { orderItems: true, table: true },
-        });
-
-        // Décrémente le stock des ingrédients (via les recettes définies) —
-        // rejette toute la commande si le stock est insuffisant.
-        const warnings = await this.inventoryService.decrementStockForOrder(
-          tx,
-          createdOrder.id,
-          sanitizedItems.map((i) => ({
-            menuItemId: i.menuItemId,
-            quantity: i.quantity,
-          })),
-        );
-
-        return { order: createdOrder, lowStockWarnings: warnings };
-      },
-    );
-
-    this.eventsService.emitToStaff('new-order', order);
-    for (const warning of lowStockWarnings) {
-      this.eventsService.emitToStaff('low-stock-alert', warning);
-    }
-
-    return order;
   }
 
   findKitchenOrders() {
@@ -209,7 +125,11 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(id: string, dto: UpdateOrderStatusDto) {
+  async updateStatus(
+    id: string,
+    dto: UpdateOrderStatusDto,
+    actor?: { id: string; email?: string; role?: string },
+  ) {
     // Valider la transition d'état avant mise à jour
     const current = await this.prisma.order.findFirst({
       where: { id, deletedAt: null },
@@ -228,6 +148,19 @@ export class OrdersService {
     const order = await this.prisma.order.update({
       where: { id },
       data: { status: dto.status },
+    });
+
+    // Entrée d'audit métier : contrairement au middleware, ce service connaît
+    // l'état antérieur — c'est le seul endroit où `before` peut être exact.
+    this.audit.recordDetached({
+      action: 'order.status_changed',
+      entity: 'order',
+      entityId: id,
+      userId: actor?.id ?? null,
+      userEmail: actor?.email ?? null,
+      userRole: actor?.role ?? null,
+      before: { status: current.status },
+      after: { status: dto.status },
     });
 
     this.eventsService.emitToStaff('order-status-updated', {

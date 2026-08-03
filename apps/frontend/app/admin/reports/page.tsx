@@ -12,6 +12,7 @@ import {
   SalesReport,
   ExportButtons,
 } from '@/components/customs/admin/reports';
+import type { ReportMetrics } from '@/components/customs/admin/reports/key-metrics';
 import {
   useReportMetrics,
   useReportChartData,
@@ -57,18 +58,42 @@ export default function AdminReports() {
     return <LoadingState message="Chargement des rapports..." fullScreen />;
   }
 
-  // Utiliser les métriques calculées
-  const currentMetrics = metricsData || {
-    revenue: 0,
-    orders: 0,
-    customers: 0,
-    avgOrder: 0,
-    topDishes: [],
+  // Repli aligné sur le contrat réel de /reports/metrics : des objets, pas
+  // des nombres. Le repli précédent inventait une forme que l'API n'a jamais
+  // renvoyée, ce qui masquait le désaccord jusqu'au rendu.
+  const currentMetrics: ReportMetrics = metricsData ?? {
+    orders: { total: 0, byStatus: {} },
+    revenue: {
+      collected: 0,
+      ordered: 0,
+      outstanding: 0,
+      paidOrderCount: 0,
+      averageTicket: 0,
+    },
+    customers: { new: 0 },
+    reservations: { total: 0 },
     period: {
       start: new Date(),
       end: new Date(),
-      type: 'monthly'
-    }
+      type: selectedPeriod,
+    },
+  };
+
+  // Les exports attendent une forme à plat. L'adaptation est explicite ici
+  // plutôt que dilée dans le générateur : le CSV et le PDF disent « chiffre
+  // d'affaires encaissé » parce que c'est bien ce montant-là qui leur est
+  // transmis.
+  const exportData = {
+    revenue: currentMetrics.revenue.collected,
+    orders: currentMetrics.orders.total,
+    customers: currentMetrics.customers.new,
+    avgOrder: currentMetrics.revenue.averageTicket,
+    topDishes: [],
+    period: {
+      start: new Date(currentMetrics.period.start),
+      end: new Date(currentMetrics.period.end),
+      type: currentMetrics.period.type,
+    },
   };
 
   return (
@@ -95,14 +120,15 @@ export default function AdminReports() {
             <div>
               <h3 className="text-lg font-semibold">Actions</h3>
               <ExportButtons
-                data={currentMetrics}
+                data={exportData}
                 chartData={chartData || []}
                 formatPrice={formatPrice}
               />
             </div>
-            <SalesReport
-              topDishes={currentMetrics.topDishes || []}
-            />
+            {/* Le palmarès des ventes n'est pas encore calculé côté serveur —
+                la carte affiche son état vide tant que la brique « top
+                ventes » du reporting n'existe pas. */}
+            <SalesReport topDishes={[]} />
           </div>
         </div>
       </div>

@@ -108,6 +108,59 @@ export class MenuService {
     return result;
   }
 
+  /**
+   * Catalogue destiné au poste de caisse : toute la carte vendable, à plat,
+   * avec ses groupes d'options.
+   *
+   * Ne passe pas par `findAll` à dessein. Celui-ci est paginé (10 articles
+   * par défaut) : un serveur n'y voyait qu'une fraction de la carte. Et les
+   * groupes d'options n'ont de sens que sur ce chemin — les charger sur la
+   * liste d'administration alourdirait chaque page pour rien.
+   *
+   * Contrairement à la carte publique, les articles marqués indisponibles
+   * sont renvoyés — l'employé peut les vendre s'il sait qu'il en reste —
+   * mais avec leur drapeau `available`, pour que l'écran les signale.
+   */
+  async findPosCatalogue() {
+    const items = await this.prisma.menuItem.findMany({
+      where: NOT_DELETED,
+      orderBy: { name: 'asc' },
+      take: 500,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        price: true,
+        image: true,
+        available: true,
+        categoryId: true,
+        optionGroups: {
+          where: NOT_DELETED,
+          orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+          select: {
+            id: true,
+            name: true,
+            required: true,
+            minSelect: true,
+            maxSelect: true,
+            options: {
+              where: { available: true, ...NOT_DELETED },
+              orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+              select: { id: true, name: true, priceDelta: true },
+            },
+          },
+        },
+      },
+    });
+
+    // Un groupe dont toutes les options sont indisponibles n'a rien à
+    // proposer : on ne l'affiche pas plutôt que de montrer une liste vide.
+    return items.map((item) => ({
+      ...item,
+      optionGroups: item.optionGroups.filter((g) => g.options.length > 0),
+    }));
+  }
+
   async findPublicMenu() {
     const categories = await this.prisma.menuCategory.findMany({
       where: NOT_DELETED,

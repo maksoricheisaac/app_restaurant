@@ -38,6 +38,17 @@ export class MenuController {
     return this.menuService.findAll(query, availableOnly === 'true');
   }
 
+  /**
+   * Carte complète du poste de caisse, options comprises. Déclarée avant
+   * `:id` — sans quoi Nest interpréterait « pos-catalogue » comme un
+   * identifiant d'article.
+   */
+  @Get('pos-catalogue')
+  @Roles('owner', 'manager', 'chef', 'waiter', 'cashier')
+  findPosCatalogue() {
+    return this.menuService.findPosCatalogue();
+  }
+
   @Get(':id')
   @Roles('owner', 'manager', 'chef', 'waiter', 'cashier')
   findOne(@Param('id') id: string) {

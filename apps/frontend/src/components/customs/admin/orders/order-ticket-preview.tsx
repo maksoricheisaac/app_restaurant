@@ -165,7 +165,16 @@ export function OrderTicketPreview({
                 <div className="border-t border-dashed border-gray-400 pt-3 space-y-3">
                   {order.orderItems.map((item) => (
                     <div key={item.id} className="flex justify-between items-start text-sm text-black">
-                      <span className="font-normal flex-1">{item.quantity} x {item.name}</span>
+                      <span className="font-normal flex-1">
+                        {item.quantity} x {item.name}
+                        {item.options && item.options.length > 0 && (
+                          <span className="block text-xs text-gray-600">
+                            {item.options
+                              .map((o) => `${o.groupName} : ${o.optionName}`)
+                              .join(" · ")}
+                          </span>
+                        )}
+                      </span>
                       <span className="font-bold ml-4">{formatAmountForPdf(item.price * item.quantity)} FCFA</span>
                     </div>
                   ))}

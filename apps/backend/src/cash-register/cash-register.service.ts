@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AuditService } from '../common/audit/audit.service';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { TransactionFiltersDto } from './dto/transaction-filters.dto';
 import { OpenSessionDto, CloseSessionDto } from './dto/cash-session.dto';
@@ -11,7 +12,10 @@ import { getSkipTake, toPaginated } from '../common/pagination/paginate';
 
 @Injectable()
 export class CashRegisterService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private audit: AuditService,
+  ) {}
 
   async processPayment(data: ProcessPaymentDto & { cashierId: string }) {
     const { orderId, amount, method, cashierId } = data;
@@ -23,7 +27,7 @@ export class CashRegisterService {
     });
     if (!order) throw new NotFoundException('Commande introuvable');
 
-    return this.prisma.$transaction(async (tx) => {
+    const payment = await this.prisma.$transaction(async (tx) => {
       // Rattache le paiement à la session de caisse ouverte, si une l'est —
       // sert au calcul du montant attendu à la clôture. Un paiement reste
       // valide même sans session ouverte (carte/en ligne notamment).
@@ -72,6 +76,28 @@ export class CashRegisterService {
 
       return payment;
     });
+
+    // Traçabilité comptable. Le middleware d'audit couvre déjà l'enveloppe
+    // HTTP ; cette entrée-ci porte le fait métier — montant encaissé, moyen
+    // de paiement, état de la commande avant et après — que seul ce service
+    // connaît.
+    this.audit.recordDetached({
+      action: 'payment.recorded',
+      entity: 'payment',
+      entityId: payment.id,
+      userId: cashierId,
+      before: { orderStatus: order.status, orderTotal: Number(order.total) },
+      after: {
+        paymentId: payment.id,
+        orderId,
+        amount: Number(amount),
+        method,
+        orderStatus: 'served',
+        cashSessionId: payment.cashSessionId,
+      },
+    });
+
+    return payment;
   }
 
   async getTransactions(filters: TransactionFiltersDto) {

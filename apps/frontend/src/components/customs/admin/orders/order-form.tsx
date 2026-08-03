@@ -6,10 +6,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, ShoppingCart, FileText, ChevronRight, ChevronLeft, Check } from "lucide-react";
+import { Search, User, ShoppingCart, FileText, ChevronRight, ChevronLeft, Check, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import Image from "next/image";
 import type { UseFormReturn } from "react-hook-form";
+import {
+  MenuItemOptionsDialog,
+  type MenuItemOptionGroup,
+  type OptionSelection,
+  type SelectedOption,
+} from "./menu-item-options-dialog";
+
 export type FormValues = {
   type: 'dine_in' | 'takeaway' | 'delivery';
   tableId?: string;
@@ -20,19 +27,60 @@ export type FormValues = {
   deliveryZoneId?: string;
   deliveryFee?: number;
   total?: number;
-  items: { menuItemId?: string; name: string; quantity: number; price: number; image?: string }[];
+  items: {
+    menuItemId?: string;
+    name: string;
+    quantity: number;
+    price: number;
+    image?: string;
+    selectedOptionIds?: string[];
+    options?: SelectedOption[];
+  }[];
   [key: string]: unknown;
 };
 
 type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
 type OrderType = "dine_in" | "takeaway" | "delivery";
 
-type MenuItem = { id: string; name: string; description?: string | null; price: number; image?: string | null; categoryId: string };
+type MenuItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  price: number;
+  image?: string | null;
+  categoryId: string;
+  available?: boolean;
+  optionGroups?: MenuItemOptionGroup[];
+};
 type Category = { id: string; name: string };
 type Customer = { id: string; name?: string | null; email?: string | null };
 type Table = { id: string; number: number; seats: number };
 
-type OrderItemForm = { name: string; quantity: number; price: number; image?: string; menuItemId?: string };
+type OrderItemForm = {
+  name: string;
+  quantity: number;
+  /** Prix unitaire options comprises — recalculé serveur à la validation. */
+  price: number;
+  image?: string;
+  menuItemId?: string;
+  selectedOptionIds?: string[];
+  options?: SelectedOption[];
+};
+
+/**
+ * Deux lignes ne fusionnent que si elles portent le même plat ET la même
+ * sélection d'options : un burger saignant et un burger à point restent deux
+ * lignes distinctes, comme sur le ticket de cuisine.
+ */
+function lineKey(item: {
+  menuItemId?: string;
+  name: string;
+  price: number;
+  selectedOptionIds?: string[];
+}): string {
+  const options = [...(item.selectedOptionIds ?? [])].sort().join(",");
+  return `${item.menuItemId ?? item.name}|${item.price}|${options}`;
+}
 
 
 export function OrderForm({
@@ -55,6 +103,8 @@ export function OrderForm({
   const [currentStep, setCurrentStep] = useState(1);
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  /** Plat dont on est en train de choisir les options, le cas échéant. */
+  const [optionsItem, setOptionsItem] = useState<MenuItem | null>(null);
 
   const items = (form.watch("items") as OrderItemForm[]) || [];
 
@@ -76,30 +126,63 @@ export function OrderForm({
     });
   }, [menuItems, search, activeCategory]);
 
-  const addItem = (m: MenuItem) => {
-    const existingIndex = items.findIndex((it) => it.name === m.name && it.price === m.price);
+  /** Ajoute une ligne au panier, ou incrémente celle qui lui est identique. */
+  const pushLine = (line: OrderItemForm) => {
+    const key = lineKey(line);
+    const existingIndex = items.findIndex((it) => lineKey(it) === key);
+
     if (existingIndex >= 0) {
       const updated = [...items];
-      updated[existingIndex] = { ...updated[existingIndex], quantity: updated[existingIndex].quantity + 1 };
+      updated[existingIndex] = {
+        ...updated[existingIndex],
+        quantity: updated[existingIndex].quantity + line.quantity,
+      };
       form.setValue("items", updated, { shouldDirty: true });
-      toast.success(`Quantité de "${m.name}" augmentée`, {
-        description: `Quantité actuelle: ${updated[existingIndex].quantity}`,
+      toast.success(`Quantité de "${line.name}" augmentée`, {
+        description: `Quantité actuelle : ${updated[existingIndex].quantity}`,
         duration: 2000,
       });
     } else {
-      form.setValue("items", [...items, { 
-        name: m.name, 
-        quantity: 1, 
-        price: m.price, 
-        image: m.image || undefined,
-        menuItemId: m.id // Ajouter le menuItemId
-      }], { shouldDirty: true });
-      toast.success(`"${m.name}" ajouté au panier`, {
-        description: `${formatCurrency(m.price)} • Quantité: 1`,
+      form.setValue("items", [...items, line], { shouldDirty: true });
+      toast.success(`"${line.name}" ajouté au panier`, {
+        description: `${formatCurrency(line.price)} • Quantité : ${line.quantity}`,
         duration: 2000,
       });
     }
     computeTotal();
+  };
+
+  const addItem = (m: MenuItem) => {
+    // Un plat porteur d'options passe par le sélecteur : c'est le seul moyen
+    // de saisir en salle une cuisson ou un supplément que le client peut déjà
+    // choisir depuis son téléphone.
+    if (m.optionGroups && m.optionGroups.length > 0) {
+      setOptionsItem(m);
+      return;
+    }
+
+    pushLine({
+      name: m.name,
+      quantity: 1,
+      price: m.price,
+      image: m.image || undefined,
+      menuItemId: m.id,
+    });
+  };
+
+  const handleOptionsConfirm = (selection: OptionSelection) => {
+    if (!optionsItem) return;
+
+    pushLine({
+      name: optionsItem.name,
+      quantity: 1,
+      price: optionsItem.price + selection.priceDelta,
+      image: optionsItem.image || undefined,
+      menuItemId: optionsItem.id,
+      selectedOptionIds: selection.selectedOptionIds,
+      options: selection.options,
+    });
+    setOptionsItem(null);
   };
 
   const inc = (index: number) => {
@@ -398,27 +481,44 @@ export function OrderForm({
                   <p className="text-sm text-gray-400 mt-1">Essayez un autre terme de recherche</p>
                 </div>
               ) : (
-                filteredMenu.map((m) => (
+                filteredMenu.map((m) => {
+                  const hasOptions = (m.optionGroups?.length ?? 0) > 0;
+                  const isUnavailable = m.available === false;
+                  return (
                   <div key={m.id} className="flex items-center gap-4 p-4 border border-[#FF6B35]/15 rounded-xl bg-white hover:shadow-lg transition-all">
                     {m.image && (
                       <Image width={100} height={100} src={m.image} alt={m.name} className="h-16 w-16 object-cover rounded-lg flex-shrink-0" />
                     )}
-                    <div className="flex-1">
-                      <p className="font-semibold text-[#FF6B35]">{m.name}</p>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-[#FF6B35]">{m.name}</p>
+                        {hasOptions && (
+                          <Badge variant="outline" className="gap-1 text-[#FF6B35] border-[#FF6B35]/40 font-normal">
+                            <SlidersHorizontal className="h-3 w-3" />
+                            Options
+                          </Badge>
+                        )}
+                        {isUnavailable && (
+                          <Badge variant="outline" className="text-amber-700 border-amber-300 bg-amber-50 font-normal">
+                            Retiré de la carte en ligne
+                          </Badge>
+                        )}
+                      </div>
                       {m.description && <p className="text-sm text-gray-500 mt-1">{m.description}</p>}
                     </div>
                     <div className="text-right">
                       <span className="font-semibold text-[#FF6B35]">{formatCurrency(m.price)}</span>
                     </div>
-                    <Button 
-                      type="button" 
-                      className="bg-[#FF6B35] hover:bg-[#e35f2f] transition transform active:scale-[.98] flex-shrink-0 cursor-pointer" 
+                    <Button
+                      type="button"
+                      className="bg-[#FF6B35] hover:bg-[#e35f2f] transition transform active:scale-[.98] flex-shrink-0 cursor-pointer"
                       onClick={() => addItem(m)}
                     >
-                      Ajouter
+                      {hasOptions ? "Choisir" : "Ajouter"}
                     </Button>
                   </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -487,7 +587,24 @@ export function OrderForm({
               ) : (
                 items.map((it, idx: number) => (
                   <div key={idx} className="grid grid-cols-12 items-center gap-3 border rounded-lg p-4 hover:shadow-sm transition bg-white">
-                    <div className="col-span-12 lg:col-span-5 font-medium text-[#FF6B35] text-lg">{it.name}</div>
+                    <div className="col-span-12 lg:col-span-5">
+                      <p className="font-medium text-[#FF6B35] text-lg">{it.name}</p>
+                      {it.options && it.options.length > 0 && (
+                        <ul className="mt-1 space-y-0.5">
+                          {it.options.map((opt, optIdx) => (
+                            <li key={optIdx} className="text-xs text-gray-500">
+                              {opt.groupName} : <span className="text-gray-700">{opt.optionName}</span>
+                              {opt.priceDelta !== 0 && (
+                                <span className="tabular-nums">
+                                  {" "}({opt.priceDelta > 0 ? "+" : "−"}
+                                  {formatCurrency(Math.abs(opt.priceDelta))})
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
                     <div className="col-span-6 lg:col-span-3 flex items-center gap-2 justify-center lg:justify-start">
                       <Button type="button" variant="outline" size="sm" className="h-8 w-8 rounded-full text-[#FF6B35] border-[#FF6B35] hover:bg-[#FFE5D9]" onClick={() => dec(idx)}>-</Button>
                       <span className="w-8 text-center font-semibold">{it.quantity}</span>
@@ -585,6 +702,15 @@ export function OrderForm({
           </div>
         </div>
       </div>
+
+      {/* Choix des options du plat sélectionné */}
+      <MenuItemOptionsDialog
+        item={optionsItem}
+        isOpen={optionsItem !== null}
+        onClose={() => setOptionsItem(null)}
+        onConfirm={handleOptionsConfirm}
+        formatCurrency={formatCurrency}
+      />
     </form>
   );
 }

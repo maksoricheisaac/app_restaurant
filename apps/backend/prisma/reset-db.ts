@@ -45,7 +45,6 @@ async function main() {
   await prisma.openingHours.deleteMany();
   await prisma.exceptionalClosure.deleteMany();
   await prisma.message.deleteMany();
-  await prisma.report.deleteMany();
   await prisma.rolePermission.deleteMany();
   await prisma.deliveryZone.deleteMany();
   await prisma.restaurant.deleteMany();

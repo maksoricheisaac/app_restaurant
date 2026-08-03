@@ -2,13 +2,15 @@ import { NotFoundException, ConflictException } from '@nestjs/common';
 import { CashRegisterService } from './cash-register.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
+const mockAuditService = { recordDetached: jest.fn(), record: jest.fn() };
+
 describe('CashRegisterService', () => {
   let service: CashRegisterService;
   let prisma: MockPrisma;
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new CashRegisterService(prisma as any);
+    service = new CashRegisterService(prisma as any, mockAuditService as any);
     jest.clearAllMocks();
   });
 

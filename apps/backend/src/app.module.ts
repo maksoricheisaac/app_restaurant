@@ -34,6 +34,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { JwtModule } from '@nestjs/jwt';
 import { validateConfig } from './config/config.validation';
 import { RedisModule } from './common/redis/redis.module';
+import { AuditModule } from './common/audit/audit.module';
 
 @Module({
   imports: [
@@ -86,6 +87,7 @@ import { RedisModule } from './common/redis/redis.module';
     }),
     RedisModule,
     PrismaModule,
+    AuditModule,
     AuthModule,
     RestaurantModule,
     StaffModule,

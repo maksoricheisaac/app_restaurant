@@ -2,15 +2,14 @@ import { OrdersService } from './orders.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 import { OrderType } from './dto/create-order.dto';
 
-const mockEventsService = { emitToStaff: jest.fn(), emitToRoom: jest.fn() };
-const mockCustomersService = {
-  upsertFromInteraction: jest.fn().mockResolvedValue(null),
+const mockEventsService = {
+  emitToStaff: jest.fn(),
+  emitToOrderTracking: jest.fn(),
 };
-const mockInventoryService = {
-  decrementStockForOrder: jest.fn().mockResolvedValue([]),
-};
+const mockOrderCreation = { create: jest.fn() };
+const mockAuditService = { recordDetached: jest.fn(), record: jest.fn() };
 
-describe('OrdersService — price injection prevention', () => {
+describe('OrdersService', () => {
   let service: OrdersService;
   let prisma: MockPrisma;
 
@@ -19,66 +18,101 @@ describe('OrdersService — price injection prevention', () => {
     service = new OrdersService(
       prisma as any,
       mockEventsService as any,
-      mockCustomersService as any,
-      mockInventoryService as any,
+      mockOrderCreation as any,
+      mockAuditService as any,
     );
     jest.clearAllMocks();
-    mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
-    // create() écrit désormais dans une transaction — router tx vers le
-    // même mock que celui utilisé dans les assertions.
-    prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
+    mockOrderCreation.create.mockResolvedValue({ id: 'order-1' });
   });
 
-  describe('create — price re-fetch from DB', () => {
-    const baseOrderData = {
-      type: OrderType.DINE_IN,
-      items: [
+  // ─── Adaptateur du comptoir ───────────────────────────────────────────────
+  //
+  // Le métier (prix, options, stock) est couvert par
+  // order-creation.service.spec.ts — le seul endroit où il vit désormais.
+  // Ici on ne vérifie que la traduction du DTO.
+
+  describe('create — adaptateur POS', () => {
+    it('délègue au chemin unique de création avec le canal pos', async () => {
+      await service.create(
         {
-          menuItemId: 'menu-1',
-          name: 'Yassa poulet',
-          quantity: 2,
-          price: 0.01, // attacker sends 1 centime
-          image: null,
-        },
-      ],
-    };
+          type: OrderType.DINE_IN,
+          items: [{ menuItemId: 'menu-1', quantity: 2 }],
+        } as any,
+        'user-7',
+      );
 
-    it('uses DB price, NOT client-supplied price when menuItemId is provided', async () => {
-      prisma.menuItem.findMany.mockResolvedValue([
-        { id: 'menu-1', name: 'Yassa poulet', price: 2500, image: null },
-      ]);
-      prisma.order.create.mockResolvedValue({
-        id: 'order-1',
-        total: 5000,
-        orderItems: [],
-        table: null,
-      });
-
-      await service.create(baseOrderData as any);
-
-      const createCall = prisma.order.create.mock.calls[0][0];
-      const createdItem = createCall.data.orderItems.create[0];
-
-      expect(createdItem.price).toBe(2500); // DB price
-      expect(createdItem.price).not.toBe(0.01); // NOT attacker price
+      expect(mockOrderCreation.create).toHaveBeenCalledWith(
+        expect.objectContaining({ channel: 'pos', userId: 'user-7' }),
+      );
     });
 
-    it('calculates total from DB prices, not client prices', async () => {
-      prisma.menuItem.findMany.mockResolvedValue([
-        { id: 'menu-1', name: 'Yassa poulet', price: 2500, image: null },
-      ]);
-      prisma.order.create.mockResolvedValue({
-        id: 'order-1',
-        total: 5000,
-        orderItems: [],
-        table: null,
-      });
+    it('transmet les options choisies au comptoir', async () => {
+      await service.create(
+        {
+          type: OrderType.DINE_IN,
+          items: [
+            {
+              menuItemId: 'menu-1',
+              quantity: 1,
+              selectedOptionIds: ['opt-a', 'opt-b'],
+            },
+          ],
+        } as any,
+        'user-7',
+      );
 
-      await service.create(baseOrderData as any);
+      const input = mockOrderCreation.create.mock.calls[0][0];
+      expect(input.items[0].selectedOptionIds).toEqual(['opt-a', 'opt-b']);
+    });
+  });
 
-      const createCall = prisma.order.create.mock.calls[0][0];
-      // 2 × 2500 = 5000 (not 2 × 0.01 = 0.02)
-      expect(createCall.data.total).toBe(5000);
+  // ─── Machine d'état ───────────────────────────────────────────────────────
+
+  describe('updateStatus', () => {
+    it('accepte une transition autorisée et notifie les deux salons', async () => {
+      prisma.order.findFirst.mockResolvedValue({ status: 'pending' });
+      prisma.order.update.mockResolvedValue({ id: 'o1', status: 'preparing' });
+
+      await service.updateStatus('o1', { status: 'preparing' } as any);
+
+      expect(mockEventsService.emitToStaff).toHaveBeenCalledWith(
+        'order-status-updated',
+        { id: 'o1', status: 'preparing' },
+      );
+      expect(mockEventsService.emitToOrderTracking).toHaveBeenCalledWith(
+        'o1',
+        'status-update',
+        { status: 'preparing' },
+      );
+    });
+
+    it('refuse une transition interdite', async () => {
+      prisma.order.findFirst.mockResolvedValue({ status: 'served' });
+
+      await expect(
+        service.updateStatus('o1', { status: 'preparing' } as any),
+      ).rejects.toThrow(/Transition invalide/);
+      expect(prisma.order.update).not.toHaveBeenCalled();
+    });
+
+    it('refuse une commande introuvable', async () => {
+      prisma.order.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus('inconnu', { status: 'preparing' } as any),
+      ).rejects.toThrow(/introuvable/);
+    });
+  });
+
+  describe('remove', () => {
+    it('archive la commande au lieu de la supprimer', async () => {
+      prisma.order.update.mockResolvedValue({ id: 'o1' });
+
+      await service.remove('o1');
+
+      const call = prisma.order.update.mock.calls[0][0];
+      expect(call.where).toEqual({ id: 'o1' });
+      expect(call.data.deletedAt).toBeInstanceOf(Date);
     });
   });
 });

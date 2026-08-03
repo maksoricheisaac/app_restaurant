@@ -15,6 +15,7 @@ import { BlobModule } from '../blob/blob.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { ReservationsModule } from '../reservations/reservations.module';
 import { CustomersModule } from '../customers/customers.module';
+import { OrdersModule } from '../orders/orders.module';
 
 @Module({
   imports: [
@@ -27,6 +28,9 @@ import { CustomersModule } from '../customers/customers.module';
     InventoryModule,
     ReservationsModule,
     CustomersModule,
+    // Fournit OrderCreationService : la commande publique et la commande au
+    // comptoir empruntent le même chemin de création.
+    OrdersModule,
   ],
   controllers: [MenuController, PublicMenuController, MenuOptionsController],
   providers: [

@@ -147,8 +147,59 @@ model User {
   cashSessionsOpened CashRegisterSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashRegisterSession[] @relation("CashSessionClosedBy")
   invitesSent        StaffInvite[]        @relation("InviteInvitedBy")
+  auditLogs          AuditLog[]
 
   @@index([role])
+}
+
+/// Piste d'audit des opérations sensibles : qui a fait quoi, sur quoi, quand,
+/// et avec quel résultat.
+///
+/// Écrite en base et non plus seulement dans les journaux applicatifs — un
+/// fichier de log tourne, n'est pas interrogeable et ne survit pas à un
+/// redéploiement. C'est le socle des exigences d'inaltérabilité de la
+/// comptabilité (phase 4) : la table est en écriture seule côté application,
+/// aucun service n'expose de mise à jour ni de suppression.
+///
+/// Aucune contrainte d'unicité : deux actions identiques à la même
+/// milliseconde sont deux faits distincts, tous deux à conserver.
+model AuditLog {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+
+  /// Auteur. Null pour un appel anonyme (parcours client public).
+  /// `onDelete: SetNull` : la suppression d'un compte ne doit jamais effacer
+  /// la trace de ce qu'il a fait — d'où la dénormalisation ci-dessous.
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Identité recopiée au moment du fait : survit à la suppression du compte.
+  userEmail String?
+  userRole  String?
+
+  /// Action métier normalisée : « payment.process », « order.update_status »…
+  action String
+  /// Nature et identifiant de l'objet touché, quand ils sont identifiables.
+  entity   String?
+  entityId String?
+
+  method     String
+  path       String
+  statusCode Int
+  ip         String?
+  userAgent  String?
+  requestId  String?
+  durationMs Int?
+
+  /// État avant / après, pour les actions qui modifient une donnée sensible.
+  /// Renseignés par les services qui connaissent réellement ces deux états ;
+  /// pour une création, seul `after` a un sens.
+  before Json?
+  after  Json?
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([action])
+  @@index([entity, entityId])
 }
 
 /// Invitation d'un employé n'ayant pas encore de compte. Seul le hash SHA-256
@@ -618,15 +669,6 @@ model Message {
 
   @@index([status])
   @@index([deletedAt])
-}
-
-model Report {
-  id        String   @id @default(uuid())
-  title     String
-  type      String
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

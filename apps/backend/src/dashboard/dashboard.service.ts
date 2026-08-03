@@ -1,9 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RevenueService } from '../common/revenue/revenue.service';
 
 @Injectable()
 export class DashboardService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private revenue: RevenueService,
+  ) {}
 
   async getStats(date: string) {
     const start = new Date(date);
@@ -17,14 +21,8 @@ export class DashboardService {
         this.prisma.order.count({
           where: { deletedAt: null, ...dateFilter },
         }),
-        this.prisma.order.aggregate({
-          where: {
-            deletedAt: null,
-            ...dateFilter,
-            status: { not: 'cancelled' },
-          },
-          _sum: { total: true },
-        }),
+        // Source unique du CA, partagée avec les rapports.
+        this.revenue.compute({ start, end }),
         this.prisma.reservation.count({
           where: { deletedAt: null, date: { gte: start, lte: end } },
         }),
@@ -38,9 +36,14 @@ export class DashboardService {
 
     return {
       ordersCount,
-      totalRevenue: revenue._sum.total || 0,
       reservationsCount,
       activeCustomers,
+      // Nommés sans ambiguïté : « totalRevenue » ne disait pas s'il
+      // s'agissait de l'encaissé ou du commandé, et les deux écrans qui
+      // l'affichaient n'en donnaient pas la même valeur.
+      revenueCollected: revenue.collected,
+      revenueOrdered: revenue.ordered,
+      revenueOutstanding: revenue.outstanding,
     };
   }
 

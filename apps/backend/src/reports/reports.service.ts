@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { RevenueService } from '../common/revenue/revenue.service';
 
 type ReportPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
 @Injectable()
 export class ReportsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private revenue: RevenueService,
+  ) {}
 
   private getDateRange(type: ReportPeriod, date?: string) {
     const ref = date ? new Date(date) : new Date();
@@ -55,11 +59,11 @@ export class ReportsService {
           where: orderWhere,
           _count: { id: true },
         }),
-        this.prisma.transaction.aggregate({
-          where: { type: 'sale', ...dateFilter },
-          _sum: { amount: true },
-          _count: { id: true },
-        }),
+        // Source unique du CA, partagée avec le tableau de bord. Sommer
+        // `Transaction.amount` comme auparavant comptait l'argent tendu par
+        // le client, monnaie rendue comprise — donc surévaluait les ventes
+        // dès qu'un règlement en espèces n'était pas fait à l'appoint.
+        this.revenue.compute({ start, end }),
         this.prisma.customer.count({
           where: { deletedAt: null, ...dateFilter },
         }),
@@ -78,12 +82,11 @@ export class ReportsService {
         byStatus: ordersByStatus,
       },
       revenue: {
-        total: Number(revenue._sum?.amount ?? 0),
-        transactionCount: revenue._count.id,
-        averageOrderValue:
-          revenue._count.id > 0
-            ? Number(revenue._sum?.amount ?? 0) / revenue._count.id
-            : 0,
+        collected: revenue.collected,
+        ordered: revenue.ordered,
+        outstanding: revenue.outstanding,
+        paidOrderCount: revenue.collectedCount,
+        averageTicket: revenue.averageTicket,
       },
       customers: { new: newCustomers },
       reservations: { total: reservationsCount },
@@ -94,12 +97,16 @@ export class ReportsService {
     const { start, end } = this.getDateRange(type, date);
 
     const [revenueRows, orderRows] = await Promise.all([
+      // Même définition que `RevenueBreakdown.collected` : le total dû des
+      // commandes effectivement réglées, et non la somme des espèces tendues.
       this.prisma.$queryRaw<{ day: Date; total: number }[]>`
-        SELECT date_trunc('day', "createdAt") AS day,
-               COALESCE(SUM(amount), 0)::float8 AS total
-        FROM "Transaction"
-        WHERE "type" = 'sale'
-          AND "createdAt" BETWEEN ${start} AND ${end}
+        SELECT date_trunc('day', o."createdAt") AS day,
+               COALESCE(SUM(o."total"), 0)::float8 AS total
+        FROM "Order" o
+        JOIN "Payment" p ON p."orderId" = o."id" AND p."status" = 'completed'
+        WHERE o."deletedAt" IS NULL
+          AND o."status" <> 'cancelled'
+          AND o."createdAt" BETWEEN ${start} AND ${end}
         GROUP BY day
         ORDER BY day ASC
       `,

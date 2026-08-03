@@ -10,6 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { OrderItemOptions } from "@/components/common/order-item-options";
 import { Order, OrderStatus, OrderType } from "@/types/order";
 import {
 	User,
@@ -158,8 +159,11 @@ export function OrderCard({
 						<ul className="space-y-0.5 flex-1">
 							{order.orderItems.map((item) => (
 								<li key={item.id} className="flex justify-between gap-2">
-									<span className="text-foreground">
-										{item.quantity}× {item.name}
+									<span className="min-w-0">
+										<span className="text-foreground">
+											{item.quantity}× {item.name}
+										</span>
+										<OrderItemOptions options={item.options} />
 									</span>
 									<span className="text-muted-foreground flex-shrink-0">
 										{formatCurrency(item.price * item.quantity)}

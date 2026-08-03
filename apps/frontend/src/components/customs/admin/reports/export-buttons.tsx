@@ -85,9 +85,9 @@ export function ExportButtons({ data, chartData, formatPrice }: ExportButtonsPro
     // ===== SECTION 2: MÉTRIQUES CLÉS =====
     csvContent += '=== MÉTRIQUES CLÉS ===\n';
     csvContent += 'Indicateur,Valeur\n';
-    csvContent += `Revenus totaux (FCFA),${data.revenue}\n`;
+    csvContent += `Chiffre d'affaires encaissé (FCFA),${data.revenue}\n`;
     csvContent += `Nombre de commandes,${data.orders}\n`;
-    csvContent += `Clients uniques,${data.customers}\n`;
+    csvContent += `Nouveaux clients,${data.customers}\n`;
     csvContent += `Panier moyen (FCFA),${data.avgOrder.toFixed(2)}\n`;
     csvContent += '\n';
 

@@ -22,7 +22,8 @@ import {
 import { useUnpaidOrders } from "@/hooks/api/useCashRegister";
 import { useProcessPayment } from "@/hooks/api/useCashRegisterMutations";
 import { toast } from "sonner";
-import { PaymentMethod } from "@/types/order";
+import { PaymentMethod, type OrderItemOption } from "@/types/order";
+import { OrderItemOptions } from "@/components/common/order-item-options";
 
 interface UnpaidOrderItem {
   id: string;
@@ -30,6 +31,7 @@ interface UnpaidOrderItem {
   quantity: number;
   price: number;
   menuItem: { name: string };
+  options?: OrderItemOption[] | null;
 }
 
 interface UnpaidOrder {
@@ -184,9 +186,12 @@ export function UnpaidOrdersList({ formatCurrency }: UnpaidOrdersListProps) {
                   </div>
                   <div className="ml-6 space-y-1">
                     {order.orderItems.map((item) => (
-                      <div key={item.id} className="flex justify-between text-sm text-gray-600">
-                        <span>{item.quantity}× {item.menuItem?.name ?? item.name ?? '?'}</span>
-                        <span>{formatCurrency(item.price * item.quantity)}</span>
+                      <div key={item.id} className="flex justify-between gap-2 text-sm text-gray-600">
+                        <span className="min-w-0">
+                          {item.quantity}× {item.menuItem?.name ?? item.name ?? '?'}
+                          <OrderItemOptions options={item.options} />
+                        </span>
+                        <span className="flex-shrink-0">{formatCurrency(item.price * item.quantity)}</span>
                       </div>
                     ))}
                   </div>

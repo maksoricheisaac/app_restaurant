@@ -64,11 +64,14 @@ describe('OrdersController', () => {
       const updated = { id: 'order-1', status: 'preparing' };
       mockOrdersService.updateStatus.mockResolvedValue(updated);
 
-      const result = await controller.updateStatus('order-1', dto);
+      const result = await controller.updateStatus('order-1', dto, mockUser);
 
+      // L'acteur est transmis au service : c'est lui qui alimente l'auteur
+      // de l'entrée d'audit du changement de statut.
       expect(mockOrdersService.updateStatus).toHaveBeenCalledWith(
         'order-1',
         dto,
+        mockUser,
       );
       expect(result).toBe(updated);
     });

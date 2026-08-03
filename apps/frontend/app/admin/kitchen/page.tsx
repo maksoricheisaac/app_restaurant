@@ -9,6 +9,7 @@ import { useKitchenOrders } from "@/hooks/api/useOrders";
 import { useUpdateOrderStatus } from "@/hooks/api/useOrdersMutations";
 import { useSocketEvent } from "@/hooks/useSocketEvent";
 import { ProtectedRoute } from "@/components/admin/ProtectedRoute";
+import { OrderItemOptions } from "@/components/common/order-item-options";
 import { Permission } from "@/types/permissions";
 import { Order, OrderStatus } from "@/types/order";
 import { toast } from "sonner";
@@ -61,13 +62,16 @@ function OrderCard({ order, onAction }: { order: Order; onAction: (id: string, s
       </div>
 
       {/* Items */}
-      <ul className="space-y-1.5">
-        {order.orderItems?.map((item: any) => (
-          <li key={item.id} className="flex items-center justify-between text-sm">
+      <ul className="space-y-2">
+        {order.orderItems?.map((item) => (
+          <li key={item.id} className="text-sm">
             <span className="font-semibold text-slate-800">
               <span className="text-base font-black mr-1">{item.quantity}×</span>
               {item.name}
             </span>
+            {/* Cuissons et suppléments : sans eux, le bon de préparation est
+                inexploitable dès qu'un plat porte des options. */}
+            <OrderItemOptions options={item.options} tone="kitchen" className="ml-6" />
           </li>
         ))}
       </ul>

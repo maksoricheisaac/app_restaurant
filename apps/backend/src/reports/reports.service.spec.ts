@@ -1,14 +1,28 @@
 import { ReportsService } from './reports.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
 
+const EMPTY_REVENUE = {
+  ordered: 0,
+  orderedCount: 0,
+  collected: 0,
+  collectedCount: 0,
+  outstanding: 0,
+  averageTicket: 0,
+};
+
+const mockRevenueService = {
+  compute: jest.fn().mockResolvedValue(EMPTY_REVENUE),
+};
+
 describe('ReportsService', () => {
   let service: ReportsService;
   let prisma: MockPrisma;
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new ReportsService(prisma as any);
+    service = new ReportsService(prisma as any, mockRevenueService as any);
     jest.clearAllMocks();
+    mockRevenueService.compute.mockResolvedValue(EMPTY_REVENUE);
   });
 
   // ─── getMetrics ───────────────────────────────────────────────────────────
@@ -19,9 +33,14 @@ describe('ReportsService', () => {
         { status: 'served', _count: { id: 5 } },
         { status: 'cancelled', _count: { id: 1 } },
       ]);
-      prisma.transaction.aggregate = jest
-        .fn()
-        .mockResolvedValue({ _sum: { amount: 200 }, _count: { id: 5 } });
+      mockRevenueService.compute.mockResolvedValue({
+        ordered: 250,
+        orderedCount: 6,
+        collected: 200,
+        collectedCount: 5,
+        outstanding: 50,
+        averageTicket: 40,
+      });
       prisma.customer.count.mockResolvedValue(3);
       prisma.reservation = { count: jest.fn().mockResolvedValue(2) } as any;
 
@@ -29,18 +48,28 @@ describe('ReportsService', () => {
 
       expect(result.orders.total).toBe(6);
       expect(result.orders.byStatus).toEqual({ served: 5, cancelled: 1 });
-      expect(result.revenue.total).toBe(200);
-      expect(result.revenue.transactionCount).toBe(5);
-      expect(result.revenue.averageOrderValue).toBe(40);
+      expect(result.revenue.collected).toBe(200);
+      expect(result.revenue.ordered).toBe(250);
+      expect(result.revenue.outstanding).toBe(50);
+      expect(result.revenue.paidOrderCount).toBe(5);
+      expect(result.revenue.averageTicket).toBe(40);
       expect(result.customers.new).toBe(3);
       expect(result.reservations.total).toBe(2);
     });
 
+    it('n’additionne plus les transactions — la monnaie rendue gonflait le CA', async () => {
+      prisma.order.groupBy = jest.fn().mockResolvedValue([]);
+      prisma.customer.count.mockResolvedValue(0);
+      prisma.reservation = { count: jest.fn().mockResolvedValue(0) } as any;
+
+      await service.getMetrics('monthly');
+
+      expect(prisma.transaction.aggregate).not.toHaveBeenCalled();
+      expect(mockRevenueService.compute).toHaveBeenCalledTimes(1);
+    });
+
     it('excludes soft-deleted orders and reservations from the date filters', async () => {
       prisma.order.groupBy = jest.fn().mockResolvedValue([]);
-      prisma.transaction.aggregate = jest
-        .fn()
-        .mockResolvedValue({ _sum: { amount: null }, _count: { id: 0 } });
       prisma.customer.count.mockResolvedValue(0);
       prisma.reservation = { count: jest.fn().mockResolvedValue(0) } as any;
 

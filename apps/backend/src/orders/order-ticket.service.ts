@@ -13,9 +13,11 @@ import {
   OrderLinePricingService,
   type OrderLineInput,
 } from './order-line-pricing.service';
+import { TaxRateResolverService } from './tax-rate-resolver.service';
+import { taxForLine } from './order-tax';
 import {
   canTransitionLine,
-  computeOrderTotal,
+  computeOrderTotals,
   deriveOrderStatus,
   isLineSent,
   isOrderLocked,
@@ -54,6 +56,7 @@ export class OrderTicketService {
     private readonly inventoryService: InventoryService,
     private readonly pricing: OrderLinePricingService,
     private readonly audit: AuditService,
+    private readonly taxResolver: TaxRateResolverService,
   ) {}
 
   // ─── Lecture ───────────────────────────────────────────────────────────────
@@ -89,7 +92,16 @@ export class OrderTicketService {
     const order = await this.loadOpenOrder(orderId);
     // Toujours le canal comptoir : seul un employé ajoute à un ticket ouvert,
     // le parcours client n'expose aucune route de ce genre.
-    const lines = await this.pricing.priceLines(items, 'pos');
+    //
+    // Le régime de prix vient du TICKET, pas du paramétrage courant : une
+    // tournée ajoutée après un basculement TTC → HT doit rester cohérente
+    // avec les lignes déjà prises.
+    const taxPolicy = await this.taxResolver.getPolicy();
+    const lines = await this.pricing.priceLines(items, 'pos', {
+      pricesIncludeTax: order.taxIncluded,
+      defaultRate: taxPolicy.defaultRate,
+      serviceType: order.type,
+    });
 
     const sendImmediately = options.sendImmediately ?? false;
     const status = sendImmediately
@@ -109,6 +121,10 @@ export class OrderTicketService {
               price: line.price,
               image: line.image,
               options: line.options,
+              taxRate: line.taxRate,
+              lineExclTax: line.lineExclTax,
+              lineTax: line.lineTax,
+              lineInclTax: line.lineInclTax,
               status,
               sentAt,
             },
@@ -174,7 +190,7 @@ export class OrderTicketService {
       throw new BadRequestException('La quantité doit être au moins de 1');
     }
 
-    await this.loadOpenOrder(orderId);
+    const order = await this.loadOpenOrder(orderId);
     const line = await this.loadLine(orderId, lineId);
 
     if (line.status !== OrderLineStatus.draft) {
@@ -183,8 +199,26 @@ export class OrderTicketService {
       );
     }
 
+    // La ventilation porte sur la ligne entière : changer la quantité sans la
+    // recalculer laisserait une taxe figée sur l'ancienne quantité. Le taux,
+    // lui, reste celui retenu à la saisie.
+    const retaxed = taxForLine(
+      Number(line.price),
+      quantity,
+      Number(line.taxRate),
+      order.taxIncluded,
+    );
+
     const updated = await this.prisma.$transaction(async (tx) => {
-      await tx.orderLine.update({ where: { id: lineId }, data: { quantity } });
+      await tx.orderLine.update({
+        where: { id: lineId },
+        data: {
+          quantity,
+          lineExclTax: retaxed.exclTax,
+          lineTax: retaxed.tax,
+          lineInclTax: retaxed.inclTax,
+        },
+      });
       return this.recalculate(tx, orderId);
     });
 
@@ -554,10 +588,18 @@ export class OrderTicketService {
       include: { orderItems: true },
     });
 
+    const totals = computeOrderTotals(order.orderItems, {
+      fee: order.deliveryFee,
+      taxRate: order.deliveryTaxRate,
+      pricesIncludeTax: order.taxIncluded,
+    });
+
     return tx.order.update({
       where: { id: orderId },
       data: {
-        total: computeOrderTotal(order.orderItems, order.deliveryFee),
+        total: totals.totalInclTax,
+        subtotalExclTax: totals.subtotalExclTax,
+        taxTotal: totals.taxTotal,
         status: deriveOrderStatus(order.orderItems, order.closedAt),
       },
       include: ORDER_WITH_LINES,

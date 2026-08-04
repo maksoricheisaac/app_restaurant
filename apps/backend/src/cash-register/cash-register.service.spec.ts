@@ -42,7 +42,10 @@ describe('CashRegisterService', () => {
       prisma.cashRegisterSession.findFirst.mockResolvedValue({
         id: 'session-1',
       });
-      prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      prisma.payment.create.mockResolvedValue({
+        id: 'payment-1',
+        order: { id: 'order-1', orderItems: [] },
+      });
 
       await service.processPayment({
         orderId: 'order-1',
@@ -65,7 +68,10 @@ describe('CashRegisterService', () => {
       });
       prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
-      prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      prisma.payment.create.mockResolvedValue({
+        id: 'payment-1',
+        order: { id: 'order-1', orderItems: [] },
+      });
 
       await service.processPayment({
         orderId: 'order-1',
@@ -265,7 +271,10 @@ describe('CashRegisterService', () => {
       });
       prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
-      prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+      prisma.payment.create.mockResolvedValue({
+        id: 'payment-1',
+        order: { id: 'order-1', orderItems: [] },
+      });
 
       await service.processPayment({
         orderId: 'order-1',

@@ -135,7 +135,7 @@ describe('SetupService', () => {
       expect(userData.emailVerified).toBe(true);
     });
 
-    it("ne sème aucune ligne de permissions pour le compte racine", async () => {
+    it('ne sème aucune ligne de permissions pour le compte racine', async () => {
       const tx = stubTransaction();
 
       await service.complete(VALID_PAYLOAD);

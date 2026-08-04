@@ -1,6 +1,14 @@
 import { BadRequestException } from '@nestjs/common';
 import { OrderLinePricingService } from './order-line-pricing.service';
 import { createMockPrisma, MockPrisma } from '../__tests__/prisma.mock';
+import { TaxRateResolverService } from './tax-rate-resolver.service';
+
+/** Régime par défaut des cas de test : prix TTC, sans taxe. */
+const NO_TAX = {
+  pricesIncludeTax: true,
+  defaultRate: 0,
+  serviceType: 'dine_in' as const,
+};
 
 /**
  * Tarification des lignes : prix relus en base, options revalidées.
@@ -17,6 +25,7 @@ describe('OrderLinePricingService', () => {
     id: 'item-1',
     name: 'Poulet braisé',
     price: 2500,
+    taxRate: null,
     image: null,
     optionGroups: [],
   };
@@ -25,6 +34,7 @@ describe('OrderLinePricingService', () => {
     id: 'item-2',
     name: 'Burger',
     price: 3000,
+    taxRate: null,
     image: null,
     optionGroups: [
       {
@@ -54,7 +64,10 @@ describe('OrderLinePricingService', () => {
 
   beforeEach(() => {
     prisma = createMockPrisma();
-    service = new OrderLinePricingService(prisma as any);
+    service = new OrderLinePricingService(
+      prisma as any,
+      new TaxRateResolverService(prisma as any),
+    );
     jest.clearAllMocks();
   });
 
@@ -76,6 +89,7 @@ describe('OrderLinePricingService', () => {
             },
           ],
           channel,
+          NO_TAX,
         );
 
         expect(line.price).toBe(2500);
@@ -87,12 +101,16 @@ describe('OrderLinePricingService', () => {
       prisma.menuItem.findMany.mockResolvedValue([]);
 
       await expect(
-        service.priceLines([{ menuItemId: 'item-1', quantity: 1 }], 'pos'),
+        service.priceLines(
+          [{ menuItemId: 'item-1', quantity: 1 }],
+          'pos',
+          NO_TAX,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('rejette une liste vide', async () => {
-      await expect(service.priceLines([], 'pos')).rejects.toThrow(
+      await expect(service.priceLines([], 'pos', NO_TAX)).rejects.toThrow(
         BadRequestException,
       );
     });
@@ -115,6 +133,7 @@ describe('OrderLinePricingService', () => {
             },
           ],
           channel,
+          NO_TAX,
         );
 
         expect(line.price).toBe(3500); // 3000 + 500 bacon
@@ -134,6 +153,7 @@ describe('OrderLinePricingService', () => {
           service.priceLines(
             [{ menuItemId: 'item-2', quantity: 1, selectedOptionIds: [] }],
             channel,
+            NO_TAX,
           ),
         ).rejects.toThrow(BadRequestException);
       },
@@ -152,6 +172,7 @@ describe('OrderLinePricingService', () => {
             },
           ],
           'pos',
+          NO_TAX,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -169,6 +190,7 @@ describe('OrderLinePricingService', () => {
             },
           ],
           'pos',
+          NO_TAX,
         ),
       ).rejects.toThrow(BadRequestException);
     });
@@ -179,6 +201,7 @@ describe('OrderLinePricingService', () => {
       const [line] = await service.priceLines(
         [{ menuItemId: 'item-1', quantity: 1 }],
         'pos',
+        NO_TAX,
       );
 
       expect(line.options).toBeUndefined();
@@ -194,6 +217,7 @@ describe('OrderLinePricingService', () => {
       await service.priceLines(
         [{ menuItemId: 'item-1', quantity: 1 }],
         'public',
+        NO_TAX,
       );
 
       expect(prisma.menuItem.findMany.mock.calls[0][0].where.available).toBe(
@@ -204,7 +228,11 @@ describe('OrderLinePricingService', () => {
     it('laisse le comptoir vendre un article retiré de la carte en ligne', async () => {
       prisma.menuItem.findMany.mockResolvedValue([menuItem]);
 
-      await service.priceLines([{ menuItemId: 'item-1', quantity: 1 }], 'pos');
+      await service.priceLines(
+        [{ menuItemId: 'item-1', quantity: 1 }],
+        'pos',
+        NO_TAX,
+      );
 
       const where = prisma.menuItem.findMany.mock.calls[0][0].where;
       expect(where.available).toBeUndefined();
@@ -215,6 +243,7 @@ describe('OrderLinePricingService', () => {
       const [line] = await service.priceLines(
         [{ name: 'Café offert maison', price: 1200, quantity: 1 }],
         'pos',
+        NO_TAX,
       );
 
       expect(line.menuItemId).toBeNull();
@@ -227,13 +256,14 @@ describe('OrderLinePricingService', () => {
         service.priceLines(
           [{ name: 'Gratuit', price: 0, quantity: 1 }],
           'public',
+          NO_TAX,
         ),
       ).rejects.toThrow(BadRequestException);
     });
 
     it('refuse un article hors carte sans libellé ni prix', async () => {
       await expect(
-        service.priceLines([{ quantity: 1 }], 'pos'),
+        service.priceLines([{ quantity: 1 }], 'pos', NO_TAX),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -241,6 +271,7 @@ describe('OrderLinePricingService', () => {
       const [line] = await service.priceLines(
         [{ name: '<b>Menu du jour</b>', price: 5000, quantity: 1 }],
         'pos',
+        NO_TAX,
       );
 
       expect(line.name).toBe('Menu du jour');

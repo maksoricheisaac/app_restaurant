@@ -366,6 +366,11 @@ model MenuItem {
   name          String
   description   String?
   price         Decimal // Decimal pour éviter les erreurs d'arrondi sur les prix
+  /// Taux de TVA de l'article, en pourcentage. Null = taux par défaut de
+  /// l'établissement (`Restaurant.taxRate`). Un taux par article est ce qui
+  /// permet de facturer une bouteille de vin et un plat au même ticket sans
+  /// les confondre.
+  taxRate       Decimal?
   image         String? // URL publique (Vercel Blob) — exposée comme imageUrl
   imagePathname String?
   available     Boolean      @default(true)
@@ -457,7 +462,20 @@ model Order {
   deliveryZoneId  String?
   deliveryAddress String?
   deliveryFee     Decimal?
+  /// Montant TTC — ce que le client paie. Recalculé depuis les lignes.
   total           Decimal?
+
+  // ── Taxe ──────────────────────────────────────────────────────────────────
+  /// Régime de prix en vigueur à l'ouverture du ticket : true = les prix
+  /// saisis sont TTC, false = HT. Figé ici parce qu'un établissement qui
+  /// bascule son paramétrage ne doit pas changer rétroactivement le sens de
+  /// calcul des tickets déjà ouverts.
+  taxIncluded     Boolean  @default(true)
+  /// Taux appliqué aux frais de livraison, figé à l'ouverture.
+  deliveryTaxRate Decimal?
+  /// Totaux ventilés, recalculés depuis les lignes à chaque opération.
+  subtotalExclTax Decimal?
+  taxTotal        Decimal?
   ipAddress       String?
   specialNotes    String?
 
@@ -501,9 +519,21 @@ model OrderLine {
   price      Decimal // Snapshot du prix (plat + options) au moment de la commande
   name       String
   image      String?
+
+  // ── Taxe, figée à la saisie de la ligne ───────────────────────────────────
+  //
+  // Les trois montants portent sur la ligne ENTIÈRE, quantité comprise : la
+  // taxe calculée par unité puis multipliée dérive d'un centime dès qu'un
+  // article part en nombre. Ils sont figés à la saisie — un changement de
+  // taux sur la carte ne réécrit jamais un ticket déjà pris.
+  /// Taux appliqué, en pourcentage (20 = 20 %).
+  taxRate     Decimal @default(0)
+  lineExclTax Decimal @default(0)
+  lineTax     Decimal @default(0)
+  lineInclTax Decimal @default(0)
   /// Snapshot des options choisies : [{ groupName, optionName, priceDelta }].
   /// Figé à la commande pour rester lisible même si l'option change ensuite.
-  options    Json?
+  options     Json?
 
   status OrderLineStatus @default(draft)
 

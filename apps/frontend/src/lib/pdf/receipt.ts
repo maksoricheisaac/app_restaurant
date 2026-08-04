@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 
 interface OrderItemOption { groupName: string; optionName: string; priceDelta: number }
+interface TaxBucket { rate: number; exclTax: number; tax: number; inclTax: number }
 interface OrderItem { id?: string; quantity: number; price: number; menuItem?: { name: string }; name?: string; options?: OrderItemOption[] | null }
 
 /**
@@ -28,6 +29,10 @@ export interface PaymentLike {
     customer?: { name: string } | null;
     table?: { number: string | number } | null;
     orderItems: OrderItem[];
+    /** Ventilation par taux, calculée serveur. Absente = rien à imprimer. */
+    taxBuckets?: TaxBucket[];
+    subtotalExclTax?: number | null;
+    taxTotal?: number | null;
   };
 }
 
@@ -98,6 +103,11 @@ export async function generateReceiptPdf(
   });
   h += mmToPt(4); // rule
   h += lh(sizeBody); // total line
+  // Ventilation de TVA : un en-tête plus une ligne par taux.
+  const taxBuckets = payment.order.taxBuckets ?? [];
+  if (taxBuckets.length > 0) {
+    h += mmToPt(2) + lh(sizeSmall) * (taxBuckets.length + 1);
+  }
   h += mmToPt(4);
   h += lh(sizeSmall) * 4 + mmToPt(4); // payment info
   h += lh(sizeSmall) * 2 + mmToPt(6); // footer
@@ -183,6 +193,27 @@ export async function generateReceiptPdf(
   const totalText = `TOTAL: ${amount(payment.amount)}`;
   const tW = bold.widthOfTextAtSize(totalText, sizeBody + 2);
   text(totalText, right - tW, y - lh(sizeBody + 2), sizeBody + 2, true);
+
+  // Ventilation par taux. Un ticket portant plusieurs taux doit détailler la
+  // base et la taxe de chacun : un total global ne permet ni au client ni au
+  // comptable de refaire le calcul.
+  if (taxBuckets.length > 0) {
+    move(lh(sizeBody + 2) + mmToPt(2));
+
+    const columnAt = (ratio: number) => left + (right - left) * ratio;
+    text('TVA', left, y - lh(sizeSmall), sizeSmall, true);
+    text('Base HT', columnAt(0.45), y - lh(sizeSmall), sizeSmall, true);
+    text('Taxe', columnAt(0.75), y - lh(sizeSmall), sizeSmall, true);
+    move(lh(sizeSmall));
+
+    for (const bucket of taxBuckets) {
+      const yy = y - lh(sizeSmall);
+      text(`${bucket.rate} %`, left, yy, sizeSmall);
+      text(amount(bucket.exclTax), columnAt(0.45), yy, sizeSmall);
+      text(amount(bucket.tax), columnAt(0.75), yy, sizeSmall);
+      move(lh(sizeSmall));
+    }
+  }
   move(lh(sizeBody + 2));
   move(mmToPt(4));
 

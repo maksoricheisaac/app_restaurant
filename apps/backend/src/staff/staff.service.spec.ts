@@ -140,9 +140,9 @@ describe('StaffService — protection du compte racine', () => {
     it('refuse que le compte racine se désigne lui-même', async () => {
       stubTransaction([ROOT]);
 
-      await expect(
-        service.transferOwnership(ROOT.id, ROOT.id),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.transferOwnership(ROOT.id, ROOT.id)).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it('refuse à un manager de désigner un propriétaire', async () => {

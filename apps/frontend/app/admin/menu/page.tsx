@@ -86,7 +86,18 @@ export default function MenuPage() {
   }, [search, selectedCategory]);
 
   // Gestionnaires d'événements
-  const handleSubmit = async (values: any, pendingImageFile?: File | null) => {
+  const handleSubmit = async (rawValues: any, pendingImageFile?: File | null) => {
+    // Champ TVA laissé vide = pas de taux propre : l'article suit le taux par
+    // défaut de l'établissement. Une chaîne vide ne passerait pas la
+    // validation numérique côté serveur.
+    const values = {
+      ...rawValues,
+      taxRate:
+        rawValues.taxRate === "" || rawValues.taxRate === undefined
+          ? null
+          : Number(rawValues.taxRate),
+    };
+
     if (selectedItem) {
       // Image already uploaded immediately in the form (edit mode)
       updateMutation.mutate(

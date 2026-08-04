@@ -50,9 +50,9 @@ describe('PermissionsService', () => {
     });
 
     it('refuse la remise aux valeurs d’usine', () => {
-      expect(() =>
-        service.resetRolePermissions(StaffRole.SUPER_ADMIN),
-      ).toThrow(ForbiddenException);
+      expect(() => service.resetRolePermissions(StaffRole.SUPER_ADMIN)).toThrow(
+        ForbiddenException,
+      );
     });
 
     it('refuse toute dérogation individuelle', async () => {

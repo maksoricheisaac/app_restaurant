@@ -1,8 +1,24 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { stripHtml } from '../common/utils/sanitize';
+import { taxForLine } from './order-tax';
+import { TaxRateResolverService } from './tax-rate-resolver.service';
 
 export type OrderChannel = 'pos' | 'public';
+
+/**
+ * Régime fiscal à appliquer aux lignes en cours de tarification.
+ *
+ * `pricesIncludeTax` est transmis plutôt que relu : à l'ouverture d'un ticket
+ * il vient du paramétrage courant, mais pour une tournée ajoutée à un ticket
+ * déjà ouvert il vient du ticket lui-même. Un établissement qui bascule de
+ * TTC à HT en plein service ne doit pas produire un ticket à deux régimes.
+ */
+export interface LineTaxContext {
+  pricesIncludeTax: boolean;
+  defaultRate: number;
+  serviceType: 'dine_in' | 'takeaway' | 'delivery';
+}
 
 /**
  * Une ligne telle que demandée par l'appelant.
@@ -37,10 +53,16 @@ export interface PricedLine {
   menuItemId: string | null;
   name: string;
   quantity: number;
-  /** Prix unitaire : plat + options retenues. */
+  /** Prix unitaire : plat + options retenues, dans le régime du ticket. */
   price: number;
   image: string | null;
   options?: OptionSnapshot[];
+
+  /** Ventilation figée, portant sur la ligne entière (quantité comprise). */
+  taxRate: number;
+  lineExclTax: number;
+  lineTax: number;
+  lineInclTax: number;
 }
 
 /**
@@ -82,6 +104,7 @@ type MenuItemForOrder = {
   id: string;
   name: string;
   price: unknown;
+  taxRate: unknown;
   image: string | null;
   optionGroups: {
     id: string;
@@ -103,11 +126,15 @@ type MenuItemForOrder = {
  */
 @Injectable()
 export class OrderLinePricingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly taxResolver: TaxRateResolverService,
+  ) {}
 
   async priceLines(
     items: OrderLineInput[],
     channel: OrderChannel,
+    tax: LineTaxContext,
   ): Promise<PricedLine[]> {
     const policy = CHANNEL_POLICIES[channel];
 
@@ -131,6 +158,7 @@ export class OrderLinePricingService {
               id: true,
               name: true,
               price: true,
+              taxRate: true,
               image: true,
               optionGroups: {
                 where: { deletedAt: null },
@@ -154,13 +182,14 @@ export class OrderLinePricingService {
 
     const menuItemMap = new Map(menuItems.map((m) => [m.id, m]));
 
-    return items.map((item) => this.priceLine(item, menuItemMap, policy));
+    return items.map((item) => this.priceLine(item, menuItemMap, policy, tax));
   }
 
   private priceLine(
     item: OrderLineInput,
     menuItemMap: Map<string, MenuItemForOrder>,
     policy: ChannelPolicy,
+    tax: LineTaxContext,
   ): PricedLine {
     if (!item.menuItemId) {
       if (!policy.allowFreeformLines) {
@@ -174,12 +203,15 @@ export class OrderLinePricingService {
           'Un article hors carte exige un libellé et un prix',
         );
       }
+      // Un article hors carte ne déclare pas de taux : il relève du taux par
+      // défaut de l'établissement.
       return {
         menuItemId: null,
         name,
         quantity: item.quantity,
         price: item.price,
         image: item.image ?? null,
+        ...this.applyTax(item.price, item.quantity, null, tax),
       };
     }
 
@@ -195,13 +227,50 @@ export class OrderLinePricingService {
       item.selectedOptionIds ?? [],
     );
 
+    const unitPrice = Number(menuItem.price) + optionsDelta;
+
     return {
       menuItemId: menuItem.id,
       name: menuItem.name,
       quantity: item.quantity,
-      price: Number(menuItem.price) + optionsDelta,
+      price: unitPrice,
       image: menuItem.image,
       options: snapshot.length > 0 ? snapshot : undefined,
+      // Les suppléments suivent le taux du plat auquel ils s'attachent : un
+      // supplément bacon n'a pas de régime fiscal propre.
+      ...this.applyTax(
+        unitPrice,
+        item.quantity,
+        menuItem.taxRate as number | null,
+        tax,
+      ),
+    };
+  }
+
+  /** Ventile une ligne selon le taux applicable et le régime du ticket. */
+  private applyTax(
+    unitPrice: number,
+    quantity: number,
+    menuItemTaxRate: number | null,
+    tax: LineTaxContext,
+  ): Pick<PricedLine, 'taxRate' | 'lineExclTax' | 'lineTax' | 'lineInclTax'> {
+    const rate = this.taxResolver.resolveRate(
+      { defaultRate: tax.defaultRate, pricesIncludeTax: tax.pricesIncludeTax },
+      { menuItemTaxRate, serviceType: tax.serviceType },
+    );
+
+    const breakdown = taxForLine(
+      unitPrice,
+      quantity,
+      rate,
+      tax.pricesIncludeTax,
+    );
+
+    return {
+      taxRate: rate,
+      lineExclTax: breakdown.exclTax,
+      lineTax: breakdown.tax,
+      lineInclTax: breakdown.inclTax,
     };
   }
 

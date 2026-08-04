@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../common/audit/audit.service';
+import { buildTaxBuckets } from '../orders/order-tax';
+import { isLineActive } from '../orders/order-lifecycle';
 import { ProcessPaymentDto } from './dto/process-payment.dto';
 import { TransactionFiltersDto } from './dto/transaction-filters.dto';
 import { OpenSessionDto, CloseSessionDto } from './dto/cash-session.dto';
@@ -98,6 +100,22 @@ export class CashRegisterService {
       return payment;
     });
 
+    // Le reçu doit porter la ventilation de TVA : le calcul est fait ici,
+    // côté serveur, plutôt que refait par chaque écran qui imprime — c'est
+    // ce qui garantit que le ticket papier et le PDF disent la même chose.
+    // Défensif à dessein : une mise en forme de reçu ne doit jamais faire
+    // échouer l'encaissement qu'elle documente.
+    const receiptLines = payment.order?.orderItems ?? [];
+    const receipt = {
+      ...payment,
+      order: {
+        ...payment.order,
+        taxBuckets: buildTaxBuckets(
+          receiptLines.filter((l) => isLineActive(l.status)),
+        ),
+      },
+    };
+
     // Traçabilité comptable. Le middleware d'audit couvre déjà l'enveloppe
     // HTTP ; cette entrée-ci porte le fait métier — montant encaissé, moyen
     // de paiement, état de la commande avant et après — que seul ce service
@@ -113,12 +131,12 @@ export class CashRegisterService {
         orderId,
         amount: Number(amount),
         method,
-        orderStatus: 'served',
+        orderStatus: 'paid',
         cashSessionId: payment.cashSessionId,
       },
     });
 
-    return payment;
+    return receipt;
   }
 
   async getTransactions(filters: TransactionFiltersDto) {

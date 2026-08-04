@@ -4,6 +4,7 @@ import { OrderCreationService } from './order-creation.service';
 import { OrderTicketService } from './order-ticket.service';
 import { OrderLinePricingService } from './order-line-pricing.service';
 import { OrderNumberingService } from './order-numbering.service';
+import { TaxRateResolverService } from './tax-rate-resolver.service';
 import { OrdersController } from './orders.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AuthModule } from '../auth/auth.module';
@@ -26,6 +27,7 @@ import { InventoryModule } from '../inventory/inventory.module';
     OrderTicketService,
     OrderLinePricingService,
     OrderNumberingService,
+    TaxRateResolverService,
   ],
   // OrderCreationService est exporté pour le canal public (MenuModule) :
   // c'est le chemin unique de création d'une commande. OrderTicketService

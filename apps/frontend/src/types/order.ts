@@ -37,6 +37,15 @@ export interface OrderItemOption {
   priceDelta: number;
 }
 
+/** Une tranche de la ventilation de TVA imprimée en pied de ticket. */
+export interface OrderTaxBucket {
+  /** Taux, en pourcentage (20 = 20 %). */
+  rate: number;
+  exclTax: number;
+  tax: number;
+  inclTax: number;
+}
+
 export interface OrderItem {
   id: string;
   orderId: string;
@@ -49,6 +58,11 @@ export interface OrderItem {
   options?: OrderItemOption[] | null;
 
   status: OrderLineStatus;
+  /** Ventilation figée, portant sur la ligne entière (quantité comprise). */
+  taxRate?: number;
+  lineExclTax?: number;
+  lineTax?: number;
+  lineInclTax?: number;
   createdAt?: string | Date;
   /** Départ en cuisine. Les lignes d'une même tournée le partagent. */
   sentAt?: string | Date | null;
@@ -72,6 +86,14 @@ export interface Order {
   type: OrderType;
   /** Horodatage de l'encaissement. Non nul = ticket verrouillé. */
   closedAt?: string | Date | null;
+
+  // ── Taxe ──────────────────────────────────────────────────────────────────
+  /** Régime de prix figé à l'ouverture : true = prix saisis TTC. */
+  taxIncluded?: boolean;
+  subtotalExclTax?: number | null;
+  taxTotal?: number | null;
+  /** Ventilation par taux, calculée serveur pour le pied de ticket. */
+  taxBuckets?: OrderTaxBucket[];
   userId: string;
   user: {
     id: string;

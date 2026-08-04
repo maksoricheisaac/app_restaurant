@@ -13,6 +13,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -44,6 +45,10 @@ const menuItemSchema = z.object({
   name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
   description: z.string().min(10, "La description doit contenir au moins 10 caractères"),
   price: z.coerce.number().min(0, "Le prix doit être positif"),
+  // Vide = taux par défaut de l'établissement. Un 0 saisi vaut exonération.
+  taxRate: z
+    .union([z.coerce.number().min(0).max(100), z.literal("")])
+    .optional(),
   categoryId: z.string().min(1, "La catégorie est requise"),
   image: z.string().nullable().optional(),
   available: z.boolean(),
@@ -59,6 +64,7 @@ interface MenuFormProps {
     name: string;
     description: string;
     price: number;
+    taxRate?: number | null;
     categoryId: string;
     image: string | null;
     available: boolean;
@@ -91,6 +97,7 @@ export function MenuForm({
       name: "",
       description: "",
       price: 0,
+      taxRate: "",
       categoryId: "",
       image: null,
       available: true,
@@ -103,6 +110,7 @@ export function MenuForm({
         name: selectedItem.name,
         description: selectedItem.description,
         price: selectedItem.price,
+        taxRate: selectedItem.taxRate ?? "",
         categoryId: selectedItem.categoryId,
         image: selectedItem.image,
         available: selectedItem.available,
@@ -113,6 +121,7 @@ export function MenuForm({
         name: "",
         description: "",
         price: 0,
+      taxRate: "",
         categoryId: "",
         image: null,
         available: true,
@@ -128,6 +137,7 @@ export function MenuForm({
         name: "",
         description: "",
         price: 0,
+      taxRate: "",
         categoryId: "",
         image: null,
         available: true,
@@ -224,6 +234,33 @@ export function MenuForm({
                             className="w-full"
                           />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="taxRate"
+                    render={({ field }) => (
+                      <FormItem className="w-full flex-1">
+                        <FormLabel>TVA (%)</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            value={field.value ?? ""}
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            placeholder="Taux de l'établissement"
+                            className="w-full"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Laisser vide pour appliquer le taux par défaut de
+                          l&apos;établissement.
+                        </FormDescription>
                         <FormMessage />
                       </FormItem>
                     )}

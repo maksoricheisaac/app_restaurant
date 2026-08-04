@@ -17,6 +17,12 @@ const mockInventoryService = {
 };
 const mockPricing = { priceLines: jest.fn() };
 const mockAudit = { recordDetached: jest.fn(), record: jest.fn() };
+const mockTaxResolver = {
+  getPolicy: jest.fn().mockResolvedValue({
+    defaultRate: 0,
+    pricesIncludeTax: true,
+  }),
+};
 
 const ACTOR = { id: 'user-1', email: 'chef@resto.fr', role: 'manager' };
 
@@ -32,6 +38,10 @@ const line = (
   quantity: 1,
   price: 2500,
   status,
+  taxRate: 0,
+  lineExclTax: 2500,
+  lineTax: 0,
+  lineInclTax: 2500,
   ...overrides,
 });
 
@@ -55,6 +65,7 @@ describe('OrderTicketService', () => {
       mockInventoryService as any,
       mockPricing as any,
       mockAudit as any,
+      mockTaxResolver as any,
     );
     jest.clearAllMocks();
     mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
@@ -64,6 +75,8 @@ describe('OrderTicketService', () => {
     prisma.order.findUniqueOrThrow = jest.fn().mockResolvedValue({
       id: 'order-1',
       deliveryFee: null,
+      deliveryTaxRate: 0,
+      taxIncluded: true,
       closedAt: null,
       orderItems: [line('l1', 'sent')],
     });
@@ -82,6 +95,9 @@ describe('OrderTicketService', () => {
       total: 2500,
       closedAt: null,
       deletedAt: null,
+      type: 'dine_in',
+      taxIncluded: true,
+      deliveryTaxRate: 0,
       orderItems: lines,
       ...overrides,
     });
@@ -139,6 +155,10 @@ describe('OrderTicketService', () => {
           price: 1500,
           image: null,
           options: undefined,
+          taxRate: 0,
+          lineExclTax: 3000,
+          lineTax: 0,
+          lineInclTax: 3000,
         },
       ]);
       prisma.orderLine.create.mockResolvedValue({ id: 'l2' });
@@ -178,6 +198,11 @@ describe('OrderTicketService', () => {
       expect(mockPricing.priceLines).toHaveBeenCalledWith(
         [{ menuItemId: 'item-2', quantity: 2 }],
         'pos',
+        // Le régime de prix vient du ticket, pas du paramétrage courant.
+        expect.objectContaining({
+          pricesIncludeTax: true,
+          serviceType: 'dine_in',
+        }),
       );
       expect(prisma.orderLine.create.mock.calls[0][0].data.price).toBe(1500);
     });
@@ -211,8 +236,24 @@ describe('OrderTicketService', () => {
 
       expect(prisma.orderLine.update).toHaveBeenCalledWith({
         where: { id: 'l1' },
-        data: { quantity: 3 },
+        data: expect.objectContaining({ quantity: 3 }),
       });
+    });
+
+    it('reventile la taxe quand la quantité change', async () => {
+      // La ventilation porte sur la ligne entière : la laisser figée sur
+      // l'ancienne quantité ferait diverger le ticket de son détail.
+      openTicket([line('l1', 'draft')], { taxIncluded: true });
+      prisma.orderLine.findFirst.mockResolvedValue(
+        line('l1', 'draft', { price: 120, taxRate: 20 }),
+      );
+
+      await service.updateDraftLineQuantity('order-1', 'l1', 3, ACTOR);
+
+      const data = prisma.orderLine.update.mock.calls[0][0].data;
+      expect(data.lineInclTax).toBe(360); // 3 × 120 TTC
+      expect(data.lineExclTax).toBe(300);
+      expect(data.lineTax).toBe(60);
     });
 
     it('refuse de modifier une ligne déjà partie en cuisine', async () => {
@@ -469,18 +510,34 @@ describe('OrderTicketService', () => {
       prisma.order.findUniqueOrThrow = jest.fn().mockResolvedValue({
         id: 'order-1',
         deliveryFee: 500,
+        deliveryTaxRate: 0,
+        taxIncluded: true,
         closedAt: null,
         orderItems: [
-          { status: 'served', price: 2500, quantity: 2 },
-          { status: 'cancelled', price: 9000, quantity: 1 },
+          {
+            status: 'served',
+            taxRate: 0,
+            lineExclTax: 5000,
+            lineTax: 0,
+            lineInclTax: 5000,
+          },
+          {
+            status: 'cancelled',
+            taxRate: 0,
+            lineExclTax: 9000,
+            lineTax: 0,
+            lineInclTax: 9000,
+          },
         ],
       });
 
       await service.sendToKitchen('order-1', ACTOR);
 
       const data = prisma.order.update.mock.calls[0][0].data;
-      // 2 × 2500 + 500 de livraison ; la ligne annulée est exclue.
+      // 5000 de lignes actives + 500 de livraison ; l'annulée est exclue.
       expect(data.total).toBe(5500);
+      expect(data.subtotalExclTax).toBe(5500);
+      expect(data.taxTotal).toBe(0);
       expect(data.status).toBe('served');
     });
 

@@ -1,4 +1,10 @@
 import { OrderLineStatus, OrderStatus } from '@prisma/client';
+import {
+  roundMoney,
+  splitTax,
+  sumTaxedAmounts,
+  type TaxTotals,
+} from './order-tax';
 
 /**
  * Transitions autorisées pour une ligne de ticket.
@@ -93,17 +99,46 @@ export function deriveOrderStatus(
 }
 
 /**
- * Total du ticket : lignes actives + frais de livraison. Une ligne annulée
- * n'est jamais facturée, même si elle reste visible sur le ticket.
+ * Totaux ventilés du ticket.
+ *
+ * Une ligne annulée n'est jamais facturée, même si elle reste visible sur le
+ * ticket. Les frais de livraison sont ventilés au taux figé à l'ouverture,
+ * dans le régime de prix figé lui aussi — un établissement qui bascule de TTC
+ * à HT en plein service ne doit pas produire un ticket à deux régimes.
  */
-export function computeOrderTotal(
-  lines: { status: OrderLineStatus; price: unknown; quantity: number }[],
-  deliveryFee: unknown,
-): number {
-  const itemsTotal = lines
-    .filter((l) => isLineActive(l.status))
-    .reduce((sum, l) => sum + Number(l.price) * l.quantity, 0);
-  return itemsTotal + Number(deliveryFee ?? 0);
+export function computeOrderTotals(
+  lines: {
+    status: OrderLineStatus;
+    taxRate: unknown;
+    lineExclTax: unknown;
+    lineTax: unknown;
+    lineInclTax: unknown;
+  }[],
+  delivery: {
+    fee: unknown;
+    taxRate: unknown;
+    pricesIncludeTax: boolean;
+  },
+): TaxTotals {
+  const active = lines.filter((l) => isLineActive(l.status));
+  const linesTotal = sumTaxedAmounts(active);
+
+  const fee = Number(delivery.fee ?? 0);
+  if (fee === 0) return linesTotal;
+
+  const deliveryTax = splitTax(
+    fee,
+    Number(delivery.taxRate ?? 0),
+    delivery.pricesIncludeTax,
+  );
+
+  return {
+    subtotalExclTax: roundMoney(
+      linesTotal.subtotalExclTax + deliveryTax.exclTax,
+    ),
+    taxTotal: roundMoney(linesTotal.taxTotal + deliveryTax.tax),
+    totalInclTax: roundMoney(linesTotal.totalInclTax + deliveryTax.inclTax),
+  };
 }
 
 /** Un ticket clos est verrouillé : plus aucune ligne ne bouge. */

@@ -13,7 +13,8 @@ import {
   type OrderChannel,
   type OrderLineInput,
 } from './order-line-pricing.service';
-import { deriveOrderStatus } from './order-lifecycle';
+import { computeOrderTotals, deriveOrderStatus } from './order-lifecycle';
+import { TaxRateResolverService } from './tax-rate-resolver.service';
 
 export type {
   OrderChannel,
@@ -66,6 +67,7 @@ export class OrderCreationService {
     private readonly inventoryService: InventoryService,
     private readonly pricing: OrderLinePricingService,
     private readonly numbering: OrderNumberingService,
+    private readonly taxResolver: TaxRateResolverService,
   ) {}
 
   async create(input: CreateOrderInput) {
@@ -86,19 +88,37 @@ export class OrderCreationService {
       );
     }
 
+    // Régime fiscal courant, figé sur le ticket : les tournées ajoutées plus
+    // tard le reliront depuis la commande, pas depuis le paramétrage.
+    const taxPolicy = await this.taxResolver.getPolicy();
+
     const lines = hasItems
-      ? await this.pricing.priceLines(input.items, input.channel)
+      ? await this.pricing.priceLines(input.items, input.channel, {
+          pricesIncludeTax: taxPolicy.pricesIncludeTax,
+          defaultRate: taxPolicy.defaultRate,
+          serviceType: input.type,
+        })
       : [];
 
     const sendImmediately = requestedSend && lines.length > 0;
 
+    // Le minimum de commande d'une zone s'apprécie sur le montant que le
+    // client voit annoncé, c'est-à-dire le TTC.
     const itemsSubtotal = lines.reduce(
-      (sum, line) => sum + line.price * line.quantity,
+      (sum, line) => sum + line.lineInclTax,
       0,
     );
 
     const delivery = await this.resolveDelivery(input, policy, itemsSubtotal);
-    const total = itemsSubtotal + delivery.fee;
+
+    const totals = computeOrderTotals(
+      lines.map((line) => ({ ...line, status: OrderLineStatus.sent })),
+      {
+        fee: input.type === 'delivery' ? delivery.fee : 0,
+        taxRate: taxPolicy.defaultRate,
+        pricesIncludeTax: taxPolicy.pricesIncludeTax,
+      },
+    );
 
     // Nettoyage des champs libres : empêche un XSS stocké côté administration.
     const specialNotes = stripHtml(input.specialNotes ?? undefined) ?? null;
@@ -154,7 +174,11 @@ export class OrderCreationService {
             deliveryZoneId: delivery.zoneId,
             deliveryAddress: delivery.address,
             deliveryFee: input.type === 'delivery' ? delivery.fee : null,
-            total,
+            taxIncluded: taxPolicy.pricesIncludeTax,
+            deliveryTaxRate: taxPolicy.defaultRate,
+            total: totals.totalInclTax,
+            subtotalExclTax: totals.subtotalExclTax,
+            taxTotal: totals.taxTotal,
             specialNotes,
             orderItems: {
               create: lines.map((line) => ({
@@ -164,6 +188,10 @@ export class OrderCreationService {
                 price: line.price,
                 image: line.image,
                 options: line.options,
+                taxRate: line.taxRate,
+                lineExclTax: line.lineExclTax,
+                lineTax: line.lineTax,
+                lineInclTax: line.lineInclTax,
                 status: lineStatus,
                 sentAt,
               })),

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { OrderLineStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { OrderCreationService } from './order-creation.service';
+import { buildTaxBuckets } from './order-tax';
+import { isLineActive } from './order-lifecycle';
 import { OrderTicketService, type Actor } from './order-ticket.service';
 import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 import { CreateOrderDto } from './dto/create-order.dto';
@@ -30,6 +32,25 @@ const LINE_TARGET_FOR_ORDER_STATUS: Record<
   [OrderStatusTarget.READY]: OrderLineStatus.ready,
   [OrderStatusTarget.SERVED]: OrderLineStatus.served,
 };
+
+/**
+ * Ventilation par taux à imprimer en pied de ticket.
+ *
+ * Les lignes annulées en sont exclues : elles restent visibles sur le ticket
+ * mais ne sont pas facturées, elles n'ont donc rien à peser dans la base
+ * taxable.
+ */
+function activeTaxBuckets(
+  lines: {
+    status: OrderLineStatus;
+    taxRate: unknown;
+    lineExclTax: unknown;
+    lineTax: unknown;
+    lineInclTax: unknown;
+  }[],
+) {
+  return buildTaxBuckets(lines.filter((l) => isLineActive(l.status)));
+}
 
 @Injectable()
 export class OrdersService {
@@ -76,8 +97,8 @@ export class OrdersService {
     };
   }
 
-  findOne(id: string) {
-    return this.prisma.order.findFirst({
+  async findOne(id: string) {
+    const order = await this.prisma.order.findFirst({
       where: { id, deletedAt: null },
       include: {
         orderItems: { orderBy: { createdAt: 'asc' } },
@@ -86,6 +107,10 @@ export class OrdersService {
         user: { select: { name: true, email: true } },
       },
     });
+
+    if (!order) return null;
+
+    return { ...order, taxBuckets: activeTaxBuckets(order.orderItems) };
   }
 
   /**
@@ -189,6 +214,9 @@ export class OrdersService {
         status: true,
         type: true,
         total: true,
+        subtotalExclTax: true,
+        taxTotal: true,
+        taxIncluded: true,
         createdAt: true,
         updatedAt: true,
         specialNotes: true,
@@ -209,6 +237,10 @@ export class OrdersService {
             image: true,
             options: true,
             status: true,
+            taxRate: true,
+            lineExclTax: true,
+            lineTax: true,
+            lineInclTax: true,
           },
         },
       },
@@ -221,6 +253,10 @@ export class OrdersService {
       select: { name: true, logo: true, primaryColor: true, currency: true },
     });
 
-    return { ...order, restaurant };
+    return {
+      ...order,
+      restaurant,
+      taxBuckets: activeTaxBuckets(order.orderItems),
+    };
   }
 }

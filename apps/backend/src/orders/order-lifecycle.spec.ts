@@ -1,7 +1,7 @@
 import { OrderLineStatus, OrderStatus } from '@prisma/client';
 import {
   canTransitionLine,
-  computeOrderTotal,
+  computeOrderTotals,
   deriveOrderStatus,
   isLineActive,
   isLineSent,
@@ -75,33 +75,71 @@ describe('deriveOrderStatus', () => {
   });
 });
 
-describe('computeOrderTotal', () => {
-  it('additionne les lignes actives et les frais de livraison', () => {
-    const total = computeOrderTotal(
-      [
-        { status: 'sent', price: 2500, quantity: 2 },
-        { status: 'served', price: 1000, quantity: 1 },
-      ],
-      500,
+describe('computeOrderTotals', () => {
+  /** Ligne déjà ventilée, telle qu'elle est stockée. */
+  const taxed = (
+    status: OrderLineStatus,
+    excl: number,
+    tax: number,
+    rate = 20,
+  ) => ({
+    status,
+    taxRate: rate,
+    lineExclTax: excl,
+    lineTax: tax,
+    lineInclTax: excl + tax,
+  });
+
+  const NO_DELIVERY = { fee: 0, taxRate: 0, pricesIncludeTax: true };
+
+  it('additionne les lignes actives', () => {
+    const totals = computeOrderTotals(
+      [taxed('sent', 100, 20), taxed('served', 50, 10)],
+      NO_DELIVERY,
     );
-    expect(total).toBe(6500);
+
+    expect(totals.subtotalExclTax).toBe(150);
+    expect(totals.taxTotal).toBe(30);
+    expect(totals.totalInclTax).toBe(180);
   });
 
   it('ne facture jamais une ligne annulée', () => {
-    const total = computeOrderTotal(
-      [
-        { status: 'sent', price: 2500, quantity: 1 },
-        { status: 'cancelled', price: 9000, quantity: 3 },
-      ],
-      0,
+    const totals = computeOrderTotals(
+      [taxed('sent', 100, 20), taxed('cancelled', 900, 180)],
+      NO_DELIVERY,
     );
-    expect(total).toBe(2500);
+
+    expect(totals.totalInclTax).toBe(120);
+  });
+
+  it('ventile les frais de livraison au taux figé sur le ticket', () => {
+    const totals = computeOrderTotals([taxed('sent', 100, 20)], {
+      fee: 12, // TTC à 20 % → 10 HT + 2 de taxe
+      taxRate: 20,
+      pricesIncludeTax: true,
+    });
+
+    expect(totals.subtotalExclTax).toBe(110);
+    expect(totals.taxTotal).toBe(22);
+    expect(totals.totalInclTax).toBe(132);
   });
 
   it('traite des frais de livraison absents comme nuls', () => {
-    expect(
-      computeOrderTotal([{ status: 'sent', price: 1000, quantity: 1 }], null),
-    ).toBe(1000);
+    const totals = computeOrderTotals([taxed('sent', 100, 20)], {
+      fee: null,
+      taxRate: 20,
+      pricesIncludeTax: true,
+    });
+
+    expect(totals.totalInclTax).toBe(120);
+  });
+
+  it('rend des totaux nuls pour un ticket vide', () => {
+    expect(computeOrderTotals([], NO_DELIVERY)).toEqual({
+      subtotalExclTax: 0,
+      taxTotal: 0,
+      totalInclTax: 0,
+    });
   });
 });
 

@@ -61,6 +61,13 @@ export function OrderTicketPreview({
   
   if (!order) return null;
 
+  // Le serveur renvoie la ventilation avec le ticket ; à défaut — commande
+  // antérieure à la mise en place de la TVA — on n'affiche rien plutôt qu'une
+  // ventilation reconstituée qui pourrait être fausse.
+  const taxBuckets = order.taxBuckets ?? [];
+  const subtotalExclTax = order.subtotalExclTax ?? 0;
+  const taxTotal = order.taxTotal ?? 0;
+
   const formatAmountForPdf = (amount: number) => {
     // 3 500 style with normal spaces, no currency symbol
     const formatted = Math.round(amount)
@@ -219,7 +226,46 @@ export function OrderTicketPreview({
                   </div>
                 </div>
               )}
-              
+
+              {/* Ventilation par taux : un ticket portant plusieurs taux doit
+                  détailler la base et la taxe de chacun, sans quoi ni le
+                  client ni le comptable ne peuvent refaire le calcul. */}
+              {taxBuckets.length > 0 && (
+                <>
+                  <div className="border-t border-dashed border-gray-400 pt-3 mt-3"></div>
+                  <div className="space-y-1">
+                    <div className="grid grid-cols-3 gap-2 text-[11px] font-semibold text-gray-600">
+                      <span>TVA</span>
+                      <span className="text-right">Base HT</span>
+                      <span className="text-right">Taxe</span>
+                    </div>
+                    {taxBuckets.map((bucket) => (
+                      <div
+                        key={bucket.rate}
+                        className="grid grid-cols-3 gap-2 text-xs text-black"
+                      >
+                        <span>{bucket.rate} %</span>
+                        <span className="text-right">
+                          {formatAmountForPdf(bucket.exclTax)}
+                        </span>
+                        <span className="text-right">
+                          {formatAmountForPdf(bucket.tax)}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="grid grid-cols-3 gap-2 border-t border-gray-300 pt-1 text-xs font-bold text-black">
+                      <span>Total</span>
+                      <span className="text-right">
+                        {formatAmountForPdf(subtotalExclTax)}
+                      </span>
+                      <span className="text-right">
+                        {formatAmountForPdf(taxTotal)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
               <div className="border-t border-gray-400 pt-4 mt-4"></div>
               
               {/* QR Code */}

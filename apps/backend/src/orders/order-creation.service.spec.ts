@@ -14,6 +14,10 @@ const mockNumbering = {
   serviceDateFor: jest.fn(),
   allocate: jest.fn(),
 };
+const mockTaxResolver = { getPolicy: jest.fn(), resolveRate: jest.fn() };
+
+/** Régime par défaut des cas de test : prix TTC, sans taxe. */
+const NO_TAX_POLICY = { defaultRate: 0, pricesIncludeTax: true };
 
 const SERVICE_DATE = new Date('2026-08-03T00:00:00.000Z');
 
@@ -24,6 +28,10 @@ const PRICED_LINE = {
   price: 2500,
   image: null,
   options: undefined,
+  taxRate: 0,
+  lineExclTax: 2500,
+  lineTax: 0,
+  lineInclTax: 2500,
 };
 
 /**
@@ -44,6 +52,7 @@ describe('OrderCreationService', () => {
       mockInventoryService as any,
       mockPricing as any,
       mockNumbering as any,
+      mockTaxResolver as any,
     );
     jest.clearAllMocks();
     mockInventoryService.decrementStockForOrder.mockResolvedValue([]);
@@ -51,6 +60,7 @@ describe('OrderCreationService', () => {
     mockPricing.priceLines.mockResolvedValue([PRICED_LINE]);
     mockNumbering.serviceDateFor.mockResolvedValue(SERVICE_DATE);
     mockNumbering.allocate.mockResolvedValue(42);
+    mockTaxResolver.getPolicy.mockResolvedValue(NO_TAX_POLICY);
     prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
     prisma.order.create.mockResolvedValue({
       id: 'order-1',

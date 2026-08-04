@@ -14,6 +14,12 @@ const ALL_PERMISSIONS = Object.values(Permission);
  * l'API lui renvoie — il ne rejoue jamais cette matrice de son côté.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
+  // Le compte racine a tout, définitivement : `PermissionsService` refuse
+  // toute écriture sur cette ligne. Elle figure ici pour que la lecture des
+  // permissions d'un super_admin passe par le même chemin que les autres,
+  // sans branche particulière.
+  [StaffRole.SUPER_ADMIN]: ALL_PERMISSIONS,
+
   [StaffRole.OWNER]: ALL_PERMISSIONS,
 
   [StaffRole.MANAGER]: [
@@ -95,6 +101,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<StaffRole, Permission[]> = {
 };
 
 export const ROLE_LABELS: Record<StaffRole, string> = {
+  [StaffRole.SUPER_ADMIN]: 'Super administrateur',
   [StaffRole.OWNER]: 'Propriétaire',
   [StaffRole.MANAGER]: 'Manager',
   [StaffRole.WAITER]: 'Serveur',

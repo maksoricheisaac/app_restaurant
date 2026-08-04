@@ -48,8 +48,8 @@ model Restaurant {
 
   // ── Localisation ──────────────────────────────────────────────────────────
   country  String?
-  currency String @default("EUR")
-  timezone String @default("Europe/Paris")
+  currency String  @default("EUR")
+  timezone String  @default("Europe/Paris")
 
   // ── Réseaux sociaux ───────────────────────────────────────────────────────
   facebookUrl  String?
@@ -80,15 +80,15 @@ model Restaurant {
 
   // ── Impression ────────────────────────────────────────────────────────────
   /// Nom de l'imprimante ticket (tel que déclaré par le poste de caisse).
-  receiptPrinterName String?
+  receiptPrinterName     String?
   /// Nom de l'imprimante cuisine. Null = même imprimante que les tickets.
-  kitchenPrinterName String?
+  kitchenPrinterName     String?
   /// Largeur du papier en millimètres (58 ou 80 sur la quasi-totalité des
   /// imprimantes thermiques du marché).
-  receiptPaperWidth  Int     @default(80)
-  receiptHeader      String?
-  receiptFooter      String?
-  autoPrintReceipt   Boolean @default(false)
+  receiptPaperWidth      Int     @default(80)
+  receiptHeader          String?
+  receiptFooter          String?
+  autoPrintReceipt       Boolean @default(false)
   /// Envoi automatique du bon de préparation en cuisine à la validation.
   autoPrintKitchenTicket Boolean @default(true)
 
@@ -111,9 +111,15 @@ model Restaurant {
 /// qui a permis de supprimer la table de liaison TenantMembership et, avec
 /// elle, une requête SQL sur chaque appel authentifié.
 ///
-/// Valeurs autorisées de `role` : owner | manager | waiter | chef | cashier.
-/// Contrainte CHECK posée en migration (voir StaffRole dans
+/// Valeurs autorisées de `role` : super_admin | owner | manager | waiter |
+/// chef | cashier. Contrainte CHECK posée en migration (voir StaffRole dans
 /// src/common/constants/staff-roles.constant.ts).
+///
+/// Deux règles supplémentaires, non exprimables en Prisma, vivent dans la
+/// migration `super_admin` :
+///   - index unique PARTIEL `User_single_super_admin_key` sur (role) WHERE
+///     role = 'super_admin' : il n'existe jamais plus d'un compte racine ;
+///   - le rôle 'super_admin' ne s'obtient que par la première installation.
 model User {
   id            String  @id @default(uuid())
   name          String
@@ -137,17 +143,18 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  orders             Order[]
-  payments           Payment[]
-  reservations       Reservation[]
-  stockMovements     StockMovement[]
-  transactions       Transaction[]
-  userPermissions    UserPermission[]
-  refreshTokens      RefreshToken[]
-  cashSessionsOpened CashRegisterSession[] @relation("CashSessionOpenedBy")
-  cashSessionsClosed CashRegisterSession[] @relation("CashSessionClosedBy")
-  invitesSent        StaffInvite[]        @relation("InviteInvitedBy")
-  auditLogs          AuditLog[]
+  orders              Order[]
+  payments            Payment[]
+  reservations        Reservation[]
+  stockMovements      StockMovement[]
+  transactions        Transaction[]
+  userPermissions     UserPermission[]
+  refreshTokens       RefreshToken[]
+  cashSessionsOpened  CashRegisterSession[] @relation("CashSessionOpenedBy")
+  cashSessionsClosed  CashRegisterSession[] @relation("CashSessionClosedBy")
+  invitesSent         StaffInvite[]         @relation("InviteInvitedBy")
+  auditLogs           AuditLog[]
+  orderLinesCancelled OrderLine[]           @relation("OrderLineCancelledBy")
 
   @@index([role])
 }
@@ -177,7 +184,7 @@ model AuditLog {
   userRole  String?
 
   /// Action métier normalisée : « payment.process », « order.update_status »…
-  action String
+  action   String
   /// Nature et identifiant de l'objet touché, quand ils sont identifiables.
   entity   String?
   entityId String?
@@ -366,7 +373,7 @@ model MenuItem {
   category      MenuCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   deletedAt     DateTime?
 
-  orderItems   OrderItemsOnOrders[]
+  orderItems   OrderLine[]
   recipes      Recipe[]
   optionGroups MenuItemOptionGroup[]
 
@@ -420,12 +427,28 @@ model MenuItemOption {
 // COMMANDES
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// Un ticket. Il naît à la première saisie et vit jusqu'à l'encaissement :
+/// entre les deux, des lignes s'ajoutent au fil du service.
+///
+/// `status` n'est jamais posé à la main : il est TOUJOURS recalculé depuis
+/// l'état des lignes (voir `deriveOrderStatus`). C'est ce qui garantit qu'un
+/// ticket ne peut pas afficher « prêt » alors qu'une ligne vient d'être
+/// ajoutée, incohérence que rien n'empêchait tant que le statut était porté
+/// par la commande seule.
 model Order {
   id        String      @id @default(uuid())
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
-  status    OrderStatus @default(pending)
+  status    OrderStatus @default(open)
   type      OrderType   @default(dine_in)
+
+  /// Numéro affiché sur le ticket, remis à 1 chaque jour de service.
+  /// Attribué par `TicketCounter` dans la transaction de création : un
+  /// rollback reprend le numéro, la séquence reste donc sans trou.
+  number      Int
+  /// Jour de service (date civile dans le fuseau de l'établissement) auquel
+  /// se rattache `number`.
+  serviceDate DateTime @db.Date
 
   userId     String?
   customerId String?
@@ -438,24 +461,40 @@ model Order {
   ipAddress       String?
   specialNotes    String?
 
+  /// Horodatage de l'encaissement. Non nul = ticket clos : plus aucune ligne
+  /// ne peut être ajoutée, modifiée ou annulée.
+  closedAt  DateTime?
   deletedAt DateTime? // Soft delete — protège l'historique (comptabilité)
 
-  user           User?                @relation(fields: [userId], references: [id])
-  customer       Customer?            @relation(fields: [customerId], references: [id])
-  table          Table?               @relation(fields: [tableId], references: [id])
-  deliveryZone   DeliveryZone?        @relation(fields: [deliveryZoneId], references: [id])
-  orderItems     OrderItemsOnOrders[]
+  user           User?           @relation(fields: [userId], references: [id])
+  customer       Customer?       @relation(fields: [customerId], references: [id])
+  table          Table?          @relation(fields: [tableId], references: [id])
+  deliveryZone   DeliveryZone?   @relation(fields: [deliveryZoneId], references: [id])
+  orderItems     OrderLine[]
   payment        Payment?
   stockMovements StockMovement[]
   transactions   Transaction[]
 
+  @@unique([serviceDate, number])
   @@index([status]) // KDS, tableau de bord
   @@index([createdAt]) // Rapports, historique
   @@index([deletedAt])
+  @@index([tableId, status]) // Reprise du ticket ouvert d'une table
 }
 
-model OrderItemsOnOrders {
-  id         String  @id @default(uuid())
+/// Ligne d'un ticket, avec son propre cycle de vie.
+///
+/// Le nom de table reste `OrderItemsOnOrders`, hérité de l'époque où ce
+/// n'était qu'une table de liaison ; le modèle porte désormais un nom qui dit
+/// ce qu'il est. Le renommage est purement applicatif — aucune donnée ne
+/// bouge.
+model OrderLine {
+  id        String   @id @default(uuid())
+  /// Instant de saisie. Ordonne les lignes d'un ticket qui se remplit au fil
+  /// du service — sans quoi une tournée ajoutée en fin de repas pourrait
+  /// s'afficher avant l'entrée.
+  createdAt DateTime @default(now())
+
   orderId    String
   menuItemId String?
   quantity   Int     @default(1)
@@ -466,10 +505,38 @@ model OrderItemsOnOrders {
   /// Figé à la commande pour rester lisible même si l'option change ensuite.
   options    Json?
 
+  status OrderLineStatus @default(draft)
+
+  /// Départ en cuisine. C'est cet instant — et non la création du ticket —
+  /// qui décrémente le stock : un brouillon abandonné ne doit rien consommer.
+  /// Les lignes parties ensemble partagent cet horodatage : c'est ce qui
+  /// identifie une tournée, sans colonne supplémentaire.
+  sentAt DateTime?
+
+  /// Annulation d'une ligne DÉJÀ partie en cuisine : elle reste sur le ticket,
+  /// barrée et motivée, parce qu'elle a consommé du stock et du travail. Une
+  /// ligne encore en brouillon est simplement supprimée.
+  cancelledAt     DateTime?
+  cancelReason    String?
+  cancelledBy     String?
+  cancelledByUser User?     @relation("OrderLineCancelledBy", fields: [cancelledBy], references: [id], onDelete: SetNull)
+
   order    Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
   menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
+  @@index([status]) // Écran cuisine : les lignes parties, tous tickets confondus
+  @@map("OrderItemsOnOrders")
+}
+
+/// Compteur de numérotation des tickets, une ligne par jour de service.
+///
+/// Une table plutôt qu'une séquence PostgreSQL : une séquence ne se remet pas
+/// à zéro chaque jour et, surtout, ne se rembobine pas si la transaction
+/// échoue — elle laisserait des trous dans la numérotation.
+model TicketCounter {
+  serviceDate DateTime @id @db.Date
+  lastNumber  Int      @default(0)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -494,9 +561,9 @@ model Payment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
   // Restrict : empêche la suppression d'un caissier ayant des paiements historiques
-  cashier User @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  cashier User  @relation(fields: [cashierId], references: [id], onDelete: Restrict)
 
   @@index([createdAt]) // Clôture de caisse, rapports
   @@index([cashSessionId])
@@ -517,11 +584,11 @@ model CashRegisterSession {
   openedAt      DateTime @default(now())
   openingAmount Decimal // Fond de caisse initial (espèces)
 
-  closedBy     String?
-  closedByUser User?     @relation("CashSessionClosedBy", fields: [closedBy], references: [id], onDelete: Restrict)
-  closedAt     DateTime?
+  closedBy       String?
+  closedByUser   User?     @relation("CashSessionClosedBy", fields: [closedBy], references: [id], onDelete: Restrict)
+  closedAt       DateTime?
   /// Montant compté physiquement dans le tiroir à la fermeture
-  closingAmount Decimal?
+  closingAmount  Decimal?
   /// openingAmount + total des paiements espèces de la session
   expectedAmount Decimal?
   /// closingAmount - expectedAmount : positif = surplus, négatif = manque
@@ -693,8 +760,30 @@ enum ReservationStatus {
   cancelled
 }
 
+/// Avancement d'un ticket. Toujours dérivé de l'état de ses lignes.
 enum OrderStatus {
+  /// Au moins une ligne en brouillon : le ticket est en cours de saisie.
+  open
+  /// Tout est parti en cuisine, rien n'a encore été pris en charge.
   pending
+  /// Au moins une ligne en préparation.
+  preparing
+  /// Toutes les lignes parties sont prêtes.
+  ready
+  /// Toutes les lignes ont été servies.
+  served
+  /// Encaissé : le ticket est clos et ses lignes verrouillées.
+  paid
+  /// Ticket annulé dans son ensemble.
+  cancelled
+}
+
+/// Cycle de vie d'une ligne de ticket.
+enum OrderLineStatus {
+  /// Saisie, pas encore envoyée en cuisine. Modifiable et supprimable.
+  draft
+  /// Partie en cuisine : le stock est consommé, l'annulation exige un motif.
+  sent
   preparing
   ready
   served

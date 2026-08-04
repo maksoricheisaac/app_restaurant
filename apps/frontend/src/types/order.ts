@@ -1,5 +1,28 @@
-export type OrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
-export type DashboardOrderStatus = "pending" | "preparing" | "ready" | "served" | "cancelled";
+/**
+ * Avancement d'un ticket, toujours déduit de ses lignes côté serveur.
+ *
+ * `open` : au moins une ligne en brouillon, le ticket est en cours de saisie.
+ * `paid` : encaissé, contenu verrouillé.
+ */
+export type OrderStatus =
+  | "open"
+  | "pending"
+  | "preparing"
+  | "ready"
+  | "served"
+  | "paid"
+  | "cancelled";
+
+export type DashboardOrderStatus = OrderStatus;
+
+/** Cycle de vie d'une ligne de ticket. */
+export type OrderLineStatus =
+  | "draft"
+  | "sent"
+  | "preparing"
+  | "ready"
+  | "served"
+  | "cancelled";
 
 export type OrderType = "dine_in" | "takeaway" | "delivery";
 
@@ -24,6 +47,13 @@ export interface OrderItem {
   price: number;
   image?: string | null;
   options?: OrderItemOption[] | null;
+
+  status: OrderLineStatus;
+  createdAt?: string | Date;
+  /** Départ en cuisine. Les lignes d'une même tournée le partagent. */
+  sentAt?: string | Date | null;
+  cancelledAt?: string | Date | null;
+  cancelReason?: string | null;
 }
 
 export interface CustomerInfo {
@@ -36,8 +66,12 @@ export interface CustomerInfo {
 
 export interface Order {
   id: string;
+  /** Numéro de ticket du jour, affiché et prononcé par l'équipe. */
+  number?: number;
   status: OrderStatus;
   type: OrderType;
+  /** Horodatage de l'encaissement. Non nul = ticket verrouillé. */
+  closedAt?: string | Date | null;
   userId: string;
   user: {
     id: string;

@@ -38,7 +38,7 @@ export function UserNav({
   const displayAvatar = user?.avatar || "/avatar.png";
   const role = user?.role?.trim() || "client";
   const normalizedRole = role === "user" ? "client" : role;
-  const canGoToDashboard = ['owner', 'manager', 'waiter', 'chef', 'cashier'].includes(normalizedRole);
+  const canGoToDashboard = ['super_admin', 'owner', 'manager', 'waiter', 'chef', 'cashier'].includes(normalizedRole);
   const dashboardHref = "/admin/dashboard";
   const isAnonymous = user?.isAnonymous === true;
   const canSeeOrderTracking = !isAnonymous && !canGoToDashboard;

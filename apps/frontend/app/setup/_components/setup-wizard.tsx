@@ -40,8 +40,31 @@ import { COUNTRIES, flagEmoji } from '@/lib/countries';
 interface DraftMenuItem { name: string; price: string }
 interface DraftCategory { name: string; items: DraftMenuItem[] }
 
+// ── Robustesse du mot de passe propriétaire ──────────────────────────────────
+//
+// Doit rester le miroir exact de `SetupOwnerDto` côté backend
+// (apps/backend/src/setup/dto/setup.dto.ts). Le contrôle client n'est qu'un
+// confort : c'est la validation serveur qui fait autorité.
+
+const PASSWORD_MIN_LENGTH = 10;
+
+const PASSWORD_RULES = [
+  { label: `${PASSWORD_MIN_LENGTH} caractères minimum`, test: (p: string) => p.length >= PASSWORD_MIN_LENGTH },
+  { label: 'une minuscule', test: (p: string) => /[a-z]/.test(p) },
+  { label: 'une majuscule', test: (p: string) => /[A-Z]/.test(p) },
+  { label: 'un chiffre', test: (p: string) => /\d/.test(p) },
+  { label: 'un caractère spécial', test: (p: string) => /[^A-Za-z0-9]/.test(p) },
+] as const;
+
 interface Draft {
-  owner: { firstName: string; lastName: string; email: string; password: string; phone: string };
+  superAdmin: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    password: string;
+    passwordConfirm: string;
+    phone: string;
+  };
   restaurant: {
     name: string; slogan: string; description: string; cuisineType: string;
     phone: string; email: string; address: string;
@@ -61,7 +84,7 @@ interface Draft {
 }
 
 const EMPTY_DRAFT: Draft = {
-  owner: { firstName: '', lastName: '', email: '', password: '', phone: '' },
+  superAdmin: { firstName: '', lastName: '', email: '', password: '', passwordConfirm: '', phone: '' },
   restaurant: {
     name: '', slogan: '', description: '', cuisineType: '',
     phone: '', email: '', address: '',
@@ -85,19 +108,33 @@ const EMPTY_DRAFT: Draft = {
   },
 };
 
-const STEPS = [
-  { key: 'owner', label: 'Propriétaire', icon: User },
+const ALL_STEPS = [
+  { key: 'superAdmin', label: 'Super admin', icon: User },
   { key: 'restaurant', label: 'Restaurant', icon: Store },
   { key: 'cash', label: 'Caisse', icon: Wallet },
   { key: 'menu', label: 'Carte', icon: ChefHat },
   { key: 'printing', label: 'Impression', icon: Printer },
 ] as const;
 
-export function SetupWizard() {
+/**
+ * En reprise, l'établissement est déjà configuré : seul le compte racine a
+ * disparu. Redemander la carte, la caisse et les imprimantes n'aurait aucun
+ * sens — et le backend ignorerait ces réponses.
+ */
+const RECOVERY_STEPS = [ALL_STEPS[0]] as const;
+
+interface SetupWizardProps {
+  /** Vrai quand l'assistant ne sert qu'à recréer le compte racine perdu. */
+  recovery?: boolean;
+}
+
+export function SetupWizard({ recovery = false }: SetupWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [submitting, setSubmitting] = useState(false);
+
+  const STEPS = recovery ? RECOVERY_STEPS : ALL_STEPS;
 
   const patch = <K extends keyof Draft>(key: K, value: Partial<Draft[K]>) =>
     setDraft((d) => ({ ...d, [key]: { ...d[key], ...value } }));
@@ -105,10 +142,12 @@ export function SetupWizard() {
   // ── Validation par étape ───────────────────────────────────────────────────
   function stepError(index: number): string | null {
     if (index === 0) {
-      const { firstName, lastName, email, password } = draft.owner;
+      const { firstName, lastName, email, password, passwordConfirm } = draft.superAdmin;
       if (!firstName.trim() || !lastName.trim()) return 'Renseignez votre nom et prénom.';
       if (!/^\S+@\S+\.\S+$/.test(email)) return 'Adresse email invalide.';
-      if (password.length < 8) return 'Le mot de passe doit contenir au moins 8 caractères.';
+      const unmet = PASSWORD_RULES.filter((rule) => !rule.test(password));
+      if (unmet.length) return `Le mot de passe doit contenir ${unmet.map((r) => r.label).join(', ')}.`;
+      if (password !== passwordConfirm) return 'Les deux mots de passe ne correspondent pas.';
     }
     if (index === 1) {
       if (!draft.restaurant.name.trim()) return 'Le nom du restaurant est obligatoire.';
@@ -142,48 +181,61 @@ export function SetupWizard() {
 
     setSubmitting(true);
     try {
-      await setupService.complete({
-        owner: {
-          firstName: draft.owner.firstName.trim(),
-          lastName: draft.owner.lastName.trim(),
-          email: draft.owner.email.trim(),
-          password: draft.owner.password,
-          phone: draft.owner.phone.trim() || undefined,
-        },
-        restaurant: {
-          ...draft.restaurant,
-          slogan: draft.restaurant.slogan.trim() || undefined,
-          description: draft.restaurant.description.trim() || undefined,
-          cuisineType: draft.restaurant.cuisineType.trim() || undefined,
-          phone: draft.restaurant.phone.trim() || undefined,
-          email: draft.restaurant.email.trim() || undefined,
-          address: draft.restaurant.address.trim() || undefined,
-        },
-        cash: {
-          defaultPaymentMethod: draft.cash.defaultPaymentMethod,
-          taxRate: Number(draft.cash.taxRate) || 0,
-          taxIncluded: draft.cash.taxIncluded,
-          requireCashSession: draft.cash.requireCashSession,
-        },
-        menu: draft.menu
-          .filter((c) => c.name.trim())
-          .map((c) => ({
-            name: c.name.trim(),
-            items: c.items
-              .filter((i) => i.name.trim())
-              .map((i) => ({ name: i.name.trim(), price: Number(i.price) || 0 })),
-          })),
-        printing: {
-          receiptPrinterName: draft.printing.receiptPrinterName.trim() || undefined,
-          kitchenPrinterName: draft.printing.kitchenPrinterName.trim() || undefined,
-          receiptPaperWidth: Number(draft.printing.receiptPaperWidth) || 80,
-          receiptFooter: draft.printing.receiptFooter.trim() || undefined,
-          autoPrintReceipt: draft.printing.autoPrintReceipt,
-          autoPrintKitchenTicket: draft.printing.autoPrintKitchenTicket,
-        },
-      });
+      const superAdmin = {
+        firstName: draft.superAdmin.firstName.trim(),
+        lastName: draft.superAdmin.lastName.trim(),
+        email: draft.superAdmin.email.trim(),
+        password: draft.superAdmin.password,
+        phone: draft.superAdmin.phone.trim() || undefined,
+      };
 
-      toast.success('Installation terminée — bienvenue !');
+      // En reprise, on n'envoie QUE le compte : le backend laisse la
+      // configuration existante intacte, et lui réexpédier un brouillon vide
+      // reviendrait à proposer de l'écraser.
+      await setupService.complete(
+        recovery
+          ? { superAdmin }
+          : {
+              superAdmin,
+              restaurant: {
+                ...draft.restaurant,
+                slogan: draft.restaurant.slogan.trim() || undefined,
+                description: draft.restaurant.description.trim() || undefined,
+                cuisineType: draft.restaurant.cuisineType.trim() || undefined,
+                phone: draft.restaurant.phone.trim() || undefined,
+                email: draft.restaurant.email.trim() || undefined,
+                address: draft.restaurant.address.trim() || undefined,
+              },
+              cash: {
+                defaultPaymentMethod: draft.cash.defaultPaymentMethod,
+                taxRate: Number(draft.cash.taxRate) || 0,
+                taxIncluded: draft.cash.taxIncluded,
+                requireCashSession: draft.cash.requireCashSession,
+              },
+              menu: draft.menu
+                .filter((c) => c.name.trim())
+                .map((c) => ({
+                  name: c.name.trim(),
+                  items: c.items
+                    .filter((i) => i.name.trim())
+                    .map((i) => ({ name: i.name.trim(), price: Number(i.price) || 0 })),
+                })),
+              printing: {
+                receiptPrinterName: draft.printing.receiptPrinterName.trim() || undefined,
+                kitchenPrinterName: draft.printing.kitchenPrinterName.trim() || undefined,
+                receiptPaperWidth: Number(draft.printing.receiptPaperWidth) || 80,
+                receiptFooter: draft.printing.receiptFooter.trim() || undefined,
+                autoPrintReceipt: draft.printing.autoPrintReceipt,
+                autoPrintKitchenTicket: draft.printing.autoPrintKitchenTicket,
+              },
+            },
+      );
+
+      toast.success(
+        recovery
+          ? 'Compte super administrateur recréé — vous reprenez la main.'
+          : 'Installation terminée — bienvenue !',
+      );
       // Le backend a posé les cookies de session : on entre directement.
       router.replace('/admin/dashboard');
       router.refresh();
@@ -244,7 +296,7 @@ export function SetupWizard() {
           </div>
         </div>
 
-        {step === 0 && <OwnerStep draft={draft} patch={patch} />}
+        {step === 0 && <SuperAdminStep draft={draft} patch={patch} recovery={recovery} />}
         {step === 1 && <RestaurantStep draft={draft} patch={patch} />}
         {step === 2 && <CashStep draft={draft} patch={patch} />}
         {step === 3 && <MenuStep draft={draft} setDraft={setDraft} />}
@@ -272,7 +324,9 @@ export function SetupWizard() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  Terminer l&apos;installation
+                  {recovery
+                    ? 'Recréer le compte super administrateur'
+                    : "Terminer l'installation"}
                   <Check className="ml-2 h-4 w-4" />
                 </>
               )}
@@ -306,25 +360,46 @@ function Field({
   );
 }
 
-function OwnerStep({ draft, patch }: { draft: Draft; patch: PatchFn }) {
+function SuperAdminStep({
+  draft,
+  patch,
+  recovery,
+}: {
+  draft: Draft;
+  patch: PatchFn;
+  recovery: boolean;
+}) {
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
-        Ce compte sera le propriétaire de l&apos;établissement : le seul à pouvoir
-        transférer la propriété, gérer les permissions et la caisse.
+        {recovery ? (
+          <>
+            L&apos;établissement est déjà configuré, mais son compte super
+            administrateur a disparu. Ce formulaire le recrée — rien d&apos;autre
+            ne sera modifié : ni votre carte, ni votre caisse, ni votre équipe.
+          </>
+        ) : (
+          <>
+            Ce compte sera le <strong>super administrateur</strong> : le compte
+            racine du logiciel. Il a tous les droits, en permanence et sans
+            restriction possible, et ne peut être ni supprimé ni modifié depuis
+            la gestion d&apos;équipe. C&apos;est le seul moment où il peut être
+            créé.
+          </>
+        )}
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Prénom">
           <Input
-            value={draft.owner.firstName}
-            onChange={(e) => patch('owner', { firstName: e.target.value })}
+            value={draft.superAdmin.firstName}
+            onChange={(e) => patch('superAdmin', { firstName: e.target.value })}
             autoComplete="given-name"
           />
         </Field>
         <Field label="Nom">
           <Input
-            value={draft.owner.lastName}
-            onChange={(e) => patch('owner', { lastName: e.target.value })}
+            value={draft.superAdmin.lastName}
+            onChange={(e) => patch('superAdmin', { lastName: e.target.value })}
             autoComplete="family-name"
           />
         </Field>
@@ -332,23 +407,58 @@ function OwnerStep({ draft, patch }: { draft: Draft; patch: PatchFn }) {
       <Field label="Adresse email">
         <Input
           type="email"
-          value={draft.owner.email}
-          onChange={(e) => patch('owner', { email: e.target.value })}
+          value={draft.superAdmin.email}
+          onChange={(e) => patch('superAdmin', { email: e.target.value })}
           autoComplete="email"
         />
       </Field>
-      <Field label="Mot de passe" hint="8 caractères minimum.">
+      <Field label="Mot de passe">
         <Input
           type="password"
-          value={draft.owner.password}
-          onChange={(e) => patch('owner', { password: e.target.value })}
+          value={draft.superAdmin.password}
+          onChange={(e) => patch('superAdmin', { password: e.target.value })}
           autoComplete="new-password"
+          aria-describedby="password-rules"
         />
+        <ul id="password-rules" className="mt-2 grid gap-1 sm:grid-cols-2">
+          {PASSWORD_RULES.map((rule) => {
+            const met = rule.test(draft.superAdmin.password);
+            return (
+              <li
+                key={rule.label}
+                className={`flex items-center gap-1.5 text-xs ${
+                  met ? 'text-emerald-600' : 'text-muted-foreground'
+                }`}
+              >
+                <Check className={`h-3 w-3 ${met ? 'opacity-100' : 'opacity-30'}`} aria-hidden />
+                {rule.label}
+              </li>
+            );
+          })}
+        </ul>
+      </Field>
+      <Field label="Confirmation du mot de passe">
+        <Input
+          type="password"
+          value={draft.superAdmin.passwordConfirm}
+          onChange={(e) => patch('superAdmin', { passwordConfirm: e.target.value })}
+          autoComplete="new-password"
+          aria-invalid={
+            draft.superAdmin.passwordConfirm.length > 0 &&
+            draft.superAdmin.passwordConfirm !== draft.superAdmin.password
+          }
+        />
+        {draft.superAdmin.passwordConfirm.length > 0 &&
+          draft.superAdmin.passwordConfirm !== draft.superAdmin.password && (
+            <p role="alert" className="text-xs text-destructive">
+              Les deux mots de passe ne correspondent pas.
+            </p>
+          )}
       </Field>
       <Field label="Téléphone (optionnel)">
         <Input
-          value={draft.owner.phone}
-          onChange={(e) => patch('owner', { phone: e.target.value })}
+          value={draft.superAdmin.phone}
+          onChange={(e) => patch('superAdmin', { phone: e.target.value })}
           autoComplete="tel"
         />
       </Field>

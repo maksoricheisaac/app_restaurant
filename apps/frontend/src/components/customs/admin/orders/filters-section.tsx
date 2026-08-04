@@ -18,12 +18,13 @@ import {
 } from "@/components/ui/popover";
 import { validateDateRange, formatDateRangeForDisplay } from "@/utils/dateValidation";
 import { useState } from "react";
+import type { OrderStatus } from "@/types/order";
 
 interface FiltersProps {
   search: string;
   setSearch: (value: string) => void;
-  status: "pending" | "preparing" | "ready" | "served" | "cancelled" | undefined;
-  setStatus: (value: "pending" | "preparing" | "ready" | "served" | "cancelled" | undefined) => void;
+  status: OrderStatus | undefined;
+  setStatus: (value: OrderStatus | undefined) => void;
   type: "dine_in" | "takeaway" | "delivery" | undefined;
   setType: (value: "dine_in" | "takeaway" | "delivery" | undefined) => void;
   startDate: Date | undefined;

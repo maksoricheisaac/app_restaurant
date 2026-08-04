@@ -16,10 +16,12 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { OptimizedImage } from '@/components/common/OptimizedImage';
 
 const statusLabels: Record<OrderStatus, { label: string; color: string; bgColor: string }> = {
+  'open': { label: 'Enregistrée', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   'pending': { label: 'En attente', color: 'text-yellow-800', bgColor: 'bg-yellow-100' },
   'preparing': { label: 'En préparation', color: 'text-orange-800', bgColor: 'bg-orange-100' },
   'ready': { label: 'Prête', color: 'text-indigo-800', bgColor: 'bg-indigo-100' },
   'served': { label: 'Servie', color: 'text-blue-800', bgColor: 'bg-blue-100' },
+  'paid': { label: 'Réglée', color: 'text-green-800', bgColor: 'bg-green-100' },
   'cancelled': { label: 'Annulée', color: 'text-red-800', bgColor: 'bg-red-100' },
 };
 

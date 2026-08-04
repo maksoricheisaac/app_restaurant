@@ -35,6 +35,8 @@ describe('CashRegisterService', () => {
         id: 'order-1',
         total: 10,
         status: 'ready',
+        closedAt: null,
+        orderItems: [{ status: 'served' }],
       });
       prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
       prisma.cashRegisterSession.findFirst.mockResolvedValue({
@@ -58,6 +60,8 @@ describe('CashRegisterService', () => {
         id: 'order-1',
         total: 10,
         status: 'ready',
+        closedAt: null,
+        orderItems: [{ status: 'served' }],
       });
       prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
       prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
@@ -232,14 +236,87 @@ describe('CashRegisterService', () => {
   // ─── getUnpaidOrders ─────────────────────────────────────────────────────
 
   describe('getUnpaidOrders', () => {
-    it('queries ready/served orders without payment', async () => {
+    it('propose tout ticket parti en cuisine et non encore clos', async () => {
       prisma.order.findMany.mockResolvedValue([]);
 
       await service.getUnpaidOrders();
 
       const call = prisma.order.findMany.mock.calls[0][0];
-      expect(call.where.status).toEqual({ in: ['ready', 'served'] });
+      // Le client peut demander l'addition sans attendre le dernier plat ;
+      // seuls les tickets encore en saisie (« open ») restent exclus.
+      expect(call.where.status).toEqual({
+        in: ['pending', 'preparing', 'ready', 'served'],
+      });
+      expect(call.where.closedAt).toBeNull();
       expect(call.where.payment).toBeNull();
+    });
+  });
+
+  // ─── Verrouillage du ticket ──────────────────────────────────────────────
+
+  describe('encaissement et verrouillage', () => {
+    it('clôt le ticket et le verrouille', async () => {
+      prisma.order.findFirst.mockResolvedValue({
+        id: 'order-1',
+        total: 10,
+        status: 'served',
+        closedAt: null,
+        orderItems: [{ status: 'served' }],
+      });
+      prisma.$transaction.mockImplementation((fn: any) => fn(prisma));
+      prisma.cashRegisterSession.findFirst.mockResolvedValue(null);
+      prisma.payment.create.mockResolvedValue({ id: 'payment-1' });
+
+      await service.processPayment({
+        orderId: 'order-1',
+        amount: 10,
+        method: 'card' as any,
+        cashierId: 'cashier-1',
+      });
+
+      const update = prisma.order.update.mock.calls[0][0];
+      expect(update.data.status).toBe('paid');
+      expect(update.data.closedAt).toBeInstanceOf(Date);
+    });
+
+    it('refuse d’encaisser un ticket déjà clos', async () => {
+      prisma.order.findFirst.mockResolvedValue({
+        id: 'order-1',
+        total: 10,
+        status: 'paid',
+        closedAt: new Date(),
+        orderItems: [{ status: 'served' }],
+      });
+
+      await expect(
+        service.processPayment({
+          orderId: 'order-1',
+          amount: 10,
+          method: 'cash' as any,
+          cashierId: 'cashier-1',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('refuse d’encaisser un ticket contenant un brouillon', async () => {
+      // Facturer une ligne jamais partie en cuisine reviendrait à faire payer
+      // un plat que personne n'a préparé.
+      prisma.order.findFirst.mockResolvedValue({
+        id: 'order-1',
+        total: 10,
+        status: 'open',
+        closedAt: null,
+        orderItems: [{ status: 'served' }, { status: 'draft' }],
+      });
+
+      await expect(
+        service.processPayment({
+          orderId: 'order-1',
+          amount: 10,
+          method: 'cash' as any,
+          cashierId: 'cashier-1',
+        }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 });

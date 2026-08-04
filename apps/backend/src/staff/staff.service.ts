@@ -10,7 +10,10 @@ import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { MailService } from '../mail/mail.service';
 import { RestaurantService } from '../restaurant/restaurant.service';
-import { StaffRole } from '../common/constants/staff-roles.constant';
+import {
+  StaffRole,
+  isSuperAdmin,
+} from '../common/constants/staff-roles.constant';
 import {
   CreateStaffDto,
   UpdateStaffDto,
@@ -168,6 +171,12 @@ export class StaffService {
       );
     }
 
+    if (isSuperAdmin(member.role)) {
+      throw new ForbiddenException(
+        'Le super administrateur ne peut être ni modifié, ni désactivé, ni supprimé depuis la gestion d’équipe.',
+      );
+    }
+
     if (member.role === StaffRole.OWNER) {
       throw new ForbiddenException(
         'Le propriétaire ne peut être modifié que par le transfert de propriété.',
@@ -178,38 +187,63 @@ export class StaffService {
   }
 
   /**
-   * Transfère la propriété de l'établissement, atomiquement : le propriétaire
-   * actuel devient manager, la cible devient propriétaire. C'est le seul moyen
-   * d'attribuer le rôle « owner », ce qui garantit qu'il y en a toujours
-   * exactement un.
+   * Attribue la propriété de l'établissement, atomiquement : le propriétaire
+   * sortant — s'il y en a un — redevient manager, la cible devient
+   * propriétaire. C'est le seul moyen d'attribuer le rôle « owner », ce qui
+   * garantit qu'il y en a toujours au plus un.
+   *
+   * Deux appelants légitimes, aux intentions différentes :
+   *  - le **propriétaire** transfère sa propre propriété et se rétrograde ;
+   *  - le **super administrateur** désigne un propriétaire sans rien céder.
+   *    C'est ce qui débloque l'installation initiale, où le compte racine est
+   *    d'abord seul, et la reprise après le départ d'un propriétaire.
    */
   transferOwnership(currentUserId: string, targetUserId: string) {
     return this.prisma.$transaction(async (tx) => {
-      const currentOwner = await tx.user.findFirst({
-        where: { id: currentUserId, role: StaffRole.OWNER },
-      });
-      if (!currentOwner) {
+      const caller = await tx.user.findUnique({ where: { id: currentUserId } });
+      const callerIsOwner = caller?.role === StaffRole.OWNER;
+      const callerIsRoot = isSuperAdmin(caller?.role);
+
+      if (!caller || (!callerIsOwner && !callerIsRoot)) {
         throw new ForbiddenException(
-          'Seul le propriétaire actuel peut transférer la propriété.',
+          'Seuls le propriétaire actuel et le super administrateur peuvent désigner un propriétaire.',
         );
       }
 
       if (targetUserId === currentUserId) {
-        throw new ConflictException('Vous êtes déjà le propriétaire.');
+        throw new ConflictException(
+          callerIsRoot
+            ? 'Le super administrateur ne peut pas devenir propriétaire : il perdrait son rôle racine.'
+            : 'Vous êtes déjà le propriétaire.',
+        );
       }
 
       const target = await tx.user.findUnique({ where: { id: targetUserId } });
       if (!target) throw new NotFoundException("Membre d'équipe introuvable");
+      if (isSuperAdmin(target.role)) {
+        throw new ConflictException(
+          'Le super administrateur ne peut pas changer de rôle.',
+        );
+      }
       if (target.status !== 'active') {
         throw new ConflictException(
           'La propriété ne peut être transférée qu’à un compte actif.',
         );
       }
 
-      await tx.user.update({
-        where: { id: currentOwner.id },
-        data: { role: StaffRole.MANAGER },
+      // Recherché par rôle et non par identité de l'appelant : quand c'est le
+      // compte racine qui désigne, le propriétaire sortant est quelqu'un
+      // d'autre — et il peut n'y en avoir aucun.
+      const currentOwner = await tx.user.findFirst({
+        where: { role: StaffRole.OWNER },
       });
+
+      if (currentOwner) {
+        await tx.user.update({
+          where: { id: currentOwner.id },
+          data: { role: StaffRole.MANAGER },
+        });
+      }
 
       return tx.user.update({
         where: { id: target.id },

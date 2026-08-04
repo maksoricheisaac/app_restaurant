@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { headers } from "next/headers";
 import { dashboardService } from '@/services/dashboard.service'
 import { redirect } from "next/navigation";
+import { getSetupStatus } from "@/lib/setup-status";
 import { ReactNode } from "react";
 import { AdminNotificationProvider } from "@/contexts/AdminNotificationContext";
 
@@ -24,11 +25,9 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
 
   // Tant que l'assistant de première installation n'a pas tourné, il n'y a ni
   // établissement ni propriétaire : l'administration n'a rien à afficher.
-  const setup = await fetch(`${apiBase}/setup/status`, { cache: 'no-store' })
-    .then((r) => (r.ok ? r.json() : null))
-    .catch(() => null);
+  const setup = await getSetupStatus();
 
-  if (setup?.required) {
+  if (setup?.setupRequired) {
     redirect('/setup');
   }
 

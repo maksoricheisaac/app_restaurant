@@ -10,6 +10,8 @@ import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { RestaurantModule } from './restaurant/restaurant.module';
+import { SetupModule } from './setup/setup.module';
+import { SetupGuard } from './setup/setup.guard';
 import { StaffModule } from './staff/staff.module';
 import { OrdersModule } from './orders/orders.module';
 import { MenuModule } from './menu/menu.module';
@@ -89,6 +91,7 @@ import { AuditModule } from './common/audit/audit.module';
     PrismaModule,
     AuditModule,
     AuthModule,
+    SetupModule,
     RestaurantModule,
     StaffModule,
     OrdersModule,
@@ -109,7 +112,14 @@ import { AuditModule } from './common/audit/audit.module';
     MediaModule,
   ],
   controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  providers: [
+    AppService,
+    // Ordre significatif : le garde d'installation passe en premier pour que le
+    // refus d'une API non encore configurée soit rendu sans consommer de quota
+    // de débit, et sans qu'un flot de requêtes bloquées ne sature le compteur.
+    { provide: APP_GUARD, useClass: SetupGuard },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {

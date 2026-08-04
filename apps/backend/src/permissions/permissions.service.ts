@@ -1,7 +1,14 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Permission } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { StaffRole } from '../common/constants/staff-roles.constant';
+import {
+  StaffRole,
+  isSuperAdmin,
+} from '../common/constants/staff-roles.constant';
 import {
   DEFAULT_ROLE_PERMISSIONS,
   ROLE_LABELS,
@@ -18,22 +25,36 @@ import {
  * puis les dérogations individuelles (`UserPermission`) qui peuvent en
  * accorder une de plus ou en retirer une.
  */
+const ALL_PERMISSIONS = Object.values(Permission);
+
 @Injectable()
 export class PermissionsService {
   constructor(private prisma: PrismaService) {}
 
-  /** Catalogue complet, pour l'écran de configuration des rôles. */
+  /**
+   * Catalogue complet, pour l'écran de configuration des rôles.
+   *
+   * Le compte racine en est absent : ses permissions ne se configurent pas, et
+   * afficher une ligne qu'on ne peut ni cocher ni décocher n'apprendrait rien
+   * à personne.
+   */
   getCatalog() {
     return {
-      permissions: Object.values(Permission),
-      roles: Object.entries(ROLE_LABELS).map(([key, label]) => ({
-        key,
-        label,
-      })),
+      permissions: ALL_PERMISSIONS,
+      roles: Object.entries(ROLE_LABELS)
+        .filter(([key]) => !isSuperAdmin(key))
+        .map(([key, label]) => ({ key, label })),
     };
   }
 
   async getRolePermissions(role: StaffRole) {
+    // Le compte racine a toutes les permissions, quoi que contienne la table :
+    // une ligne `RolePermission` obsolète ou trafiquée ne doit pas pouvoir le
+    // priver de ses droits.
+    if (isSuperAdmin(role)) {
+      return { role, permissions: ALL_PERMISSIONS };
+    }
+
     const stored = await this.prisma.rolePermission.findUnique({
       where: { role },
     });
@@ -48,6 +69,7 @@ export class PermissionsService {
   }
 
   updateRolePermissions(role: StaffRole, data: UpdateRolePermissionsDto) {
+    this.assertConfigurable(role);
     const permissions = data.permissions;
     return this.prisma.rolePermission.upsert({
       where: { role },
@@ -58,12 +80,26 @@ export class PermissionsService {
 
   /** Remet un rôle sur ses permissions d'usine. */
   resetRolePermissions(role: StaffRole) {
+    this.assertConfigurable(role);
     const permissions = DEFAULT_ROLE_PERMISSIONS[role] ?? [];
     return this.prisma.rolePermission.upsert({
       where: { role },
       update: { permissions },
       create: { role, permissions },
     });
+  }
+
+  /**
+   * Un compte racine privé d'une permission, c'est un logiciel dont plus
+   * personne ne peut rendre la main. Le refus est ici, en un seul endroit,
+   * plutôt que réparti sur chaque appelant.
+   */
+  private assertConfigurable(role: string) {
+    if (isSuperAdmin(role)) {
+      throw new ForbiddenException(
+        'Les permissions du super administrateur ne sont pas modifiables.',
+      );
+    }
   }
 
   // ─── Dérogations individuelles ────────────────────────────────────────────
@@ -74,6 +110,17 @@ export class PermissionsService {
       select: { id: true, name: true, role: true },
     });
     if (!user) throw new NotFoundException("Membre d'équipe introuvable");
+
+    // Aucune dérogation ne s'applique au compte racine : ses droits sont
+    // entiers par construction.
+    if (isSuperAdmin(user.role)) {
+      return {
+        user,
+        rolePermissions: ALL_PERMISSIONS,
+        overrides: [],
+        effective: ALL_PERMISSIONS,
+      };
+    }
 
     const [rolePermissions, overrides] = await Promise.all([
       this.getRolePermissions(user.role as StaffRole),
@@ -97,6 +144,7 @@ export class PermissionsService {
   async setUserPermission(userId: string, data: SetUserPermissionDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException("Membre d'équipe introuvable");
+    this.assertConfigurable(user.role);
 
     return this.prisma.userPermission.upsert({
       where: {

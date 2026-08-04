@@ -15,7 +15,8 @@ const PRISMA_MODELS = [
   'menuCategory',
   'table',
   'order',
-  'orderItemsOnOrders',
+  'orderLine',
+  'ticketCounter',
   'refreshToken',
   'customer',
   'reservation',
@@ -36,9 +37,11 @@ const PRISMA_MODELS = [
 
 type PrismaModelMock = {
   findUnique: jest.MockedFunction<any>;
+  findUniqueOrThrow: jest.MockedFunction<any>;
   findFirst: jest.MockedFunction<any>;
   findMany: jest.MockedFunction<any>;
   create: jest.MockedFunction<any>;
+  createMany: jest.MockedFunction<any>;
   update: jest.MockedFunction<any>;
   updateMany: jest.MockedFunction<any>;
   upsert: jest.MockedFunction<any>;
@@ -61,9 +64,11 @@ export type MockPrisma = {
 function mockModel(): PrismaModelMock {
   return {
     findUnique: jest.fn(),
+    findUniqueOrThrow: jest.fn(),
     findFirst: jest.fn(),
     findMany: jest.fn().mockResolvedValue([]),
     create: jest.fn(),
+    createMany: jest.fn().mockResolvedValue({ count: 0 }),
     update: jest.fn(),
     updateMany: jest.fn(),
     upsert: jest.fn(),

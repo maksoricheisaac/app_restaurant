@@ -1,33 +1,42 @@
-import {
-  Injectable,
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
+import { OrderLineStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { EventsService } from '../gateway/events.service';
-import { AuditService } from '../common/audit/audit.service';
 import { OrderCreationService } from './order-creation.service';
+import { OrderTicketService, type Actor } from './order-ticket.service';
 import { RESTAURANT_ID } from '../restaurant/restaurant.constants';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderFiltersDto } from './dto/order-filters.dto';
-import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import {
+  UpdateOrderStatusDto,
+  OrderStatusTarget,
+} from './dto/update-order-status.dto';
 
-// Transitions d'état autorisées pour les commandes (machine d'état stricte)
-const VALID_ORDER_TRANSITIONS: Record<string, string[]> = {
-  pending: ['preparing', 'cancelled'],
-  preparing: ['ready', 'cancelled'],
-  ready: ['served', 'cancelled'],
-  served: [], // état terminal — géré par le module caisse (payment)
-  cancelled: [], // état terminal
+/** Lignes visibles par la cuisine : parties, en cours, ou prêtes à servir. */
+const KITCHEN_LINE_STATUSES = [
+  OrderLineStatus.sent,
+  OrderLineStatus.preparing,
+  OrderLineStatus.ready,
+];
+
+/**
+ * Un avancement demandé sur le ticket se traduit par un avancement de ses
+ * lignes : c'est là que vit désormais le cycle de vie.
+ */
+const LINE_TARGET_FOR_ORDER_STATUS: Record<
+  Exclude<OrderStatusTarget, OrderStatusTarget.CANCELLED>,
+  OrderLineStatus
+> = {
+  [OrderStatusTarget.PREPARING]: OrderLineStatus.preparing,
+  [OrderStatusTarget.READY]: OrderLineStatus.ready,
+  [OrderStatusTarget.SERVED]: OrderLineStatus.served,
 };
 
 @Injectable()
 export class OrdersService {
   constructor(
     private prisma: PrismaService,
-    private eventsService: EventsService,
     private orderCreation: OrderCreationService,
-    private audit: AuditService,
+    private ticket: OrderTicketService,
   ) {}
 
   async findAll(filters: OrderFiltersDto) {
@@ -45,7 +54,7 @@ export class OrdersService {
       this.prisma.order.findMany({
         where,
         include: {
-          orderItems: true,
+          orderItems: { orderBy: { createdAt: 'asc' } },
           table: true,
           user: { select: { name: true, email: true } },
         },
@@ -71,7 +80,7 @@ export class OrdersService {
     return this.prisma.order.findFirst({
       where: { id, deletedAt: null },
       include: {
-        orderItems: true,
+        orderItems: { orderBy: { createdAt: 'asc' } },
         table: true,
         payment: true,
         user: { select: { name: true, email: true } },
@@ -80,7 +89,7 @@ export class OrdersService {
   }
 
   /**
-   * Prise de commande au comptoir. Adaptateur : traduit le DTO du POS en
+   * Ouverture d'un ticket au comptoir. Adaptateur : traduit le DTO du POS en
    * entrée canonique et délègue au chemin unique de création, partagé avec
    * le parcours client public — options et suppléments compris.
    */
@@ -105,18 +114,32 @@ export class OrdersService {
       customerName: data.customerName,
       customerEmail: data.customerEmail,
       customerPhone: data.customerPhone,
+      sendImmediately: data.sendImmediately,
       userId,
     });
   }
 
+  /**
+   * Écran cuisine.
+   *
+   * Le filtre porte sur les LIGNES, pas sur le ticket : un ticket dont la
+   * première tournée est prête et la seconde encore en brouillon doit
+   * afficher exactement ce qui est parti, ni plus ni moins. Filtrer sur le
+   * statut du ticket aurait fait disparaître de l'écran une tournée en cours
+   * dès qu'une nouvelle ligne était saisie en salle.
+   */
   findKitchenOrders() {
     return this.prisma.order.findMany({
       where: {
-        status: { in: ['pending', 'preparing'] },
         deletedAt: null,
+        closedAt: null,
+        orderItems: { some: { status: { in: KITCHEN_LINE_STATUSES } } },
       },
       include: {
-        orderItems: true,
+        orderItems: {
+          where: { status: { in: KITCHEN_LINE_STATUSES } },
+          orderBy: [{ sentAt: 'asc' }, { createdAt: 'asc' }],
+        },
         table: true,
         user: { select: { name: true, email: true } },
       },
@@ -125,53 +148,25 @@ export class OrdersService {
     });
   }
 
-  async updateStatus(
-    id: string,
-    dto: UpdateOrderStatusDto,
-    actor?: { id: string; email?: string; role?: string },
-  ) {
-    // Valider la transition d'état avant mise à jour
-    const current = await this.prisma.order.findFirst({
-      where: { id, deletedAt: null },
-      select: { status: true },
-    });
-
-    if (!current) throw new NotFoundException('Commande introuvable');
-
-    const allowed = VALID_ORDER_TRANSITIONS[current.status] ?? [];
-    if (!allowed.includes(dto.status)) {
-      throw new BadRequestException(
-        `Transition invalide : ${current.status} → ${dto.status}. Transitions autorisées : ${allowed.join(', ') || 'aucune'}.`,
-      );
+  /**
+   * Avancement demandé au niveau du ticket.
+   *
+   * Le statut du ticket est désormais dérivé de ses lignes : le poser
+   * directement serait aussitôt écrasé au recalcul suivant. Cette route
+   * applique donc l'avancement à toutes les lignes éligibles — ce qui est
+   * exactement ce que veut dire « marquer la commande prête » sur l'écran
+   * cuisine.
+   */
+  updateStatus(id: string, dto: UpdateOrderStatusDto, actor?: Actor) {
+    if (dto.status === OrderStatusTarget.CANCELLED) {
+      return this.ticket.cancelOrder(id, dto.reason ?? '', actor ?? { id: '' });
     }
 
-    const order = await this.prisma.order.update({
-      where: { id },
-      data: { status: dto.status },
-    });
-
-    // Entrée d'audit métier : contrairement au middleware, ce service connaît
-    // l'état antérieur — c'est le seul endroit où `before` peut être exact.
-    this.audit.recordDetached({
-      action: 'order.status_changed',
-      entity: 'order',
-      entityId: id,
-      userId: actor?.id ?? null,
-      userEmail: actor?.email ?? null,
-      userRole: actor?.role ?? null,
-      before: { status: current.status },
-      after: { status: dto.status },
-    });
-
-    this.eventsService.emitToStaff('order-status-updated', {
+    return this.ticket.advanceAllLines(
       id,
-      status: dto.status,
-    });
-    this.eventsService.emitToOrderTracking(id, 'status-update', {
-      status: dto.status,
-    });
-
-    return order;
+      LINE_TARGET_FOR_ORDER_STATUS[dto.status],
+      actor,
+    );
   }
 
   remove(id: string) {
@@ -190,6 +185,7 @@ export class OrdersService {
       where: { id, deletedAt: null },
       select: {
         id: true,
+        number: true,
         status: true,
         type: true,
         total: true,
@@ -201,6 +197,10 @@ export class OrdersService {
         table: { select: { number: true } },
         deliveryZone: { select: { name: true, deliveryTime: true } },
         orderItems: {
+          // Le client n'a pas à voir une ligne annulée en cuisine ni un
+          // brouillon que le serveur n'a pas encore envoyé.
+          where: { status: { not: OrderLineStatus.cancelled } },
+          orderBy: { createdAt: 'asc' },
           select: {
             id: true,
             name: true,
@@ -208,6 +208,7 @@ export class OrdersService {
             price: true,
             image: true,
             options: true,
+            status: true,
           },
         },
       },

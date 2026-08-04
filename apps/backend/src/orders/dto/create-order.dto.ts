@@ -1,10 +1,10 @@
 import {
+  IsBoolean,
   IsString,
   IsNotEmpty,
   IsOptional,
   IsEnum,
   IsArray,
-  ArrayMinSize,
   ValidateNested,
   IsNumber,
   Min,
@@ -68,8 +68,12 @@ export class CreateOrderDto {
   @IsUUID()
   tableId?: string;
 
+  /**
+   * Articles du ticket. Peut être vide : en salle, un ticket s'ouvre quand le
+   * client s'installe, avant toute commande. Le canal public, lui, exige au
+   * moins un article — la règle est appliquée côté service.
+   */
   @IsArray()
-  @ArrayMinSize(1, { message: 'Au moins un article est requis' })
   @ValidateNested({ each: true })
   @Type(() => OrderItemDto)
   items: OrderItemDto[];
@@ -107,4 +111,15 @@ export class CreateOrderDto {
   @IsNumber()
   @Min(0)
   deliveryFee?: number;
+
+  /**
+   * Envoyer les lignes en cuisine dès l'ouverture du ticket.
+   *
+   * `true` par défaut : c'est le comportement d'un comptoir, et celui de tous
+   * les appelants existants. Un service à table passe `false` pour composer
+   * la commande avant de l'envoyer.
+   */
+  @IsOptional()
+  @IsBoolean()
+  sendImmediately?: boolean;
 }

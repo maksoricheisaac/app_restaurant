@@ -31,7 +31,11 @@ export function RoleGuard({
   return <>{children}</>;
 }
 
-// Composants spécialisés pour des cas d'usage courants
+// Composants spécialisés pour des cas d'usage courants.
+//
+// Le compte racine n'est nommé nulle part : `hasRole` le laisse passer partout,
+// comme `RolesGuard` côté serveur. L'énumérer ici ne ferait que multiplier les
+// occasions d'en oublier une.
 export function OwnerOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
     <RoleGuard allowedRoles="owner" fallback={fallback}>

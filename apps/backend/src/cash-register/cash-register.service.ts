@@ -23,9 +23,28 @@ export class CashRegisterService {
     // La commande doit exister et ne pas être supprimée
     const order = await this.prisma.order.findFirst({
       where: { id: orderId, deletedAt: null },
-      select: { id: true, total: true, status: true },
+      select: {
+        id: true,
+        total: true,
+        status: true,
+        closedAt: true,
+        orderItems: { select: { status: true } },
+      },
     });
     if (!order) throw new NotFoundException('Commande introuvable');
+
+    if (order.closedAt) {
+      throw new ConflictException('Ce ticket a déjà été encaissé.');
+    }
+
+    // Un brouillon jamais parti en cuisine n'a été ni préparé ni servi :
+    // l'encaisser reviendrait à facturer un plat que personne n'a commandé.
+    const hasDraftLines = order.orderItems.some((l) => l.status === 'draft');
+    if (hasDraftLines) {
+      throw new ConflictException(
+        "Ce ticket contient des lignes non envoyées en cuisine. Envoyez-les ou retirez-les avant d'encaisser.",
+      );
+    }
 
     const payment = await this.prisma.$transaction(async (tx) => {
       // Rattache le paiement à la session de caisse ouverte, si une l'est —
@@ -68,10 +87,12 @@ export class CashRegisterService {
         },
       });
 
-      // 3. Mark order as served (terminal paid state)
+      // 3. Clôture du ticket : « paid » est désormais l'état terminal, et
+      // `closedAt` verrouille le contenu — plus aucune ligne ne peut être
+      // ajoutée, modifiée ou annulée après encaissement.
       await tx.order.update({
         where: { id: orderId },
-        data: { status: 'served' },
+        data: { status: 'paid', closedAt: new Date() },
       });
 
       return payment;
@@ -192,10 +213,14 @@ export class CashRegisterService {
   }
 
   async getUnpaidOrders() {
-    // Only ready/served orders without payment — pending/preparing aren't collectible yet
+    // Tout ticket ouvert dont les lignes sont parties en cuisine est
+    // encaissable : le client peut demander l'addition sans attendre que le
+    // dernier plat soit servi. Restent exclus les tickets encore en saisie
+    // (« open ») et ceux déjà clos.
     return this.prisma.order.findMany({
       where: {
-        status: { in: ['ready', 'served'] },
+        status: { in: ['pending', 'preparing', 'ready', 'served'] },
+        closedAt: null,
         payment: null,
         deletedAt: null,
       },

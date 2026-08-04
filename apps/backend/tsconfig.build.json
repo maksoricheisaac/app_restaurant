@@ -6,7 +6,14 @@
     // racine du paquet, la sortie devenait `dist/src/main.js` — alors que
     // `start:prod` et le Dockerfile lancent tous deux `node dist/main`.
     // Le conteneur échouait donc au démarrage sur un MODULE_NOT_FOUND.
-    "rootDir": "./src"
+    "rootDir": "./src",
+    // `incremental` (hérité de tsconfig.json) est incompatible avec le
+    // `deleteOutDir: true` de nest-cli.json : Nest supprime `dist/` alors que
+    // `tsconfig.build.tsbuildinfo` continue d'affirmer que la sortie est à
+    // jour. TypeScript n'émet alors plus rien et `nest build` sort en code 0
+    // sans produire un seul fichier — `nest start` échoue ensuite sur
+    // « Cannot find module dist/main ». Un build sur deux était cassé.
+    "incremental": false
   },
   "exclude": [
     "node_modules",

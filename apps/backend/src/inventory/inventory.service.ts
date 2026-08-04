@@ -343,4 +343,48 @@ export class InventoryService {
 
     return warnings;
   }
+
+  /**
+   * Rend au stock ce qu'une ligne annulée avait consommé.
+   *
+   * Symétrique exact de `decrementStockForOrder` pour une seule ligne. Sans
+   * elle, chaque annulation après envoi en cuisine creuserait un écart
+   * d'inventaire invisible : la marchandise serait décomptée sans jamais être
+   * vendue ni réintégrée.
+   *
+   * Le mouvement inverse est enregistré en `IN` avec le motif d'annulation :
+   * l'historique doit montrer les deux mouvements, pas leur solde.
+   */
+  async restoreStockForLine(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    line: { menuItemId?: string | null; quantity: number; reason: string },
+  ): Promise<void> {
+    if (!line.menuItemId) return;
+
+    const recipes = await tx.recipe.findMany({
+      where: { menuItemId: line.menuItemId },
+      select: { ingredientId: true, quantity: true },
+    });
+    if (recipes.length === 0) return;
+
+    for (const recipe of recipes) {
+      const restored = recipe.quantity * line.quantity;
+
+      await tx.ingredient.update({
+        where: { id: recipe.ingredientId },
+        data: { stock: { increment: restored } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          ingredientId: recipe.ingredientId,
+          type: 'IN',
+          quantity: restored,
+          description: `Annulation — commande #${orderId.slice(-6).toUpperCase()} : ${line.reason}`,
+          orderId,
+        },
+      });
+    }
+  }
 }

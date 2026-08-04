@@ -31,7 +31,11 @@ const prisma = new PrismaClient({ adapter } as any);
 const HASH_ROUNDS = 10;
 const RESTAURANT_ID = 'restaurant';
 
+// Le compte racine est INDISPENSABLE : sans lui, `SetupStateService` considère
+// le logiciel comme non installé et `SetupGuard` ferme toute l'API — aucun test
+// ne passerait, pour une raison qui n'aurait rien à voir avec ce qu'il teste.
 const CREDENTIALS = {
+  super_admin: { email: 'root@test-restaurant.com', password: 'TestPass@1', name: 'Root Admin' },
   owner:   { email: 'owner@test-restaurant.com',   password: 'TestPass@1', name: 'Alice Owner' },
   manager: { email: 'manager@test-restaurant.com', password: 'TestPass@1', name: 'Bob Manager' },
   waiter:  { email: 'waiter@test-restaurant.com',  password: 'TestPass@1', name: 'Charlie Waiter' },
@@ -219,6 +223,13 @@ async function main() {
     },
   ];
 
+  // Jour de service et numéros de ticket : un ticket sans numéro n'existe
+  // plus depuis la reprise du cycle de vie par ligne.
+  const serviceDate = new Date(
+    `${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`,
+  );
+  let ticketNumber = 0;
+
   for (const order of ordersToSeed) {
     const { items, ...orderData } = order;
     const existing = await prisma.order.findUnique({
@@ -227,16 +238,40 @@ async function main() {
     });
 
     if (!existing) {
+      ticketNumber += 1;
+      // Le statut de chaque ligne reflète celui du ticket : l'avancement est
+      // désormais porté par les lignes, le ticket ne fait que l'agréger.
+      const lineStatus =
+        order.status === 'cancelled'
+          ? ('cancelled' as const)
+          : order.status === 'pending'
+            ? ('sent' as const)
+            : (order.status as 'preparing' | 'ready' | 'served');
+
       await prisma.order.create({
         data: {
           ...orderData,
-            type: 'dine_in',
+          number: ticketNumber,
+          serviceDate,
+          type: 'dine_in',
           userId: users.waiter.id,
-          orderItems: { create: items },
+          orderItems: {
+            create: items.map((item) => ({
+              ...item,
+              status: lineStatus,
+              sentAt: new Date(),
+            })),
+          },
         },
       });
     }
   }
+
+  await prisma.ticketCounter.upsert({
+    where: { serviceDate },
+    create: { serviceDate, lastNumber: ticketNumber },
+    update: { lastNumber: ticketNumber },
+  });
 
   console.log(`[seed-test] Orders: ${ordersToSeed.length}`);
 

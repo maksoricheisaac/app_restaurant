@@ -23,7 +23,8 @@ async function main() {
   console.log('--- Réinitialisation de la base de données ---');
 
   // Suppression dans l'ordre des dépendances de clés étrangères
-  await prisma.orderItemsOnOrders.deleteMany();
+  await prisma.orderLine.deleteMany();
+  await prisma.ticketCounter.deleteMany();
   await prisma.payment.deleteMany();
   await prisma.cashRegisterSession.deleteMany();
   await prisma.stockMovement.deleteMany();
@@ -59,6 +60,13 @@ async function main() {
     );
   }
 
+  // À défaut de mot de passe dédié, le compte racine reprend celui du
+  // propriétaire : un script de démonstration n'a pas à imposer une variable
+  // d'environnement de plus, et les deux comptes valent de toute façon accès
+  // total sur une base de démo.
+  const superAdminPassword =
+    process.env.SEED_SUPER_ADMIN_PASSWORD ?? ownerPassword;
+
   const restaurant = await prisma.restaurant.create({
     data: {
       id: RESTAURANT_ID,
@@ -80,13 +88,26 @@ async function main() {
     })),
   });
 
+  // Compte racine. Sans lui, `SetupGuard` considère le logiciel comme non
+  // installé et ferme toute l'API — la base aurait beau être remplie, rien ne
+  // répondrait.
+  const superAdmin = await prisma.user.create({
+    data: {
+      email: 'root@flashmenu.com',
+      password: await bcrypt.hash(superAdminPassword, 12),
+      name: 'Super administrateur',
+      role: 'super_admin',
+      emailVerified: true, // indispensable pour pouvoir se connecter
+    },
+  });
+
   const owner = await prisma.user.create({
     data: {
       email: 'owner@flashmenu.com',
       password: await bcrypt.hash(ownerPassword, 12),
       name: 'Propriétaire',
       role: 'owner',
-      emailVerified: true, // indispensable pour pouvoir se connecter
+      emailVerified: true,
     },
   });
 
@@ -102,6 +123,9 @@ async function main() {
 
   console.log('--- Initialisation terminée ---');
   console.log(`Restaurant   : ${restaurant.name}`);
+  console.log(
+    `Super admin  : ${superAdmin.email}    / [SEED_SUPER_ADMIN_PASSWORD ou SEED_OWNER_PASSWORD]`,
+  );
   console.log(`Propriétaire : ${owner.email}   / [SEED_OWNER_PASSWORD]`);
   console.log(`Manager      : ${manager.email} / [SEED_MANAGER_PASSWORD]`);
 }

@@ -91,12 +91,35 @@ describe('RolesGuard', () => {
   it("n'accorde aucun privilège implicite : le rôle vient du compte, pas du jeton", () => {
     const { ctx, reflector } = makeCtx({
       roles: ['owner'],
-      // Un ancien jeton pouvait porter platformRole: 'super_admin' — cette
-      // notion n'existe plus et ne doit ouvrir aucune porte.
+      // `AuthGuard` relit le rôle en base et écrase celui du jeton. Un jeton
+      // qui se prétend racine n'ouvre donc rien : seul `user.role`, chargé
+      // depuis la base, est pris en compte ici.
       user: { id: 'u1', role: 'waiter', platformRole: 'super_admin' },
     });
     expect(() => new RolesGuard(reflector).canActivate(ctx)).toThrow(
       ForbiddenException,
     );
+  });
+
+  describe('compte racine', () => {
+    it("satisfait une exigence où il n'est pas nommé", () => {
+      const { ctx, reflector } = makeCtx({
+        roles: ['owner', 'manager'],
+        user: { id: 'u1', role: 'super_admin' },
+      });
+      expect(new RolesGuard(reflector).canActivate(ctx)).toBe(true);
+    });
+
+    it('passe partout, quelle que soit la liste exigée', () => {
+      const combinations = [['owner'], ['cashier'], ['chef', 'waiter'], []];
+
+      for (const roles of combinations) {
+        const { ctx, reflector } = makeCtx({
+          roles,
+          user: { id: 'u1', role: 'super_admin' },
+        });
+        expect(new RolesGuard(reflector).canActivate(ctx)).toBe(true);
+      }
+    });
   });
 });

@@ -3,9 +3,17 @@ import { Public } from '../common/decorators/public.decorator';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../common/redis/redis.service';
+import { AllowDuringSetup } from '../setup/setup.decorators';
 
+/**
+ * `@AllowDuringSetup()` n'est pas un détail : sans lui, les sondes échouent
+ * tant que le logiciel n'est pas installé, l'orchestrateur juge le conteneur
+ * malsain et ne lui envoie jamais le trafic qui permettrait précisément de
+ * l'installer.
+ */
 @Controller('health')
 @Public()
+@AllowDuringSetup()
 @SkipThrottle()
 export class HealthController {
   private readonly startTime = Date.now();

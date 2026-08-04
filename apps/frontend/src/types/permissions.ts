@@ -1,9 +1,15 @@
 /**
- * Rôles de l'équipe. Le logiciel n'en connaît que cinq : il n'y a plus de
- * rôle « admin » de plateforme ni de rôle « user » client, puisqu'il n'y a
- * plus de plateforme et que les clients ne se connectent pas.
+ * Rôles de l'équipe. Le logiciel n'en connaît que six : il n'y a pas de rôle
+ * « user » client, les clients ne se connectant pas.
+ *
+ * `super_admin` est le compte racine, créé par la première installation et
+ * par elle seule. Il n'est ni assignable, ni modifiable, ni supprimable depuis
+ * l'interface — il figure ici pour l'affichage et pour les contrôles de rôle.
+ * Miroir de `StaffRole` côté backend
+ * (apps/backend/src/common/constants/staff-roles.constant.ts).
  */
 export const USER_ROLES = {
+  SUPER_ADMIN: 'super_admin',
   OWNER: 'owner',
   MANAGER: 'manager',
   WAITER: 'waiter',
@@ -15,7 +21,7 @@ export const USER_ROLES = {
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
 
 // Export des valeurs individuelles pour faciliter l'utilisation
-export const { OWNER, MANAGER, WAITER, CHEF, CASHIER } = USER_ROLES;
+export const { SUPER_ADMIN, OWNER, MANAGER, WAITER, CHEF, CASHIER } = USER_ROLES;
 
 export enum Permission {
   // Dashboard
@@ -75,6 +81,10 @@ export enum Permission {
 }
 
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+  // Le compte racine a tout, et le backend refuse d'en retirer quoi que ce
+  // soit — cette ligne n'est donc jamais qu'un miroir, jamais une décision.
+  [SUPER_ADMIN]: Object.values(Permission),
+
   [OWNER]: Object.values(Permission), // Toutes les permissions
   
   [MANAGER]: [
@@ -153,6 +163,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
+  [SUPER_ADMIN]: 'Super administrateur',
   [OWNER]: 'Propriétaire',
   [MANAGER]: 'Manager',
   [CHEF]: 'Chef',

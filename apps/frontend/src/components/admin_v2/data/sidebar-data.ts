@@ -3,6 +3,7 @@ import {
   Settings,
   Users,
   UtensilsCrossed,
+  Utensils,
   FileBarChart,
   Table2,
   ListTree,
@@ -30,6 +31,11 @@ export function getSidebarData(counts: {
             title: 'Tableau de bord',
             url: '/admin/dashboard',
             icon: LayoutDashboard,
+          },
+          {
+            title: 'Service en salle',
+            url: '/admin/tickets',
+            icon: Utensils,
           },
           {
             title: 'Commandes',

@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersController } from './orders.controller';
 import { OrdersService } from './orders.service';
+import { OrderTicketService } from './order-ticket.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 
@@ -14,6 +15,16 @@ const mockOrdersService = {
   getTracking: jest.fn(),
 };
 
+const mockTicketService = {
+  findOpen: jest.fn(),
+  addLines: jest.fn(),
+  updateDraftLineQuantity: jest.fn(),
+  removeDraftLine: jest.fn(),
+  voidLine: jest.fn(),
+  sendToKitchen: jest.fn(),
+  advanceLine: jest.fn(),
+};
+
 const mockUser = { id: 'user-1', role: 'owner' };
 
 describe('OrdersController', () => {
@@ -22,7 +33,10 @@ describe('OrdersController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [OrdersController],
-      providers: [{ provide: OrdersService, useValue: mockOrdersService }],
+      providers: [
+        { provide: OrdersService, useValue: mockOrdersService },
+        { provide: OrderTicketService, useValue: mockTicketService },
+      ],
     })
       .overrideGuard(AuthGuard)
       .useValue({ canActivate: () => true })

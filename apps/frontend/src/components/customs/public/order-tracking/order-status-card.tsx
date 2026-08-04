@@ -7,10 +7,14 @@ import { Order, OrderStatus } from '@/types/order';
 import { toast } from 'sonner';
 
 const statusSteps: Record<OrderStatus, { label: string; icon: React.ElementType; color: string; bgColor: string }> = {
+  // « open » : le serveur compose encore le ticket en salle. Vu du client,
+  // cela revient à une commande enregistrée dont rien n'est encore parti.
+  'open': { label: 'Enregistrée', icon: Clock, color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
   'pending': { label: 'En attente', icon: Clock, color: 'text-yellow-600', bgColor: 'bg-yellow-100' },
   'preparing': { label: 'En préparation', icon: Package, color: 'text-orange-600', bgColor: 'bg-orange-100' },
   'ready': { label: 'Prête', icon: Bell, color: 'text-indigo-600', bgColor: 'bg-indigo-100' },
   'served': { label: 'Servie', icon: CheckCircle, color: 'text-blue-600', bgColor: 'bg-blue-100' },
+  'paid': { label: 'Réglée', icon: CheckCircle, color: 'text-green-600', bgColor: 'bg-green-100' },
   'cancelled': { label: 'Annulée', icon: Clock, color: 'text-red-600', bgColor: 'bg-red-100' }
 };
 

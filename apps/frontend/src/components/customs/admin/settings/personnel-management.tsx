@@ -28,20 +28,30 @@ import { generateSecurePassword } from "@/utils/passwordUtils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { AlertDialog } from "@radix-ui/react-alert-dialog";
 import { AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ROLE_LABELS, OWNER, MANAGER, CHEF, WAITER, CASHIER } from "@/types/permissions";
+import { ROLE_LABELS, SUPER_ADMIN, OWNER, MANAGER, CHEF, WAITER, CASHIER } from "@/types/permissions";
 
-type StaffRole = "owner" | "manager" | "chef" | "waiter" | "cashier";
+type StaffRole = "super_admin" | "owner" | "manager" | "chef" | "waiter" | "cashier";
 
-// Le propriétaire figure ici pour l'affichage des badges. Il n'est pas
-// assignable : le backend rejette « owner » sur la création comme sur la
-// modification — ce rôle ne change que par le transfert de propriété.
+// Tous les rôles, pour l'affichage des badges de la liste d'équipe.
 const roles = [
+  { value: SUPER_ADMIN, label: ROLE_LABELS[SUPER_ADMIN], color: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200" },
   { value: OWNER, label: ROLE_LABELS[OWNER], color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
   { value: MANAGER, label: ROLE_LABELS[MANAGER], color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
   { value: CHEF, label: ROLE_LABELS[CHEF], color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
   { value: WAITER, label: ROLE_LABELS[WAITER], color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
   { value: CASHIER, label: ROLE_LABELS[CASHIER], color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200" }
 ];
+
+// Ce qu'on peut réellement choisir dans le formulaire.
+//
+// Le compte racine et le propriétaire en sont exclus, parce que le backend les
+// refuse : « super_admin » ne s'obtient que par la première installation, et
+// « owner » que par le transfert de propriété. Les proposer dans la liste
+// revenait à offrir un choix dont la seule issue est un 403 — c'était le cas
+// pour « owner » jusqu'ici.
+const assignableRoles = roles.filter(
+  (role) => role.value !== SUPER_ADMIN && role.value !== OWNER
+);
 
 export function PersonnelManagement() {
 
@@ -383,7 +393,7 @@ export function PersonnelManagement() {
                           <SelectValue placeholder="Sélectionner un rôle" />
                         </SelectTrigger>
                         <SelectContent>
-                          {roles.map((role) => (
+                          {assignableRoles.map((role) => (
                             <SelectItem key={role.value} value={role.value}>
                               {role.label}
                             </SelectItem>

@@ -71,7 +71,7 @@ test.describe('RBAC — API layer', () => {
     test('POST /api/v1/setup — mot de passe trop faible → 400', async ({ request }) => {
       const res = await request.post(`${API_BASE}/setup`, {
         data: {
-          owner: {
+          superAdmin: {
             firstName: 'Test',
             lastName: 'User',
             email: 'test@example.com',
@@ -80,8 +80,9 @@ test.describe('RBAC — API layer', () => {
           restaurant: { name: 'X', currency: 'EUR', timezone: 'Europe/Paris' },
         },
       });
-      // 400 si la validation rejette, 409 si l'établissement est déjà installé
-      expect([400, 409]).toContain(res.status());
+      // 400 si la validation rejette, 403 si l'assistant est définitivement
+      // fermé (SetupGuard), 409 si deux installations se croisent.
+      expect([400, 403, 409]).toContain(res.status());
     });
   });
 
